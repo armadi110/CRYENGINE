@@ -1,10 +1,11 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
 #include "ATLUtils.h"
 #include "AudioInternalInterfaces.h"
-#include <SharedAudioData.h>
+#include "Common/SharedAudioData.h"
+#include <CryAudio/IListener.h>
 #include <CrySystem/IStreamEngine.h>
 #include <CrySystem/TimeValue.h>
 #include <PoolObject.h>
@@ -17,78 +18,48 @@ class CATLAudioObject;
 struct SATLXMLTags
 {
 	static char const* const szPlatform;
-
-	static char const* const szRootNodeTag;
-	static char const* const szEditorDataTag;
-	static char const* const szTriggersNodeTag;
-	static char const* const szParametersNodeTag;
-	static char const* const szSwitchesNodeTag;
-	static char const* const szPreloadsNodeTag;
-	static char const* const szEnvironmentsNodeTag;
-
-	static char const* const szATLTriggerTag;
-	static char const* const szATLSwitchTag;
-	static char const* const szATLParametersTag;
-	static char const* const szATLSwitchStateTag;
-	static char const* const szATLEnvironmentTag;
-	static char const* const szATLPlatformsTag;
-	static char const* const szATLConfigGroupTag;
-
-	static char const* const szATLTriggerRequestTag;
-	static char const* const szATLSwitchRequestTag;
-	static char const* const szATLValueTag;
-	static char const* const szATLParametersRequestTag;
-	static char const* const szATLPreloadRequestTag;
-	static char const* const szATLEnvironmentRequestTag;
-
-	static char const* const szATLVersionAttribute;
-	static char const* const szATLNameAttribute;
-	static char const* const szATLInternalNameAttribute;
-	static char const* const szATLTypeAttribute;
-	static char const* const szATLConfigGroupAttribute;
-	static char const* const szATLRadiusAttribute;
-	static char const* const szATLOcclusionFadeOutDistanceAttribute;
-
-	static char const* const szATLDataLoadType;
 };
 
 namespace Impl
 {
-struct IAudioObject;
-struct IAudioListener;
-struct IAudioTrigger;
+struct IObject;
+struct IListener;
+struct ITrigger;
 struct IParameter;
-struct IAudioSwitchState;
-struct IAudioEnvironment;
-struct IAudioEvent;
-struct IAudioFileEntry;
-struct IAudioImpl;
+struct ISwitchState;
+struct IEnvironment;
+struct IEvent;
+struct IFile;
+struct IStandaloneFile;
+struct IImpl;
 } // namespace Impl
 
-enum EAudioObjectFlags : EnumFlagsType
+enum class EObjectFlags : EnumFlagsType
 {
-	eAudioObjectFlags_None                            = 0,
-	eAudioObjectFlags_TrackDoppler                    = BIT(0),
-	eAudioObjectFlags_TrackVelocity                   = BIT(1),
-	eAudioObjectFlags_NeedsDopplerUpdate              = BIT(2),
-	eAudioObjectFlags_NeedsVelocityUpdate             = BIT(3),
-	eAudioObjectFlags_DoNotRelease                    = BIT(4),
-	eAudioObjectFlags_Virtual                         = BIT(5),
-	eAudioObjectFlags_WaitingForInitialTransformation = BIT(6),
+	None                            = 0,
+	MovingOrDecaying                = BIT(0),
+	TrackAbsoluteVelocity           = BIT(1),
+	TrackRelativeVelocity           = BIT(2),
+	InUse                           = BIT(3),
+	Virtual                         = BIT(4),
+	WaitingForInitialTransformation = BIT(5),
 };
+CRY_CREATE_ENUM_FLAG_OPERATORS(EObjectFlags);
 
-enum EAudioFileFlags : EnumFlagsType
+enum class EFileFlags : EnumFlagsType
 {
-	eAudioFileFlags_Cached                    = BIT(0),
-	eAudioFileFlags_NotCached                 = BIT(1),
-	eAudioFileFlags_NotFound                  = BIT(2),
-	eAudioFileFlags_MemAllocFail              = BIT(3),
-	eAudioFileFlags_Removable                 = BIT(4),
-	eAudioFileFlags_Loading                   = BIT(5),
-	eAudioFileFlags_UseCounted                = BIT(6),
-	eAudioFileFlags_NeedsResetToManualLoading = BIT(7),
-	eAudioFileFlags_Localized                 = BIT(8),
+	None                      = 0,
+	Cached                    = BIT(0),
+	NotCached                 = BIT(1),
+	NotFound                  = BIT(2),
+	MemAllocFail              = BIT(3),
+	Removable                 = BIT(4),
+	Loading                   = BIT(5),
+	UseCounted                = BIT(6),
+	NeedsResetToManualLoading = BIT(7),
+	Localized                 = BIT(8),
 };
+CRY_CREATE_ENUM_FLAG_OPERATORS(EFileFlags);
 
 template<typename IDType>
 class CATLEntity
@@ -120,10 +91,9 @@ protected:
 private:
 
 	IDType const m_id;
-
 };
 
-typedef CATLEntity<ControlId> ATLControl;
+using ATLControl = CATLEntity<ControlId>;
 
 struct SATLSoundPropagationData
 {
@@ -131,7 +101,7 @@ struct SATLSoundPropagationData
 	float occlusion = 0.0f;
 };
 
-class CATLListener final : public IListener
+class CATLListener final : public CryAudio::IListener
 {
 public:
 
@@ -140,94 +110,93 @@ public:
 	CATLListener& operator=(CATLListener const&) = delete;
 	CATLListener& operator=(CATLListener&&) = delete;
 
-	explicit CATLListener(Impl::IAudioListener* const pImplData)
+	explicit CATLListener(Impl::IListener* const pImplData)
 		: m_pImplData(pImplData)
-		, m_bNeedsFinalSetPosition(false)
+		, m_isMovingOrDecaying(false)
 	{}
 
 	// CryAudio::IListener
 	virtual void SetTransformation(CObjectTransformation const& transformation, SRequestUserData const& userData = SRequestUserData::GetEmptyObject()) override;
 	// ~CryAudio::IListener
 
-	void                             Update();
+	void                             Update(float const deltaTime);
 	ERequestStatus                   HandleSetTransformation(CObjectTransformation const& transformation);
 	Impl::SObject3DAttributes const& Get3DAttributes() const { return m_attributes; }
 
-	Impl::IAudioListener* m_pImplData;
+	Impl::IListener* m_pImplData;
+
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+	CryFixedStringT<MaxObjectNameLength> m_name;
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
 
 private:
 
-	bool                      m_bNeedsFinalSetPosition;
+	bool                      m_isMovingOrDecaying;
 	Impl::SObject3DAttributes m_attributes;
 	Impl::SObject3DAttributes m_previousAttributes;
-	CTimeValue                m_previousTime;
-
 };
 
 class CATLControlImpl
 {
-
 public:
+
 	CATLControlImpl() = default;
 	CATLControlImpl(CATLControlImpl const&) = delete;
 	CATLControlImpl(CATLControlImpl&&) = delete;
 	CATLControlImpl& operator=(CATLControlImpl const&) = delete;
 	CATLControlImpl& operator=(CATLControlImpl&&) = delete;
 
-	static void      SetImpl(Impl::IAudioImpl* const pImpl) { s_pImpl = pImpl; }
+	static void      SetImpl(Impl::IImpl* const pIImpl) { s_pIImpl = pIImpl; }
 
 protected:
-	static Impl::IAudioImpl* s_pImpl;
+
+	static Impl::IImpl* s_pIImpl;
 };
 
-class CATLTriggerImpl final : public CATLControlImpl
+class CATLTriggerImpl : public CATLControlImpl
 {
 public:
 
 	explicit CATLTriggerImpl(
 	  TriggerImplId const audioTriggerImplId,
-	  Impl::IAudioTrigger const* const pImplData = nullptr)
+	  Impl::ITrigger const* const pImplData = nullptr)
 		: m_audioTriggerImplId(audioTriggerImplId)
 		, m_pImplData(pImplData)
 	{}
 
-	~CATLTriggerImpl()
-	{
-		CRY_ASSERT(s_pImpl != nullptr);
-		s_pImpl->DeleteAudioTrigger(m_pImplData);
-	}
+	virtual ~CATLTriggerImpl();
 
-	TriggerImplId const              m_audioTriggerImplId;
-	Impl::IAudioTrigger const* const m_pImplData;
+	virtual ERequestStatus Execute(Impl::IObject* const pImplObject, Impl::IEvent* const pImplEvent) const;
+
+	TriggerImplId const         m_audioTriggerImplId;
+	Impl::ITrigger const* const m_pImplData;
 };
 
 class CATLTrigger final : public ATLControl
 {
 public:
 
-	typedef std::vector<CATLTriggerImpl const*> ImplPtrVec;
+	using ImplPtrVec = std::vector<CATLTriggerImpl const*>;
 
 	explicit CATLTrigger(
 	  ControlId const audioTriggerId,
 	  EDataScope const dataScope,
 	  ImplPtrVec const& implPtrs,
-	  float const maxRadius,
-	  float const occlusionFadeOutDistance)
+	  float const maxRadius)
 		: ATLControl(audioTriggerId, dataScope)
 		, m_implPtrs(implPtrs)
 		, m_maxRadius(maxRadius)
-		, m_occlusionFadeOutDistance(occlusionFadeOutDistance)
 	{}
 
 	ImplPtrVec const m_implPtrs;
 	float const      m_maxRadius;
-	float const      m_occlusionFadeOutDistance;
 };
 
 // Base class for a parameter implementation
 class IParameterImpl : public CATLControlImpl
 {
 public:
+
 	virtual ~IParameterImpl() = default;
 	virtual ERequestStatus Set(CATLAudioObject& audioObject, float const value) const = 0;
 };
@@ -241,11 +210,7 @@ public:
 		: m_pImplData(pImplData)
 	{}
 
-	~CParameterImpl()
-	{
-		CRY_ASSERT(s_pImpl != nullptr);
-		s_pImpl->DeleteAudioParameter(m_pImplData);
-	}
+	virtual ~CParameterImpl() override;
 
 	virtual ERequestStatus Set(CATLAudioObject& audioObject, float const value) const override;
 
@@ -258,7 +223,7 @@ class CParameter final : public ATLControl
 {
 public:
 
-	typedef std::vector<IParameterImpl const*> ImplPtrVec;
+	using ImplPtrVec = std::vector<IParameterImpl const*>;
 
 	explicit CParameter(ControlId const parameterId, EDataScope const dataScope, ImplPtrVec const& cImplPtrs)
 		: ATLControl(parameterId, dataScope)
@@ -271,6 +236,7 @@ public:
 class IAudioSwitchStateImpl : public CATLControlImpl
 {
 public:
+
 	virtual ~IAudioSwitchStateImpl() = default;
 	virtual ERequestStatus Set(CATLAudioObject& audioObject) const = 0;
 };
@@ -279,15 +245,11 @@ class CExternalAudioSwitchStateImpl final : public IAudioSwitchStateImpl
 {
 public:
 
-	explicit CExternalAudioSwitchStateImpl(Impl::IAudioSwitchState const* const pImplData)
+	explicit CExternalAudioSwitchStateImpl(Impl::ISwitchState const* const pImplData)
 		: m_pImplData(pImplData)
 	{}
 
-	~CExternalAudioSwitchStateImpl()
-	{
-		CRY_ASSERT(s_pImpl != nullptr);
-		s_pImpl->DeleteAudioSwitchState(m_pImplData);
-	}
+	virtual ~CExternalAudioSwitchStateImpl() override;
 
 	// IAudioSwitchStateImpl
 	virtual ERequestStatus Set(CATLAudioObject& audioObject) const override;
@@ -295,14 +257,14 @@ public:
 
 private:
 
-	Impl::IAudioSwitchState const* const m_pImplData;
+	Impl::ISwitchState const* const m_pImplData;
 };
 
 class CATLSwitchState final
 {
 public:
 
-	typedef std::vector<IAudioSwitchStateImpl const*> ImplPtrVec;
+	using ImplPtrVec = std::vector<IAudioSwitchStateImpl const*>;
 
 	explicit CATLSwitchState(
 	  ControlId const audioSwitchId,
@@ -341,7 +303,7 @@ public:
 		: ATLControl(audioSwitchId, dataScope)
 	{}
 
-	typedef std::map<SwitchStateId, CATLSwitchState const*> AudioStates;
+	using AudioStates = std::map<SwitchStateId, CATLSwitchState const*>;
 	AudioStates audioSwitchStates;
 };
 
@@ -349,24 +311,20 @@ class CATLEnvironmentImpl final : public CATLControlImpl
 {
 public:
 
-	explicit CATLEnvironmentImpl(Impl::IAudioEnvironment const* const pImplData)
+	explicit CATLEnvironmentImpl(Impl::IEnvironment const* const pImplData)
 		: m_pImplData(pImplData)
 	{}
 
-	~CATLEnvironmentImpl()
-	{
-		CRY_ASSERT(s_pImpl != nullptr);
-		s_pImpl->DeleteAudioEnvironment(m_pImplData);
-	}
+	~CATLEnvironmentImpl();
 
-	Impl::IAudioEnvironment const* const m_pImplData;
+	Impl::IEnvironment const* const m_pImplData;
 };
 
 class CATLAudioEnvironment final : public CATLEntity<EnvironmentId>
 {
 public:
 
-	typedef std::vector<CATLEnvironmentImpl const*> ImplPtrVec;
+	using ImplPtrVec = std::vector<CATLEnvironmentImpl const*>;
 
 	explicit CATLAudioEnvironment(EnvironmentId const audioEnvironmentId, EDataScope const dataScope, ImplPtrVec const& implPtrs)
 		: CATLEntity<EnvironmentId>(audioEnvironmentId, dataScope)
@@ -380,23 +338,22 @@ class CATLStandaloneFile final : public CPoolObject<CATLStandaloneFile, stl::PSy
 {
 public:
 
-	explicit CATLStandaloneFile()
-	{}
+	explicit CATLStandaloneFile() = default;
 
-	bool IsPlaying() const { return (m_state == eAudioStandaloneFileState_Playing) || (m_state == eAudioStandaloneFileState_Stopping); }
+	bool IsPlaying() const { return (m_state == EAudioStandaloneFileState::Playing) || (m_state == EAudioStandaloneFileState::Stopping); }
 
-	CATLAudioObject*            m_pAudioObject = nullptr;
-	Impl::IAudioStandaloneFile* m_pImplData = nullptr;
-	EAudioStandaloneFileState   m_state = eAudioStandaloneFileState_None;
-	CHashedString               m_hashedFilename;
+	CATLAudioObject*          m_pAudioObject = nullptr;
+	Impl::IStandaloneFile*    m_pImplData = nullptr;
+	EAudioStandaloneFileState m_state = EAudioStandaloneFileState::None;
+	CHashedString             m_hashedFilename;
 
 	// These variables are only needed when switching middleware
 #if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
-	bool                       m_bLocalized = true;
-	void*                      m_pOwner = nullptr;
-	void*                      m_pUserData = nullptr;
-	void*                      m_pUserDataOwner = nullptr;
-	Impl::IAudioTrigger const* m_pTrigger = nullptr;
+	bool                  m_bLocalized = true;
+	void*                 m_pOwner = nullptr;
+	void*                 m_pUserData = nullptr;
+	void*                 m_pUserDataOwner = nullptr;
+	Impl::ITrigger const* m_pITrigger = nullptr;
 #endif // INCLUDE_AUDIO_PRODUCTION_CODE
 
 };
@@ -404,31 +361,32 @@ public:
 class CATLEvent final : public CPoolObject<CATLEvent, stl::PSyncNone>
 {
 public:
+
 	ERequestStatus Reset();
 	ERequestStatus Stop();
 	void           SetDataScope(EDataScope const dataScope) { m_dataScope = dataScope; }
-	bool           IsPlaying() const                        { return m_audioEventState == eAudioEventState_Playing || m_audioEventState == eAudioEventState_PlayingDelayed; }
+	bool           IsPlaying() const                        { return m_state == EEventState::Playing || m_state == EEventState::PlayingDelayed; }
 
-	EDataScope         m_dataScope = eDataScope_None;
+	EDataScope         m_dataScope = EDataScope::None;
 	CATLAudioObject*   m_pAudioObject = nullptr;
 	CATLTrigger const* m_pTrigger = nullptr;
 	TriggerImplId      m_audioTriggerImplId = InvalidTriggerImplId;
 	TriggerInstanceId  m_audioTriggerInstanceId = InvalidTriggerInstanceId;
-	EAudioEventState   m_audioEventState = eAudioEventState_None;
-	Impl::IAudioEvent* m_pImplData = nullptr;
+	EEventState        m_state = EEventState::None;
+	Impl::IEvent*      m_pImplData = nullptr;
 };
 
 class CATLAudioFileEntry final
 {
 public:
 
-	explicit CATLAudioFileEntry(char const* const szPath = nullptr, Impl::IAudioFileEntry* const pImplData = nullptr)
+	explicit CATLAudioFileEntry(char const* const szPath = nullptr, Impl::IFile* const pImplData = nullptr)
 		: m_path(szPath)
 		, m_size(0)
 		, m_useCount(0)
 		, m_memoryBlockAlignment(MEMORY_ALLOCATION_ALIGNMENT)
-		, m_flags(eAudioFileFlags_NotFound)
-		, m_dataScope(eDataScope_All)
+		, m_flags(EFileFlags::NotFound)
+		, m_dataScope(EDataScope::All)
 		, m_streamTaskType(eStreamTaskTypeCount)
 		, m_pMemoryBlock(nullptr)
 		, m_pReadStream(nullptr)
@@ -448,12 +406,12 @@ public:
 	size_t                             m_size;
 	size_t                             m_useCount;
 	size_t                             m_memoryBlockAlignment;
-	EnumFlagsType                      m_flags;
+	EFileFlags                         m_flags;
 	EDataScope                         m_dataScope;
 	EStreamTaskType                    m_streamTaskType;
 	_smart_ptr<ICustomMemoryBlock>     m_pMemoryBlock;
 	IReadStreamPtr                     m_pReadStream;
-	Impl::IAudioFileEntry*             m_pImplData;
+	Impl::IFile*                       m_pImplData;
 
 #if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
 	CTimeValue m_timeCached;
@@ -463,7 +421,8 @@ public:
 class CATLPreloadRequest final : public CATLEntity<PreloadRequestId>
 {
 public:
-	typedef std::vector<FileEntryId> FileEntryIds;
+
+	using FileEntryIds = std::vector<FileEntryId>;
 
 	explicit CATLPreloadRequest(
 	  PreloadRequestId const audioPreloadRequestId,
@@ -480,9 +439,9 @@ public:
 };
 
 //-------------------- ATLObject container typedefs --------------------------
-typedef std::map<ControlId, CATLTrigger const*>              AudioTriggerLookup;
-typedef std::map<ControlId, CParameter const*>               AudioParameterLookup;
-typedef std::map<ControlId, CATLSwitch const*>               AudioSwitchLookup;
-typedef std::map<PreloadRequestId, CATLPreloadRequest*>      AudioPreloadRequestLookup;
-typedef std::map<EnvironmentId, CATLAudioEnvironment const*> AudioEnvironmentLookup;
+using AudioTriggerLookup = std::map<ControlId, CATLTrigger const*>;
+using AudioParameterLookup = std::map<ControlId, CParameter const*>;
+using AudioSwitchLookup = std::map<ControlId, CATLSwitch const*>;
+using AudioPreloadRequestLookup = std::map<PreloadRequestId, CATLPreloadRequest*>;
+using AudioEnvironmentLookup = std::map<EnvironmentId, CATLAudioEnvironment const*>;
 } // namespace CryAudio

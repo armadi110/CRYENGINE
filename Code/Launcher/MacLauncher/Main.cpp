@@ -7,8 +7,6 @@
 
 
 #include <CryCore/Platform/CryLibrary.h>
-#include <CryGame/IGameStartup.h>
-#include <CryGame/IGameFramework.h>
 #include <CrySystem/IConsole.h>
 
 #include <sys/types.h>
@@ -30,8 +28,6 @@
 #if !defined(DEDICATED_SERVER)
 #include <SDL.h>
 #endif
-
-#include <CrySystem/ParseEngineConfig.h>
 
 #ifdef _LIB
 #endif

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __FLOWSTARTNODE_H__
 #define __FLOWSTARTNODE_H__
@@ -13,8 +13,6 @@ public:
 	CFlowStartNode(SActivationInfo*);
 
 	// IFlowNode
-	virtual void         AddRef();
-	virtual void         Release();
 	virtual IFlowNodePtr Clone(SActivationInfo* pActInfo);
 	virtual void         GetConfiguration(SFlowNodeConfig& config);
 	virtual void         ProcessEvent(EFlowEvent event, SActivationInfo*);
@@ -29,7 +27,6 @@ public:
 	// ~IFlowNode
 
 private:
-	int  m_refs;
 	bool m_bActivated;
 
 	void SetActivation(SActivationInfo*, bool value);

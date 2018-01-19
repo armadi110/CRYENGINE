@@ -23,6 +23,7 @@ using namespace TurretHelpers;
 #include <CryAISystem/VisionMapTypes.h>
 #include <CryAISystem/IAIObject.h>
 #include <CryAISystem/IAIActor.h>
+#include <CryAISystem/IAIObjectManager.h>
 
 #include <IVehicleSystem.h>
 
@@ -398,7 +399,7 @@ void CTurret::HandleEvent( const SGameObjectEvent& event )
 }
 
 
-void CTurret::ProcessEvent( SEntityEvent& event )
+void CTurret::ProcessEvent( const SEntityEvent& event )
 {
 	switch ( event.event )
 	{
@@ -473,12 +474,6 @@ void CTurret::ProcessEvent( SEntityEvent& event )
 void CTurret::SetChannelId( uint16 id )
 {
 
-
-}
-
-
-void CTurret::SetAuthority( bool authority )
-{
 
 }
 
@@ -566,8 +561,8 @@ void CTurret::InitAiRepresentation( const EInitAiRepresentationMode mode )
 
 	const EntityId entityId = pEntity->GetId();
 
-	AIObjectParams params( AIOBJECT_TARGET, NULL, entityId );
-	pEntity->RegisterInAISystem( params );
+	AIObjectParams params(AIOBJECT_TARGET, NULL, entityId);
+	gEnv->pAISystem->GetAIObjectManager()->CreateAIObject(params);
 
 	uint8 factionId = GetDefaultFactionId();
 	if ( mode == eIARM_RestorePreviousState )
@@ -604,8 +599,7 @@ void CTurret::RemoveAiRepresentation()
 
 	SetTargetTrackClassThreat( 0.0f );
 
-	AIObjectParams nullParams( 0 );
-	pEntity->RegisterInAISystem( nullParams );
+	gEnv->pAISystem->GetAIObjectManager()->RemoveObjectByEntityId(GetEntityId());
 
 	m_factionOld = IFactionMap::InvalidFactionID;
 }
@@ -679,9 +673,8 @@ void CTurret::OnDestroyed()
 void CTurret::OnPrePhysicsUpdate()
 {
 	IEntity* const pEntity = GetEntity();
-
-	const bool isActive = pEntity->IsActive();
-	if ( ! isActive )
+	
+	if (GetGameObject()->GetUpdateSlotEnables(this, 0) == 0)
 	{
 		const EntityId localPlayerEntityId = g_pGame->GetIGameFramework()->GetClientActorId();
 		const IEntity* const pLocalPlayerEntity = gEnv->pEntitySystem->GetEntity( localPlayerEntityId );
@@ -696,7 +689,7 @@ void CTurret::OnPrePhysicsUpdate()
 				return;
 			}
 
-			pEntity->Activate( true );
+			GetGameObject()->EnableUpdateSlot(this, 0);
 		}
 	}
 
@@ -1080,7 +1073,7 @@ void CTurret::InitMannequinUserParams()
 void CTurret::InitAimProceduralContext()
 {
 	assert( m_pActionController != NULL );
-	m_pAimProceduralContext = static_cast< const CProceduralContextTurretAimPose* >( m_pActionController->FindOrCreateProceduralContext( "ProceduralContextTurretAimPose" ) );
+	m_pAimProceduralContext = static_cast< const CProceduralContextTurretAimPose* >( m_pActionController->FindOrCreateProceduralContext(CProceduralContextTurretAimPose::GetCID()) );
 }
 
 
@@ -2650,11 +2643,6 @@ void CTurret::NotifyCancelPreparingToFire()
 	}
 
 	m_pSoundManager->NotifyCancelPreparingToFire();
-}
-
-IEntityComponent::ComponentEventPriority CTurret::GetEventPriority(const int eventID) const
-{
-	return ENTITY_PROXY_USER;
 }
 
 void CTurret::OnEntityKilledEarly(const HitInfo &hitInfo) 

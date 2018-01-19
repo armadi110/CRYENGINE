@@ -23,7 +23,6 @@ void CLightningArc::SerializeSpawnInfo(TSerialize ser) {}
 ISerializableInfoPtr CLightningArc::GetSpawnInfo() {return ISerializableInfoPtr();}
 void CLightningArc::HandleEvent( const SGameObjectEvent& event ) {}
 void CLightningArc::SetChannelId(uint16 id) {}
-void CLightningArc::SetAuthority(bool auth ) {}
 const void* CLightningArc::GetRMIBase() const {return 0;}
 void CLightningArc::PostUpdate(float frameTime) {}
 void CLightningArc::PostRemoteSpawn() {}
@@ -55,7 +54,7 @@ bool CLightningArc::Init(IGameObject* pGameObject)
 
 
 
-void CLightningArc::ProcessEvent(SEntityEvent& event)
+void CLightningArc::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{
@@ -68,7 +67,10 @@ void CLightningArc::ProcessEvent(SEntityEvent& event)
 	}
 }
 
-
+uint64 CLightningArc::GetEventMask() const
+{
+	return BIT64(ENTITY_EVENT_LEVEL_LOADED) | BIT64(ENTITY_EVENT_RESET);
+}
 
 void CLightningArc::Update(SEntityUpdateContext& ctx, int updateSlot)
 {

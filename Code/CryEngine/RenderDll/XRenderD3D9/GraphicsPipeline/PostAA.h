@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -8,13 +8,15 @@
 class CPostAAStage : public CGraphicsPipelineStage
 {
 public:
+	void CalculateJitterOffsets(CRenderView* pRenderView);
+
 	void Init();
 	void Execute();
 
 private:
 	void ApplySMAA(CTexture*& pCurrRT);
 	void ApplyTemporalAA(CTexture*& pCurrRT, CTexture*& pMgpuRT, uint32 aaMode);
-	void DoFinalComposition(CTexture*& pCurrRT, uint32 aaMode);
+	void DoFinalComposition(CTexture*& pCurrRT, CTexture* pDestRT, uint32 aaMode);
 
 private:
 	_smart_ptr<CTexture> m_pTexAreaSMAA;
@@ -26,8 +28,4 @@ private:
 	CFullscreenPass      m_passSMAANeighborhoodBlending;
 	CFullscreenPass      m_passTemporalAA;
 	CFullscreenPass      m_passComposition;
-
-	int                  m_samplerPoint;
-	int                  m_samplerPointWrap;
-	int                  m_samplerLinear;
 };

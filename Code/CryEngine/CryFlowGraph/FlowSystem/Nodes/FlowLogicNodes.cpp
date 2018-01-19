@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   FlowLogicNodes.h
@@ -13,6 +13,8 @@
 
 #include "StdAfx.h"
 #include <CryFlowGraph/IFlowBaseNode.h>
+
+#include <CryMath/Random.h>
 
 class CLogicNode : public CFlowBaseNode<eNCT_Instanced>
 {

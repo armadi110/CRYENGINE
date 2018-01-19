@@ -35,25 +35,20 @@ CVehicleMovementTank::~CVehicleMovementTank()
 //------------------------------------------------------------------------
 bool CVehicleMovementTank::Init(IVehicle* pVehicle, const CVehicleParams& table)
 {
-	if (!inherited::Init(pVehicle, table))
+	if (inherited::Init(pVehicle, table))
 	{
-		return false;
-	}
+		m_audioControlIDs[eSID_TankTurnTurret] = CryAudio::StringToId("Play_abrams_cannon_turn");
+		m_turretTurnRtpcId = CryAudio::StringToId("vehicle_rotation_speed");
 
-	CryAudio::IAudioSystem const* const pIAudioSystem = gEnv->pAudioSystem;
-
-	if (pIAudioSystem != nullptr)
-	{
-		pIAudioSystem->GetAudioTriggerId("Play_abrams_cannon_turn", m_audioControlIDs[eSID_TankTurnTurret]);
-		pIAudioSystem->GetAudioParameterId("vehicle_rotation_speed", m_turretTurnRtpcId);
-
-		pIAudioSystem->GetAudioTriggerId("Play_w_tank_cannon_fire", m_audioControlIDs[eSID_VehiclePrimaryWeapon]);
+		m_audioControlIDs[eSID_VehiclePrimaryWeapon] = CryAudio::StringToId("Play_w_tank_cannon_fire");
 		m_audioControlIDs[eSID_VehicleStopPrimaryWeapon] = CryAudio::DoNothingTriggerId;
-		pIAudioSystem->GetAudioTriggerId("Play_w_tank_machinegun_fire", m_audioControlIDs[eSID_VehicleSecondaryWeapon]);
-		pIAudioSystem->GetAudioTriggerId("Stop_w_tank_machinegun_fire", m_audioControlIDs[eSID_VehicleStopSecondaryWeapon]);
+		m_audioControlIDs[eSID_VehicleSecondaryWeapon] = CryAudio::StringToId("Play_w_tank_machinegun_fire");
+		m_audioControlIDs[eSID_VehicleStopSecondaryWeapon] = CryAudio::StringToId("Stop_w_tank_machinegun_fire");
+
+		return true;
 	}
 
-	return true;
+	return false;
 }
 
 //------------------------------------------------------------------------
@@ -89,7 +84,7 @@ void CVehicleMovementTank::Reset()
 // NOTE: This function must be thread-safe. Before adding stuff contact MarcoC.
 void CVehicleMovementTank::ProcessMovement(const float deltaTime)
 { 
-	FUNCTION_PROFILER( gEnv->pSystem, PROFILE_GAME );
+	CRY_PROFILE_FUNCTION( PROFILE_GAME );
 
 	m_currPedal = fabsf(m_movementAction.power) > 0.05f ? m_movementAction.power : 0.f;
 
@@ -226,7 +221,7 @@ void CVehicleMovementTank::DebugDrawMovement(const float deltaTime)
 // NOTE: This function must be thread-safe. Before adding stuff contact MarcoC.
 void CVehicleMovementTank::ProcessAI(const float deltaTime)
 {
-	FUNCTION_PROFILER( GetISystem(), PROFILE_GAME );
+	CRY_PROFILE_FUNCTION( PROFILE_GAME );
 
 	float dt = max( deltaTime, 0.005f);
 	SVehiclePhysicsStatus* physStatus = &m_physStatus[k_physicsThread];

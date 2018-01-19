@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "XConsole.h"
@@ -21,12 +21,8 @@
 #include <CryInput/IHardwareMouse.h>
 #include <CryNetwork/IRemoteCommand.h>
 #include <CryRenderer/IRenderAuxGeom.h>
+#include <CryString/StringUtils.h>
 #include "ConsoleHelpGen.h"     // CConsoleHelpGen
-
-// EvenBalance - M. Quinn
-#ifdef __WITH_PB__
-	#include <PunkBuster/pbcommon.h>
-#endif
 
 //#define DEFENCE_CVAR_HASH_LOGGING
 
@@ -588,7 +584,7 @@ void CXConsole::RegisterVar(ICVar* pCVar, ConsoleVarFunc pChangeFunc)
 		  (isConst || isCheat || isReadOnly || isDeprecated))
 		{
 			allowChange = !isDeprecated && ((gEnv->pSystem->IsDevMode()) || (gEnv->IsEditor()));
-			if ((strcmp(pCVar->GetString(), var.m_value.c_str()) != 0) && (!(gEnv->IsEditor()) || isDeprecated))
+			if (pCVar->GetString() != var.m_value && !allowChange)
 			{
 #if LOG_CVAR_INFRACTIONS
 				LogChangeMessage(pCVar->GetName(), isConst, isCheat,
@@ -730,6 +726,20 @@ void CXConsole::LoadConfigVar(const char* sVariable, const char* sValue)
 	;
 
 	m_configVars[sVariable] = temp;
+}
+
+//////////////////////////////////////////////////////////////////////////
+void CXConsole::LoadConfigCommand(const char* szCommand, const char* szArguments)
+{
+	auto it = m_mapCommands.find(szCommand);
+	if (it == m_mapCommands.end())
+	{
+		m_configCommands.emplace(szCommand, szArguments);
+		return;
+	}
+
+	string arguments = string().Format("%s %s", szCommand, szArguments);
+	ExecuteCommand(it->second, arguments);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -878,8 +888,8 @@ ICVar* CXConsole::Register(const char* sName, int* src, int iValue, int nFlags, 
 
 	if (!allowModify)
 		nFlags |= VF_CONST_CVAR;
+	*src = iValue; // Needs to be done before creating the CVar due to default overriding
 	pCVar = new CXConsoleVariableIntRef(this, sName, src, nFlags, help);
-	*src = iValue;
 	RegisterVar(pCVar, pChangeFunc);
 	return pCVar;
 }
@@ -936,8 +946,8 @@ ICVar* CXConsole::Register(const char* sName, float* src, float fValue, int nFla
 	}
 	if (!allowModify)
 		nFlags |= VF_CONST_CVAR;
+	*src = fValue; // Needs to be done before creating the CVar due to default overriding
 	pCVar = new CXConsoleVariableFloatRef(this, sName, src, nFlags, help);
-	*src = fValue;
 	RegisterVar(pCVar, pChangeFunc);
 	return pCVar;
 }
@@ -1053,9 +1063,7 @@ void CXConsole::UnregisterVariable(const char* sVarName, bool bDelete)
 		return;
 
 	ICVar* pCVar = itor->second;
-
-	int32 flags = pCVar->GetFlags();
-
+	const int32 flags = pCVar->GetFlags();
 	if (flags & VF_CHEAT_ALWAYS_CHECK)
 	{
 		RemoveCheckedCVar(m_alwaysCheckedVariables, *itor);
@@ -1064,8 +1072,12 @@ void CXConsole::UnregisterVariable(const char* sVarName, bool bDelete)
 	{
 		RemoveCheckedCVar(m_randomCheckedVariables, *itor);
 	}
-
 	m_mapVariables.erase(itor);
+
+	for (auto& it : m_consoleVarSinks)
+	{
+		it->OnVarUnregister(pCVar);
+	}
 
 	delete pCVar;
 
@@ -1649,10 +1661,10 @@ void CXConsole::Draw()
 	if (!m_bConsoleActive && con_display_last_messages == 0)
 		return;
 
-	if (m_pRenderer->GetIRenderAuxGeom())
-		m_pRenderer->GetIRenderAuxGeom()->Flush();
+	//if (m_pRenderer->GetIRenderAuxGeom())
+		//m_pRenderer->GetIRenderAuxGeom()->Flush();
 
-	m_pRenderer->PushProfileMarker("DISPLAY_CONSOLE");
+	//m_pRenderer->PushProfileMarker("DISPLAY_CONSOLE");
 
 	if (m_nScrollPos <= 0)
 	{
@@ -1676,41 +1688,42 @@ void CXConsole::Draw()
 
 		CScopedWireFrameMode scopedWireFrame(m_pRenderer, R_SOLID_MODE);
 
+		// TODO: relative/normalized coordinate system in screen-space
 		if (!m_nProgressRange)
 		{
 			if (m_bStaticBackground)
 			{
-				m_pRenderer->SetState(GS_NODEPTHTEST);
-				m_pRenderer->Draw2dImage(0, 0, 800, 600, m_pImage ? m_pImage->GetTextureID() : m_nWhiteTexID, 0.0f, 1.0f, 1.0f, 0.0f);
+				//m_pRenderer->SetState(GS_NODEPTHTEST);
+				IRenderAuxImage::Draw2dImage(0.0f, 0.0f, float(m_pRenderer->GetOverlayWidth()) /*800*/, float(m_pRenderer->GetOverlayHeight()) /*600*/, m_pImage ? m_pImage->GetTextureID() : m_nWhiteTexID, 0.0f, 1.0f, 1.0f, 0.0f);
 			}
 			else
 			{
-				m_pRenderer->Set2DMode(true, m_pRenderer->GetWidth(), m_pRenderer->GetHeight());
+				//m_pRenderer->Set2DMode(true, m_pRenderer->GetWidth(), m_pRenderer->GetOverlayHeight());
 
 				float fReferenceSize = 600.0f;
 
-				float fSizeX = (float)m_pRenderer->GetWidth();
-				float fSizeY = m_nTempScrollMax * m_pRenderer->GetHeight() / fReferenceSize;
+				float fSizeX = (float)m_pRenderer->GetOverlayWidth();
+				float fSizeY = m_nTempScrollMax * m_pRenderer->GetOverlayHeight() / fReferenceSize;
 
-				m_pRenderer->SetState(GS_NODEPTHTEST | GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA);
-				m_pRenderer->DrawImage(0, 0, fSizeX, fSizeY, m_nWhiteTexID, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.7f);
-				m_pRenderer->DrawImage(0, fSizeY, fSizeX, 2.0f * m_pRenderer->GetHeight() / fReferenceSize, m_nWhiteTexID, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f);
+				//m_pRenderer->SetState(GS_NODEPTHTEST | GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA);
+				IRenderAuxImage::DrawImage(0, 0, fSizeX, fSizeY, m_nWhiteTexID, 0.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.7f);
+				IRenderAuxImage::DrawImage(0, fSizeY, fSizeX, 2.0f * m_pRenderer->GetOverlayHeight() / fReferenceSize, m_nWhiteTexID, 0, 0, 0, 0, 0.0f, 0.0f, 0.0f, 1.0f);
 
-				m_pRenderer->Set2DMode(false, 0, 0);
+				//m_pRenderer->Set2DMode(false, 0, 0);
 			}
 		}
 
 		// draw progress bar
 		if (m_nProgressRange)
 		{
-			m_pRenderer->SetState(GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA | GS_NODEPTHTEST);
-			m_pRenderer->Draw2dImage(0.0, 0.0, 800.0f, 600.0f, m_nLoadingBackTexID, 0.0f, 1.0f, 1.0f, 0.0f);
+			//m_pRenderer->SetState(GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA | GS_NODEPTHTEST);
+			IRenderAuxImage::Draw2dImage(0.0f, 0.0f, float(m_pRenderer->GetOverlayWidth()) /*800*/, float(m_pRenderer->GetOverlayHeight()) /*600*/, m_nLoadingBackTexID, 0.0f, 1.0f, 1.0f, 0.0f);
 		}
 
 		DrawBuffer(m_nScrollPos, "console");
 	}
 
-	m_pRenderer->PopProfileMarker("DISPLAY_CONSOLE");
+	//m_pRenderer->PopProfileMarker("DISPLAY_CONSOLE");
 }
 
 void CXConsole::DrawBuffer(int nScrollPos, const char* szEffect)
@@ -1805,7 +1818,7 @@ void CXConsole::ScrollConsole()
 	if (!m_pRenderer)
 		return;
 
-	int nCurrHeight = m_pRenderer->GetHeight();
+	int nCurrHeight = m_pRenderer->GetOverlayHeight();
 
 	switch (m_sdScrollDir)
 	{
@@ -1841,14 +1854,14 @@ void CXConsole::ScrollConsole()
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CXConsole::AddCommand(const char* sCommand, ConsoleCommandFunc func, int nFlags, const char* sHelp, bool bIsManagedExternally)
+void CXConsole::AddCommand(const char* szCommand, ConsoleCommandFunc func, int nFlags, const char* sHelp, bool bIsManagedExternally)
 {
-	AssertName(sCommand);
+	AssertName(szCommand);
 
-	if (m_mapCommands.find(sCommand) == m_mapCommands.end())
+	if (m_mapCommands.find(szCommand) == m_mapCommands.end())
 	{
 		CConsoleCommand cmd;
-		cmd.m_sName = sCommand;
+		cmd.m_sName = szCommand;
 		cmd.m_func = func;
 		cmd.m_isManagedExternally = bIsManagedExternally;
 		if (sHelp)
@@ -1856,11 +1869,23 @@ void CXConsole::AddCommand(const char* sCommand, ConsoleCommandFunc func, int nF
 			cmd.m_sHelp = sHelp;
 		}
 		cmd.m_nFlags = nFlags;
-		m_mapCommands.insert(std::make_pair(cmd.m_sName, cmd));
+		auto commandIt = m_mapCommands.insert(std::make_pair(cmd.m_sName, cmd)).first;
+
+		// See if this command was already executed by a config
+		// If so we need to execute it immediately
+		auto commandRange = m_configCommands.equal_range(szCommand);
+		for (auto commandPair = commandRange.first; commandPair != commandRange.second; ++commandPair)
+		{
+			string arguments = string().Format("%s %s", szCommand, commandPair->second.c_str());
+			ExecuteCommand(commandIt->second, arguments);
+		}
+
+		// Remove all entries
+		m_configCommands.erase(commandRange.first, commandRange.second);
 	}
 	else
 	{
-		gEnv->pLog->LogError("[CVARS]: [DUPLICATE] CXConsole::AddCommand(): console command [%s] is already registered", sCommand);
+		gEnv->pLog->LogError("[CVARS]: [DUPLICATE] CXConsole::AddCommand(): console command [%s] is already registered", szCommand);
 #if LOG_CVAR_INFRACTIONS_CALLSTACK
 		gEnv->pSystem->debug_LogCallStack();
 #endif // LOG_CVAR_INFRACTIONS_CALLSTACK
@@ -2251,6 +2276,7 @@ void CXConsole::ExecuteStringInternal(const char* command, const bool bFromConso
 	assert(command);
 	assert(command[0] != '\\');     // caller should remove leading "\\"
 
+#if !defined(RELEASE) || defined(ENABLE_DEVELOPER_CONSOLE_IN_RELEASE)
 	///////////////////////////
 	//Execute as string
 	if (command[0] == '#' || command[0] == '@')
@@ -2273,6 +2299,7 @@ void CXConsole::ExecuteStringInternal(const char* command, const bool bFromConso
 			return;
 		}
 	}
+#endif
 
 	ConsoleCommandsMapItor itrCmd;
 	ConsoleVariablesMapItor itrVar;
@@ -2291,13 +2318,6 @@ void CXConsole::ExecuteStringInternal(const char* command, const bool bFromConso
 		sCommand = lineCommands.front();
 		sLineCommand = sCommand;
 		lineCommands.pop_front();
-
-#ifdef __WITH_PB__
-		// If this is a PB command, PbConsoleCommand will return true
-		if (m_pNetwork)
-			if (m_pNetwork->PbConsoleCommand(sCommand.c_str(), sTemp.length()))
-				return;
-#endif
 
 		if (!bSilentMode)
 			if (GetStatus())
@@ -2820,30 +2840,6 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 		}
 	}
 
-#ifdef __WITH_PB__
-	// Check to see if this is a PB command
-	char pbCompleteBuf[PB_Q_MAXRESULTLEN];
-
-	cry_strcpy(pbCompleteBuf, szInputBuffer);
-
-	if (!strncmp(szInputBuffer, "pb_", 3))
-	{
-		if (!strncmp(szInputBuffer, "pb_sv", 5))
-		{
-			if (m_pNetwork)
-				m_pNetwork->PbServerAutoComplete(pbCompleteBuf, PB_Q_MAXRESULTLEN);
-		}
-		else
-		{
-			if (m_pNetwork)
-				m_pNetwork->PbClientAutoComplete(pbCompleteBuf, PB_Q_MAXRESULTLEN);
-		}
-
-		if (0 != strcmp(szInputBuffer, pbCompleteBuf))
-			matches.push_back((char* const)pbCompleteBuf);
-	}
-#endif
-
 	if (!matches.empty())
 		std::sort(matches.begin(), matches.end(), less_CVar);   // to sort commands with variables
 
@@ -3233,19 +3229,27 @@ void CXConsole::Copy()
 		return;
 
 	size_t cbLength = m_sInputBuffer.length();
+	wstring textW = CryStringUtils::UTF8ToWStr(m_sInputBuffer);
+	
+	HGLOBAL hGlobalA, hGlobalW;
+	LPVOID pGlobalA, pGlobalW;
 
-	HGLOBAL hGlobal;
-	LPVOID pGlobal;
+	int lengthA = WideCharToMultiByte(CP_ACP, 0, textW.c_str(), -1, NULL, 0, NULL, NULL); //includes null terminator
 
-	hGlobal = GlobalAlloc(GHND, cbLength + 1);
-	pGlobal = GlobalLock(hGlobal);
+	hGlobalW = GlobalAlloc(GHND, (textW.length() + 1) * sizeof(wchar_t));
+	hGlobalA = GlobalAlloc(GHND, lengthA);
+	pGlobalW = GlobalLock(hGlobalW);
+	pGlobalA = GlobalLock(hGlobalA);
 
-	strcpy((char*)pGlobal, m_sInputBuffer.c_str());
+	wcscpy((wchar_t*)pGlobalW, textW.c_str());
+	WideCharToMultiByte(CP_ACP, 0, textW.c_str(), -1, (LPSTR)pGlobalA, lengthA, NULL, NULL);
 
-	GlobalUnlock(hGlobal);
+	GlobalUnlock(hGlobalW);
+	GlobalUnlock(hGlobalA);
 
 	EmptyClipboard();
-	SetClipboardData(CF_TEXT, hGlobal);
+	SetClipboardData(CF_UNICODETEXT, hGlobalW);
+	SetClipboardData(CF_TEXT, hGlobalA);
 	CloseClipboard();
 
 	return;
@@ -3258,12 +3262,15 @@ void CXConsole::Paste()
 #if CRY_PLATFORM_WINDOWS
 	//TRACE("Paste\n");
 
-	if (!IsClipboardFormatAvailable(CF_TEXT))
+	const BOOL hasANSI = IsClipboardFormatAvailable(CF_TEXT);
+	const BOOL hasUnicode = IsClipboardFormatAvailable(CF_UNICODETEXT);
+
+	if (!(hasANSI || hasUnicode))
 		return;
 	if (!OpenClipboard(NULL))
 		return;
 
-	HGLOBAL const hGlobal = GetClipboardData(CF_TEXT);
+	HGLOBAL const hGlobal = GetClipboardData(hasUnicode ? CF_UNICODETEXT : CF_TEXT);
 	if (!hGlobal)
 	{
 		CloseClipboard();
@@ -3276,18 +3283,24 @@ void CXConsole::Paste()
 		CloseClipboard();
 		return;
 	}
-
-	char sTemp[255];
-	const size_t srcLength = strlen((const char*)pGlobal);
-	const size_t finalLength = (std::min)(sizeof(sTemp), srcLength);
-	memcpy(sTemp, pGlobal, finalLength);
+	
+	string temp;
+	if (hasUnicode)
+	{
+		temp = CryStringUtils::WStrToUTF8((const wchar_t*)pGlobal);
+	}
+	else
+	{
+		temp = CryStringUtils::ANSIToUTF8((const char*)pGlobal);
+	}
 
 	GlobalUnlock(hGlobal);
 
 	CloseClipboard();
 
-	m_sInputBuffer.insert(m_nCursorPos, sTemp, finalLength);
-	m_nCursorPos += (int)finalLength;
+	size_t length = temp.length();
+	m_sInputBuffer.insert(m_nCursorPos, temp.begin(), length);
+	m_nCursorPos += length;
 #endif
 }
 

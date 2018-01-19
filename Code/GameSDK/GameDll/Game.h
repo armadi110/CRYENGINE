@@ -110,6 +110,7 @@ class CHUDMissionObjectiveSystem; // TODO : Remove me?
 class CGameBrowser;
 class CGameLobby;
 class CGameLobbyManager;
+class CGameStateRecorder;
 #if IMPLEMENT_PC_BLADES
 class CGameServerLists;
 #endif //IMPLEMENT_PC_BLADES
@@ -223,17 +224,6 @@ enum EDifficulty
 	eDifficulty_PostHuman,
 
 	eDifficulty_COUNT,
-};
-
-//! Platform defines
-enum EPlatform
-{
-	ePlatform_Unknown = 0,
-	ePlatform_PC,
-	ePlatform_XBoxOne,
-	ePlatform_PS4,
-
-	ePlatform_COUNT,
 };
 
 //! Controller layout types
@@ -691,7 +681,7 @@ protected:
 		EPlatform platformId;
 		BYTE      devices;      // Devices to use when registering actions
 
-		SPlatformInfo(EPlatform _platformId = ePlatform_Unknown) : platformId(_platformId), devices(eAID_KeyboardMouse | eAID_XboxPad | eAID_PS4Pad) {}
+		SPlatformInfo(EPlatform _platformId = EPlatform::Current) : platformId(_platformId), devices(eAID_KeyboardMouse | eAID_XboxPad | eAID_PS4Pad) {}
 	};
 	SPlatformInfo m_platformInfo;
 
@@ -751,7 +741,9 @@ protected:
 	static void CmdFlyCamSetPoint(IConsoleCmdArgs* pArgs);
 	static void CmdFlyCamPlay(IConsoleCmdArgs* pArgs);
 
+#if defined(USE_CRY_ASSERT)
 	static void CmdIgnoreAllAsserts(IConsoleCmdArgs* pArgs);
+#endif
 
 	static void CmdReloadPlayer(IConsoleCmdArgs* cmdArgs);
 
@@ -844,6 +836,7 @@ protected:
 	CMatchmakingTelemetry*    m_pMatchMakingTelemetry;
 	CDataPatchDownloader*     m_pDataPatchDownloader;
 	CGameLocalizationManager* m_pGameLocalizationManager;
+	CGameStateRecorder*       m_pGameStateRecorder;
 #if USE_LAGOMETER
 	CLagOMeter*               m_pLagOMeter;
 #endif

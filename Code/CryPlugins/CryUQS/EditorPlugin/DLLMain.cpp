@@ -13,13 +13,13 @@
 #include "IPlugin.h"
 #include "IEditorClassFactory.h"
 
-#include "../EditorCommon/QtViewPane.h"
+#include "QtViewPane.h"
 
 #include "Editor/MainEditorWindow.h"
 
 #define UQS_EDITOR_NAME "UQS Editor"
 
-REGISTER_VIEWPANE_FACTORY(CMainEditorWindow, UQS_EDITOR_NAME, "Game", true)
+REGISTER_VIEWPANE_FACTORY_AND_MENU(CMainEditorWindow, UQS_EDITOR_NAME, "Game", true, "Universal Query System")
 
 class CUqsEditorPlugin : public IPlugin
 {

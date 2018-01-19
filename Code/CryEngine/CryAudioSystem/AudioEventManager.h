@@ -1,11 +1,21 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
-#include "ATLEntities.h"
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+	#include <CryMath/Cry_Math.h>
+struct IRenderAuxGeom;
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
 
 namespace CryAudio
 {
+class CATLEvent;
+
+namespace Impl
+{
+struct IImpl;
+} // namespace Impl
+
 class CAudioEventManager final
 {
 public:
@@ -14,30 +24,26 @@ public:
 	~CAudioEventManager();
 
 	CAudioEventManager(CAudioEventManager const&) = delete;
-	CAudioEventManager(CAudioEventManager&&) = delete;
 	CAudioEventManager& operator=(CAudioEventManager const&) = delete;
-	CAudioEventManager& operator=(CAudioEventManager&&) = delete;
 
-	void                Init(Impl::IAudioImpl* const pImpl);
+	void                Init(Impl::IImpl* const pIImpl);
 	void                Release();
-	void                Update(float const deltaTime);
 
 	CATLEvent*          ConstructAudioEvent();
-	void                ReleaseAudioEvent(CATLEvent* const pAudioEvent);
+	void                ReleaseEvent(CATLEvent* const pEvent);
 
 	size_t              GetNumConstructed() const;
 
 private:
 
 	std::list<CATLEvent*> m_constructedAudioEvents;
-
-	Impl::IAudioImpl*     m_pImpl = nullptr;
+	Impl::IImpl*          m_pIImpl = nullptr;
 
 #if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
 public:
 
-	void DrawDebugInfo(IRenderAuxGeom& auxGeom, float posX, float posY) const;
+	void DrawDebugInfo(IRenderAuxGeom& auxGeom, Vec3 const& listenerPosition, float const posX, float posY) const;
 
-#endif //INCLUDE_AUDIO_PRODUCTION_CODE
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
 };
 } // namespace CryAudio

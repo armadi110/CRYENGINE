@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -16,15 +16,15 @@ public:
 	~CD3DOculusRenderer();
 
 	// IHDMRenderer
-	virtual bool                      Initialize() override;
-	virtual void                      Shutdown() override;
-	virtual void                      OnResolutionChanged() override;
-	virtual void                      ReleaseBuffers() override;
-	virtual void                      PrepareFrame() override;
-	virtual void                      SubmitFrame() override;
-	virtual void                      RenderSocialScreen() override;
-	virtual RenderLayer::CProperties* GetQuadLayerProperties(RenderLayer::EQuadLayers id) override;
-	virtual RenderLayer::CProperties* GetSceneLayerProperties(RenderLayer::ESceneLayers id) override;
+	virtual bool                      Initialize(int initialWidth, int initialeight) final;
+	virtual void                      Shutdown() final;
+	virtual void                      OnResolutionChanged(int newWidth, int newHeight) final;
+	virtual void                      ReleaseBuffers() final;
+	virtual void                      PrepareFrame() final;
+	virtual void                      SubmitFrame() final;
+	virtual void                      RenderSocialScreen() final;
+	virtual RenderLayer::CProperties* GetQuadLayerProperties(RenderLayer::EQuadLayers id) final;
+	virtual RenderLayer::CProperties* GetSceneLayerProperties(RenderLayer::ESceneLayers id) final;
 	//~ IHDMRenderer
 
 	// Experimental: (TODO) this could be used when a more advance mechanism for controlling the layer update is in place
@@ -72,7 +72,7 @@ private:
 
 	static RenderLayer::EQuadLayers CalculateQuadLayerId(ESwapChainArray swapChainIndex);
 
-	#if defined(CRY_USE_DX12) && defined(CRY_USE_DX12_MULTIADAPTER)
+	#if (CRY_RENDERER_DIRECT3D >= 120) && defined(DX12_LINKEDADAPTER)
 	void                            CopyMultiGPUFrameData();
 	void CopyMultiGPUMirrorData(CTexture* pBackbufferTexture);
 	#endif
@@ -108,6 +108,8 @@ private:
 	CryVR::Oculus::IOculusDevice* m_pOculusDevice;
 	CD3D9Renderer*                m_pRenderer;
 	CD3DStereoRenderer*           m_pStereoRenderer;
+
+	CStretchRectPass*             m_pStrechRectPass;
 };
 
 #endif //defined(INCLUDE_VR_RENDERING)

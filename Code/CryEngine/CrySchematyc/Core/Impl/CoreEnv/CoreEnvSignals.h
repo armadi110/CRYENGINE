@@ -1,9 +1,9 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
-#include <Schematyc/Reflection/TypeDesc.h>
-#include <Schematyc/Utils/GUID.h>
+#include <CrySchematyc/Reflection/TypeDesc.h>
+#include <CrySchematyc/Utils/GUID.h>
 
 namespace Schematyc
 {

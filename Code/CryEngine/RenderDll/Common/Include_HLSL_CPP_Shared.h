@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifdef __cplusplus
 // C++
@@ -98,6 +98,7 @@ hlsl_cbuffer_register(PerViewGlobalConstantBuffer, register (b13), 13) //eConsta
 	hlsl_matrix44(CV_PrevViewProjNearestMatr);
 	hlsl_matrix34(CV_ScreenToWorldBasis);
 	hlsl_float4(CV_TessInfo);
+	hlsl_float4(CV_WorldViewPosition); // TODO: remove me, data is already available in CV_ScreenToWorldBasis, via GetWorldViewPos
 	hlsl_float4(CV_CamRightVector);
 	hlsl_float4(CV_CamFrontVector);
 	hlsl_float4(CV_CamUpVector);

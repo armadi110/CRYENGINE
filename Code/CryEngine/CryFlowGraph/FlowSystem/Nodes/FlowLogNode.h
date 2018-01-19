@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __FLOWLOGNODE_H__
 #define __FLOWLOGNODE_H__
@@ -13,8 +13,6 @@ public:
 	CFlowLogNode();
 
 	// IFlowNode
-	virtual void         AddRef();
-	virtual void         Release();
 	virtual IFlowNodePtr Clone(SActivationInfo*);
 	virtual void         GetConfiguration(SFlowNodeConfig&);
 	virtual void         ProcessEvent(EFlowEvent event, SActivationInfo*);
@@ -27,9 +25,6 @@ public:
 		s->Add(*this);
 	}
 	// ~IFlowNode
-
-private:
-	int m_refs;
 };
 
 #endif

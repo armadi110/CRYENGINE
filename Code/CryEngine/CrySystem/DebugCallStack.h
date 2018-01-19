@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   DebugCallStack.h
@@ -77,6 +77,7 @@ protected:
 	void                    doneSymbols();
 
 	static void             RemoveOldFiles();
+	static void             MoveFile(const char* szFileNameOld, const char* szFileNameNew);
 	static void             RemoveFile(const char* szFileName);
 
 	NO_INLINE void          FillStackTrace(int maxStackEntries = MAX_DEBUG_STACK_ENTRIES, int skipNumFunctions = 0, HANDLE hThread = GetCurrentThread());
@@ -121,6 +122,31 @@ protected:
 
 	string           m_outputPath;
 };
+
+#ifdef CRY_USE_CRASHRPT
+
+#include "CrashRpt.h"
+class CCrashRpt
+{
+public:
+	static void RegisterCVars();
+
+	static bool InstallHandler();
+
+	static void UninstallHandler();
+
+	static int CALLBACK CrashCallback(CR_CRASH_CALLBACK_INFO* pInfo);
+
+	static void CmdGenerateCrashReport(IConsoleCmdArgs*);
+
+	static void FatalError();
+
+	static void ReInstallCrashRptHandler(ICVar*);
+
+	static SFileVersion GetSystemVersionInfo();
+
+};
+#endif // CRY_USE_CRASHRPT
 
 #endif // CRY_PLATFORM_WINDOWS
 

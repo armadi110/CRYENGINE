@@ -1,8 +1,8 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
-#include <CryAudio/IAudioSystem.h>
+#include <CryAudio/IObject.h>
 #include <CryMemory/STLPoolAllocator.h>
 #include <CryEntitySystem/IEntityComponent.h>
 #include <CryMemory/CrySizer.h>
@@ -11,16 +11,16 @@
 // Description:
 //    Handles audio on the entity.
 //////////////////////////////////////////////////////////////////////////
-struct CEntityComponentAudio final : public IEntityAudioComponent
+class CEntityComponentAudio final : public IEntityAudioComponent
 {
-	CRY_ENTITY_COMPONENT_CLASS(CEntityComponentAudio, IEntityAudioComponent, "CEntityComponentAudio", 0x51AE5FC21B454351, 0xAC889CAF0C757B5F);
+public:
+	CRY_ENTITY_COMPONENT_CLASS_GUID(CEntityComponentAudio, IEntityAudioComponent, "CEntityComponentAudio", "51ae5fc2-1b45-4351-ac88-9caf0c757b5f"_cry_guid);
 
 	CEntityComponentAudio();
-	virtual ~CEntityComponentAudio();
+	virtual ~CEntityComponentAudio() override;
 
-public:
 	// IEntityComponent
-	virtual void         ProcessEvent(SEntityEvent& event) override;
+	virtual void         ProcessEvent(const SEntityEvent& event) override;
 	virtual void         Initialize() override;
 	virtual uint64       GetEventMask() const override;
 	virtual EEntityProxy GetProxyType() const override                    { return ENTITY_PROXY_AUDIO; }
@@ -35,8 +35,8 @@ public:
 	virtual void                    SetEnvironmentFadeDistance(float const environmentFadeDistance) override { m_environmentFadeDistance = environmentFadeDistance; }
 	virtual float                   GetEnvironmentFadeDistance() const override                              { return m_environmentFadeDistance; }
 	virtual float                   GetGreatestFadeDistance() const override;
-	virtual void                    SetEnvironmentId(CryAudio::EnvironmentId const environmentId) override   { m_audioEnvironmentId = environmentId; }
-	virtual CryAudio::EnvironmentId GetEnvironmentId() const override                                        { return m_audioEnvironmentId; }
+	virtual void                    SetEnvironmentId(CryAudio::EnvironmentId const environmentId) override   { m_environmentId = environmentId; }
+	virtual CryAudio::EnvironmentId GetEnvironmentId() const override                                        { return m_environmentId; }
 	virtual CryAudio::AuxObjectId   CreateAudioAuxObject() override;
 	virtual bool                    RemoveAudioAuxObject(CryAudio::AuxObjectId const audioAuxObjectId) override;
 	virtual void                    SetAudioAuxObjectOffset(Matrix34 const& offset, CryAudio::AuxObjectId const audioAuxObjectId = CryAudio::DefaultAuxObjectId) override;
@@ -51,8 +51,9 @@ public:
 	virtual void                    SetEnvironmentAmount(CryAudio::EnvironmentId const audioEnvironmentId, float const amount, CryAudio::AuxObjectId const audioAuxObjectId = CryAudio::DefaultAuxObjectId) override;
 	virtual void                    SetCurrentEnvironments(CryAudio::AuxObjectId const audioAuxObjectId = CryAudio::DefaultAuxObjectId) override;
 	virtual void                    AudioAuxObjectsMoveWithEntity(bool const bCanMoveWithEntity) override;
-	virtual void                    AddAsListenerToAudioAuxObject(CryAudio::AuxObjectId const audioAuxObjectId, void (* func)(CryAudio::SRequestInfo const* const), CryAudio::EnumFlagsType const eventMask) override;
+	virtual void                    AddAsListenerToAudioAuxObject(CryAudio::AuxObjectId const audioAuxObjectId, void (* func)(CryAudio::SRequestInfo const* const), CryAudio::ESystemEvents const eventMask) override;
 	virtual void                    RemoveAsListenerFromAudioAuxObject(CryAudio::AuxObjectId const audioAuxObjectId, void (* func)(CryAudio::SRequestInfo const* const)) override;
+	virtual CryAudio::AuxObjectId   GetAuxObjectIdFromAudioObject(CryAudio::IObject* pObject) override;
 	// ~IEntityAudioComponent
 
 private:
@@ -63,43 +64,44 @@ private:
 		eEntityAudioProxyFlags_CanMoveWithEntity = BIT(0),
 	};
 
-	struct SAudioAuxObjectWrapper
+	struct SAuxObjectWrapper
 	{
-		SAudioAuxObjectWrapper(CryAudio::IObject* const _pIObject)
+		explicit SAuxObjectWrapper(CryAudio::IObject* const _pIObject)
 			: pIObject(_pIObject)
 			, offset(IDENTITY)
 		{}
 
-		~SAudioAuxObjectWrapper() {}
+		~SAuxObjectWrapper() = default;
 
 		CryAudio::IObject* const pIObject;
 		Matrix34                 offset;
 
 	private:
 
-		SAudioAuxObjectWrapper()
+		SAuxObjectWrapper()
 			: pIObject(nullptr)
 			, offset(IDENTITY)
 		{}
 	};
 
-	typedef std::pair<CryAudio::AuxObjectId const, SAudioAuxObjectWrapper>                                                                             AudioAuxObjectPair;
-	typedef std::map<CryAudio::AuxObjectId const, SAudioAuxObjectWrapper, std::less<CryAudio::AuxObjectId>, stl::STLPoolAllocator<AudioAuxObjectPair>> AudioAuxObjects;
-	static AudioAuxObjectPair              s_nullAudioProxyPair;
-	static CryAudio::CObjectTransformation s_audioListenerLastTransformation;
+	using AuxObjectPair = std::pair<CryAudio::AuxObjectId const, SAuxObjectWrapper>;
 
-	void                OnListenerEnter(IEntity const* const pEntity);
-	void                OnListenerMoveNear(Vec3 const& closestPointToArea);
-	void                OnListenerMoveInside(Vec3 const& listenerPos);
-	void                OnListenerExclusiveMoveInside(IEntity const* const __restrict pEntity, IEntity const* const __restrict pAreaHigh, IEntity const* const __restrict pAreaLow, float const fade);
-	void                OnMove();
-	AudioAuxObjectPair& GetAudioAuxObjectPair(CryAudio::AuxObjectId const audioAuxObjectId);
-	void                SetEnvironmentAmountInternal(IEntity const* const pIEntity, float const amount) const;
+	typedef std::map<CryAudio::AuxObjectId const, SAuxObjectWrapper, std::less<CryAudio::AuxObjectId>, stl::STLPoolAllocator<AuxObjectPair>> AuxObjects;
+
+	static AuxObjectPair s_nullAuxObjectPair;
+
+	void           OnListenerEnter(CEntity const* const pEntity);
+	void           OnListenerMoveNear(Vec3 const& closestPointToArea);
+	void           OnListenerMoveInside(Vec3 const& listenerPos);
+	void           OnListenerExclusiveMoveInside(CEntity const* const __restrict pEntity, CEntity const* const __restrict pAreaHigh, CEntity const* const __restrict pAreaLow, float const fade);
+	void           OnMove();
+	AuxObjectPair& GetAudioAuxObjectPair(CryAudio::AuxObjectId const audioAuxObjectId);
+	void           SetEnvironmentAmountInternal(CEntity const* const pIEntity, float const amount) const;
 
 	// Function objects
 	struct SReleaseAudioProxy
 	{
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			gEnv->pAudioSystem->ReleaseObject(pair.second.pIObject);
 		}
@@ -112,7 +114,7 @@ private:
 			, userData(_userData)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetTransformation(transformation * pair.second.offset, userData);
 		}
@@ -130,7 +132,7 @@ private:
 			, userData(_userData)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->PlayFile(playbackInfo, userData);
 		}
@@ -143,11 +145,11 @@ private:
 
 	struct SStopFile
 	{
-		SStopFile(char const* const _szFile)
+		explicit SStopFile(char const* const _szFile)
 			: szFile(_szFile)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->StopFile(szFile);
 		}
@@ -164,7 +166,7 @@ private:
 			, userData(_userData)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->StopTrigger(audioTriggerId, userData);
 		}
@@ -182,7 +184,7 @@ private:
 			, audioStateId(_audioStateId)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetSwitchState(audioSwitchId, audioStateId);
 		}
@@ -200,7 +202,7 @@ private:
 			, value(_value)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetParameter(parameterId, value);
 		}
@@ -213,11 +215,11 @@ private:
 
 	struct SSetOcclusionType
 	{
-		SSetOcclusionType(CryAudio::EOcclusionType const _occlusionType)
+		explicit SSetOcclusionType(CryAudio::EOcclusionType const _occlusionType)
 			: occlusionType(_occlusionType)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetOcclusionType(occlusionType);
 		}
@@ -234,7 +236,7 @@ private:
 			, amount(_amount)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetEnvironment(audioEnvironmentId, amount);
 		}
@@ -247,11 +249,11 @@ private:
 
 	struct SSetCurrentEnvironments
 	{
-		SSetCurrentEnvironments(EntityId const entityId)
+		explicit SSetCurrentEnvironments(EntityId const entityId)
 			: m_entityId(entityId)
 		{}
 
-		inline void operator()(AudioAuxObjectPair const& pair)
+		inline void operator()(AuxObjectPair const& pair)
 		{
 			pair.second.pIObject->SetCurrentEnvironments(m_entityId);
 		}
@@ -268,7 +270,7 @@ private:
 			, entityPosition(_entityPosition)
 		{}
 
-		inline void operator()(AudioAuxObjectPair& pair)
+		inline void operator()(AuxObjectPair& pair)
 		{
 			pair.second.offset = offset;
 			(SRepositionAudioProxy(entityPosition, CryAudio::SRequestUserData::GetEmptyObject()))(pair);
@@ -281,13 +283,11 @@ private:
 	};
 	// ~Function objects
 
-	AudioAuxObjects         m_mapAuxAudioProxies;
-	CryAudio::AuxObjectId   m_audioAuxObjectIdCounter;
+	AuxObjects              m_mapAuxObjects;
+	CryAudio::AuxObjectId   m_auxObjectIdCounter;
 
-	CryAudio::EnvironmentId m_audioEnvironmentId;
+	CryAudio::EnvironmentId m_environmentId;
 	CryAudio::EnumFlagsType m_flags;
-
-	CryAudio::IListener*    m_pIListener;
 
 	float                   m_fadeDistance;
 	float                   m_environmentFadeDistance;

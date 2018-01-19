@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   DialogLoaderMK2.cpp
@@ -275,11 +275,16 @@ bool CDialogLoaderMK2::ReadLine(const XmlNodeRef& lineNode, CDialogScript::SScri
 	if (lineNode->getAttr("flagSoundStopsAnim", tmp)) line.m_flagSoundStopsAnim = tmp;
 	if (lineNode->getAttr("flagAGSignal", tmp)) line.m_flagAGSignal = tmp;
 	if (lineNode->getAttr("flagAGEP", tmp)) line.m_flagAGEP = tmp;
-	const char* audioIDString = lineNode->getAttr("audioID");
-	if (audioIDString != 0)
-		gEnv->pAudioSystem->GetAudioTriggerId(audioIDString, line.m_audioID);
+	const char* szTriggerName = lineNode->getAttr("audioID");
+	if (szTriggerName != nullptr && szTriggerName[0] != '\0')
+	{
+		line.m_audioID = CryAudio::StringToId(szTriggerName);
+	}
 	else
+	{
 		line.m_audioID = CryAudio::InvalidControlId;
+	}
+
 	line.m_anim = lineNode->getAttr("anim");
 	line.m_facial = lineNode->getAttr("facial");
 	if (CryStringUtils::stristr(line.m_facial, "#RESET#") != 0)

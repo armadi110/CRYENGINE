@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __NETCVARS_H__
 #define __NETCVARS_H__
@@ -212,6 +212,7 @@ public:
 
 	int enableWatchdogTimer;
 
+#if USE_NETID_PACKING
 	// Non arithstream NetID bits
 	int net_numNetIDLowBitBits;
 	int net_numNetIDLowBitIDs;
@@ -222,6 +223,7 @@ public:
 	int net_numNetIDHighBitIDs;
 	int net_numNetIDs;
 	int net_invalidNetID;
+#endif // USE_NETID_PACKING
 
 	// Dedi server scheduler
 	int net_dedi_scheduler_server_port;

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -625,7 +625,7 @@ public:
 		static const SInputPortConfig in_config[] = {
 			InputPortConfig<string>("mat_Material", _HELP("Material name")),
 			InputPortConfig<int>("ObjectType", 0, _HELP("Object type (render node type)"), NULL,
-				_UICONFIG("enum_int:<choose>=0,Brush=1,Vegetation=2,Light=3,Cloud=4,FogVolume=6,Decal=7,ParticleEmitter=8,WaterVolume=9,WaterWave=10,Road=11,DistanceCloud=12,VolumeObject=13,Rope=15,PrismObject=16,RenderProxy=19,GameEffect=20,BreakableGlass=21,MergedMesh=23,GeomCache=24")),
+				_UICONFIG("enum_int:<choose>=0,Brush=1,Vegetation=2,Light=3,FogVolume=6,Decal=7,ParticleEmitter=8,WaterVolume=9,WaterWave=10,Road=11,DistanceCloud=12,Rope=15,MovableBrush=19,GameEffect=20,BreakableGlass=21,MergedMesh=23,GeomCache=24")),
 			InputPortConfig<Vec3>("Position", _HELP("Position")),
 			InputPortConfig_Void("Activate", _HELP("Activate set material event")),
 			{ 0 }
@@ -838,18 +838,17 @@ public:
 		{
 		case eFE_Activate:
 			{
-				if (IsPortActive(pActInfo, eIn_Get))
+				if (IsPortActive(pActInfo, eIn_Get) && gEnv->pRenderer)
 				{
-					int x = 0;
-					int y = 0;
-					int width = 0;
-					int height = 0;
-					gEnv->pRenderer->GetViewport(&x, &y, &width, &height);
+					const int x = 0;
+					const int y = 0;
+					const int w = IRenderAuxGeom::GetAux()->GetCamera().GetViewSurfaceX();
+					const int h = IRenderAuxGeom::GetAux()->GetCamera().GetViewSurfaceZ();
 
 					ActivateOutput(pActInfo, eOut_X, x);
 					ActivateOutput(pActInfo, eOut_Y, y);
-					ActivateOutput(pActInfo, eOut_Width, width);
-					ActivateOutput(pActInfo, eOut_Height, height);
+					ActivateOutput(pActInfo, eOut_Width, w);
+					ActivateOutput(pActInfo, eOut_Height, h);
 				}
 			}
 			break;

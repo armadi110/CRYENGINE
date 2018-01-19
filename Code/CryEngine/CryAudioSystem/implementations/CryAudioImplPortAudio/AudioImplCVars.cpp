@@ -1,18 +1,22 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "AudioImplCVars.h"
 #include <CrySystem/IConsole.h>
 
-using namespace CryAudio::Impl::PortAudio;
-
+namespace CryAudio
+{
+namespace Impl
+{
+namespace PortAudio
+{
 //////////////////////////////////////////////////////////////////////////
-void CAudioImplCVars::RegisterVariables()
+void CCVars::RegisterVariables()
 {
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CAudioImplCVars::UnregisterVariables()
+void CCVars::UnregisterVariables()
 {
 	IConsole* const pConsole = gEnv->pConsole;
 
@@ -20,3 +24,6 @@ void CAudioImplCVars::UnregisterVariables()
 	{
 	}
 }
+} // namespace PortAudio
+} // namespace Impl
+} // namespace CryAudio

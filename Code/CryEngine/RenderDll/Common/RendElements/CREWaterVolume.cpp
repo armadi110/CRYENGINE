@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CryRenderer/RenderElements/CREWaterVolume.h>
@@ -64,26 +64,14 @@ struct SCompiledWaterVolume : NoCopy
 
 	void ReleaseDeviceResources()
 	{
-		if (m_pMaterialResourceSet)
-		{
-			gRenDev->m_pRT->RC_ReleaseRS(m_pMaterialResourceSet);
-		}
-
-		if (m_pPerInstanceResourceSet)
-		{
-			gRenDev->m_pRT->RC_ReleaseRS(m_pPerInstanceResourceSet);
-		}
-
-		if (m_pPerInstanceCB)
-		{
-			gRenDev->m_pRT->RC_ReleaseCB(m_pPerInstanceCB);
-			m_pPerInstanceCB = nullptr;
-		}
+		m_pMaterialResourceSet.reset();
+		m_pPerInstanceResourceSet.reset();
+		m_pPerInstanceCB.reset();
 	}
 
 	CDeviceResourceSetPtr     m_pMaterialResourceSet;
 	CDeviceResourceSetPtr     m_pPerInstanceResourceSet;
-	CConstantBuffer*          m_pPerInstanceCB;
+	CConstantBufferPtr        m_pPerInstanceCB;
 
 	const CDeviceInputStream* m_vertexStreamSet;
 	const CDeviceInputStream* m_indexStreamSet;
@@ -147,7 +135,7 @@ void CREWaterVolume::mfCenter(Vec3& vCenter, CRenderObject* pObj)
 		vCenter += pObj->GetTranslation();
 }
 
-bool CREWaterVolume::Compile(CRenderObject* pObj)
+bool CREWaterVolume::Compile(CRenderObject* pObj,CRenderView *pRenderView)
 {
 	if (!m_pCompiledObject)
 	{
@@ -158,8 +146,7 @@ bool CREWaterVolume::Compile(CRenderObject* pObj)
 	cro.m_bValid = 0;
 
 	CD3D9Renderer* const RESTRICT_POINTER rd = gcpRendD3D;
-	SRenderPipeline& rp(rd->m_RP);
-	auto nThreadID = rp.m_nProcessThreadID;
+
 	CRY_ASSERT(rd->m_pRT->IsRenderThread());
 	auto* pWaterStage = rd->GetGraphicsPipeline().GetWaterStage();
 
@@ -187,7 +174,7 @@ bool CREWaterVolume::Compile(CRenderObject* pObj)
 	pObj->m_ObjFlags &= ~FOB_ALLOW_TESSELLATION;
 
 	// create PSOs which match to specific material.
-	EVertexFormat vertexFormat = eVF_P3F_C4B_T2F;
+	const InputLayoutHandle vertexFormat = EDefaultInputLayouts::P3F_C4B_T2F;
 	SGraphicsPipelineStateDescription psoDescription(
 	  pObj,
 	  this,
@@ -221,7 +208,7 @@ bool CREWaterVolume::Compile(CRenderObject* pObj)
 	psoDescription.objectRuntimeMask |= g_HWSR_MaskBit[HWSR_COMPUTE_SKINNING];
 
 	// fog related runtime mask, this changes eventual PSOs.
-	const bool bFog = rp.m_TI[nThreadID].m_FS.m_bEnable;
+	const bool bFog = pRenderView->IsGlobalFogEnabled();
 	const bool bVolumetricFog = (rd->m_bVolumetricFogEnabled != 0);
 #if defined(VOLUMETRIC_FOG_SHADOWS)
 	const bool bVolFogShadow = (rd->m_bVolFogShadowsEnabled != 0);
@@ -313,7 +300,7 @@ bool CREWaterVolume::Compile(CRenderObject* pObj)
 
 	// UpdatePerInstanceCB uses not thread safe functions like CreateConstantBuffer(),
 	// so this needs to be called here instead of DrawToCommandList().
-	UpdatePerInstanceCB(cro, *pObj, bRenderFogShadowWater, bCaustics);
+	UpdatePerInstanceCB(cro, *pObj, bRenderFogShadowWater, bCaustics, pRenderView);
 
 	CRY_ASSERT(cro.m_pMaterialResourceSet);
 	CRY_ASSERT(cro.m_pPerInstanceCB);
@@ -322,7 +309,7 @@ bool CREWaterVolume::Compile(CRenderObject* pObj)
 	CRY_ASSERT((!bFullscreen && cro.m_indexStreamSet != nullptr) || (bFullscreen && cro.m_indexStreamSet == nullptr));
 
 	// Issue the barriers on the core command-list, which executes directly before the Draw()s in multi-threaded jobs
-	PrepareForUse(cro, false, *(CCryDeviceWrapper::GetObjectFactory().GetCoreCommandList()));
+	PrepareForUse(cro, false, GetDeviceObjectFactory().GetCoreCommandList());
 
 	cro.m_bValid = 1;
 	return true;
@@ -338,7 +325,7 @@ void CREWaterVolume::DrawToCommandList(CRenderObject* pObj, const struct SGraphi
 #if defined(ENABLE_PROFILING_CODE)
 	if (!cobj.m_bValid || !cobj.m_pMaterialResourceSet->IsValid())
 	{
-		CryInterlockedIncrement(&SPipeStat::Out()->m_nIncompleteCompiledObjects);
+		CryInterlockedIncrement(&SRenderStatistics::Write().m_nIncompleteCompiledObjects);
 	}
 #endif
 
@@ -359,8 +346,8 @@ void CREWaterVolume::DrawToCommandList(CRenderObject* pObj, const struct SGraphi
 
 	// Set states
 	commandInterface.SetPipelineState(pPso.get());
-	commandInterface.SetResources(EResourceLayoutSlot_PerMaterialRS, cobj.m_pMaterialResourceSet.get(), EShaderStage_AllWithoutCompute);
-	commandInterface.SetResources(EResourceLayoutSlot_PerInstanceExtraRS, cobj.m_pPerInstanceResourceSet.get(), EShaderStage_AllWithoutCompute);
+	commandInterface.SetResources(EResourceLayoutSlot_PerMaterialRS, cobj.m_pMaterialResourceSet.get());
+	commandInterface.SetResources(EResourceLayoutSlot_PerInstanceExtraRS, cobj.m_pPerInstanceResourceSet.get());
 
 	EShaderStage perInstanceCBShaderStages =
 	  cobj.m_bHasTessellation
@@ -391,10 +378,10 @@ void CREWaterVolume::PrepareForUse(watervolume::SCompiledWaterVolume& compiledOb
 
 	if (!bInstanceOnly)
 	{
-		pCommandInterface->PrepareResourcesForUse(EResourceLayoutSlot_PerMaterialRS, compiledObj.m_pMaterialResourceSet.get(), EShaderStage_AllWithoutCompute);
+		pCommandInterface->PrepareResourcesForUse(EResourceLayoutSlot_PerMaterialRS, compiledObj.m_pMaterialResourceSet.get());
 	}
 
-	pCommandInterface->PrepareResourcesForUse(EResourceLayoutSlot_PerInstanceExtraRS, compiledObj.m_pPerInstanceResourceSet.get(), EShaderStage_AllWithoutCompute);
+	pCommandInterface->PrepareResourcesForUse(EResourceLayoutSlot_PerInstanceExtraRS, compiledObj.m_pPerInstanceResourceSet.get());
 
 	EShaderStage perInstanceCBShaderStages =
 	  compiledObj.m_bHasTessellation
@@ -421,16 +408,16 @@ void CREWaterVolume::UpdatePerInstanceCB(
   watervolume::SCompiledWaterVolume& RESTRICT_REFERENCE compiledObj,
   const CRenderObject& renderObj,
   bool bRenderFogShadowWater,
-  bool bCaustics) const
+  bool bCaustics,
+  CRenderView *pRenderView) const
 {
 	CD3D9Renderer* const RESTRICT_POINTER rd = gcpRendD3D;
-	SRenderPipeline& rp(rd->m_RP);
-	SCGParamsPF& PF = rd->m_cEF.m_PF[rp.m_nProcessThreadID];
+	SRenderViewShaderConstants& PF = pRenderView->GetShaderConstants();
 	const auto cameraPos = PF.pCameraPos;
 
 	if (!compiledObj.m_pPerInstanceCB)
 	{
-		compiledObj.m_pPerInstanceCB = rd->m_DevBufMan.CreateConstantBufferRaw(sizeof(watervolume::SPerInstanceConstantBuffer));
+		compiledObj.m_pPerInstanceCB = rd->m_DevBufMan.CreateConstantBuffer(sizeof(watervolume::SPerInstanceConstantBuffer));
 	}
 
 	if (!compiledObj.m_pPerInstanceCB)
@@ -605,7 +592,7 @@ void CREWaterVolume::UpdateVertex(watervolume::SCompiledWaterVolume& compiledObj
 
 		// fill geomInfo.
 		geomInfo.primitiveType = bTessellation ? ept3ControlPointPatchList : eptTriangleList;
-		geomInfo.eVertFormat = eVF_P3F_C4B_T2F;
+		geomInfo.eVertFormat = EDefaultInputLayouts::P3F_C4B_T2F;
 		geomInfo.nFirstIndex = 0;
 		geomInfo.nNumIndices = m_pParams->m_numIndices;
 		geomInfo.nFirstVertex = 0;
@@ -654,7 +641,7 @@ void CREWaterVolume::UpdateVertex(watervolume::SCompiledWaterVolume& compiledObj
 
 		// fill geomInfo.
 		geomInfo.primitiveType = eptTriangleStrip;
-		geomInfo.eVertFormat = eVF_P3F_C4B_T2F;
+		geomInfo.eVertFormat = EDefaultInputLayouts::P3F_C4B_T2F;
 		geomInfo.nFirstVertex = 0;
 		geomInfo.nNumVertices = vertexNum;
 		geomInfo.nNumVertexStreams = 1;
@@ -667,13 +654,13 @@ void CREWaterVolume::UpdateVertex(watervolume::SCompiledWaterVolume& compiledObj
 	// Fill stream pointers.
 	if (geomInfo.indexStream.hStream != 0)
 	{
-		compiledObj.m_indexStreamSet = CCryDeviceWrapper::GetObjectFactory().CreateIndexStreamSet(&geomInfo.indexStream);
+		compiledObj.m_indexStreamSet = GetDeviceObjectFactory().CreateIndexStreamSet(&geomInfo.indexStream);
 	}
 	else
 	{
 		compiledObj.m_indexStreamSet = nullptr;
 	}
-	compiledObj.m_vertexStreamSet = CCryDeviceWrapper::GetObjectFactory().CreateVertexStreamSet(geomInfo.nNumVertexStreams, &geomInfo.vertexStreams[0]);
+	compiledObj.m_vertexStreamSet = GetDeviceObjectFactory().CreateVertexStreamSet(geomInfo.nNumVertexStreams, &geomInfo.vertexStreams[0]);
 	compiledObj.m_nNumIndices = geomInfo.nNumIndices;
 	compiledObj.m_nStartIndex = geomInfo.nFirstIndex;
 	compiledObj.m_nVerticesCount = geomInfo.nNumVertices;

@@ -1,10 +1,8 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
 #include <CryAudio/IAudioInterfacesCommonData.h>
-
-#define AUDIO_INVALID_CRC32 (0xFFFFffff)
 
 /**
  * @namespace CryAudio
@@ -12,6 +10,16 @@
  */
 namespace CryAudio
 {
+enum class EEventState : EnumFlagsType
+{
+	None,
+	Playing,
+	PlayingDelayed,
+	Loading,
+	Unloading,
+	Virtual,
+};
+
 /**
  * @namespace CryAudio::Impl
  * @brief Sub-namespace of the CryAudio namespace used by audio middleware implementations.
@@ -28,20 +36,10 @@ struct SObject3DAttributes
 		: velocity(ZERO)
 	{}
 
+	static SObject3DAttributes const& GetEmptyObject() { static SObject3DAttributes const emptyInstance; return emptyInstance; }
+
 	CObjectTransformation transformation;
 	Vec3                  velocity;
 };
-
-/**
- * A utility function to convert a string value to an Id.
- * @param szSource - string to convert
- * @return a 32bit CRC computed on the lower case version of the passed string
- */
-inline uint32 AudioStringToId(char const* const szSource)
-{
-	return CCrc32::ComputeLowercase(szSource);
-}
-}
-}
-
-static const CryAudio::Impl::SObject3DAttributes g_sNullAudioObjectAttributes;
+} // namespace Impl
+} // namespace CryAudio

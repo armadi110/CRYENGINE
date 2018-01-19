@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "NotificationNetwork.h"
@@ -185,7 +185,7 @@ CChannel::CChannel(const char* name)
 	if (!*name)
 		return;
 
-	size_t length = MIN(::strlen(name), NN_CHANNEL_NAME_LENGTH_MAX);
+	size_t length = std::min(::strlen(name), (size_t)NN_CHANNEL_NAME_LENGTH_MAX);
 	::memcpy(m_name, name, length);
 	::memset(m_name + length, 0, NN_CHANNEL_NAME_LENGTH_MAX - length);
 }
@@ -378,7 +378,7 @@ CConnectionBase::~CConnectionBase()
 
 void CConnectionBase::SetAddress(const char* address, uint16 port)
 {
-	size_t length = MIN(::strlen(address), 15);
+	size_t length = std::min(::strlen(address), (size_t)15);
 	::memset(m_address, 0, sizeof(m_address));
 	::memcpy(m_address, address, length);
 	m_port = port;
@@ -1261,7 +1261,7 @@ void CNotificationNetwork::ProcessSockets()
 	if (r < 0)
 	{
 		// So we force the sleep here for now.
-		Sleep(1000);
+		CrySleep(1000);
 		return;
 	}
 

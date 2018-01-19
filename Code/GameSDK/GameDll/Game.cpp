@@ -15,7 +15,7 @@
 #include "Game.h"
 #include "GameCVars.h"
 #include "GameActions.h"
-
+ 
 #include "UI/UIManager.h"
 #include "UI/ProfileOptions.h"
 #include "UI/WarningsManager.h"
@@ -38,7 +38,7 @@
 #include "ItemScheduler.h"
 #include "Utility/CryWatch.h"
 
-#include <CryExtension/ICryPluginManager.h>
+#include <CrySystem/ICryPluginManager.h>
 #include <CrySystem/File/ICryPak.h>
 #include <CryString/CryPath.h>
 #include <IActionMapManager.h>
@@ -181,17 +181,12 @@
 #include "DynamicResponseSystem/ConditionDistanceToEntity.h"
 #include "DynamicResponseSystem/GameTokenToDrsTranslator.h"
 #include "DynamicResponseSystem/ActionExecuteAudioTrigger.h"
-#include "DynamicResponseSystem/ActionSpeakLineBasedOnVariable.h"
 #include <CrySerialization/ClassFactory.h>
 
 #include <CrySystem/Profilers/FrameProfiler/FrameProfiler.h>
 #include <CrySystem/CryUnitTest.h>
 
 #include <IPerceptionManager.h>
-
-#ifdef ENABLE_STATS_AGENT
-	#include "StatsAgent.h"
-#endif // #ifdef ENABLE_STATS_AGENT
 
 //#define GAME_DEBUG_MEM  // debug memory usage
 #undef  GAME_DEBUG_MEM
@@ -368,8 +363,8 @@ public:
 
 		if (3000 < nDrawCalls)
 		{
-			gEnv->pRenderer->SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
-			gEnv->pRenderer->SetState(GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA | GS_NODEPTHTEST);
+			//gEnv->pRenderer->SetColorOp(eCO_MODULATE, eCO_MODULATE, DEF_TEXARG0, DEF_TEXARG0);
+			//gEnv->pRenderer->SetState(GS_BLSRC_SRCALPHA | GS_BLDST_ONEMINUSSRCALPHA | GS_NODEPTHTEST);
 
 			float alpha = max(0.0f, min(1.0f, (nDrawCalls - 3000) / 2000.0f));
 			float reddy = max(0.0f, min(1.0f, (nDrawCalls - 4000) / 3000.0f));
@@ -413,8 +408,8 @@ public:
 			//x = w * 0.25f - m_Textures[0]->GetWidth() * scalef * 0.5f;
 			//y = h * 0.5f - m_Textures[0]->GetHeight() * scalef * 0.5f;
 
-			gEnv->pRenderer->Draw2dImage(0.f, 200.f, m_Textures[0]->GetWidth() * scalef, m_Textures[0]->GetHeight() * scalef, m_Textures[0]->GetTextureID(), 0.0f, 0.0f, 1.0f, 1.0f, 180.0f, 1.0f, 1.0f - m_DrawCallData.redValue, 1.0f - m_DrawCallData.redValue, m_DrawCallData.lastAlpha, 0.9f);
-			gEnv->pRenderer->Draw2dImage(0.f, 200.f, m_Textures[1]->GetWidth() * scalef, m_Textures[1]->GetHeight() * scalef, m_Textures[1]->GetTextureID(), 0.0f, 0.0f, 1.0f, 1.0f, 180.0f, 1.0f, 1.0f, 1.0f, m_DrawCallData.redValue, 1.0f);
+			IRenderAuxImage::Draw2dImage(0.f, 200.f, m_Textures[0]->GetWidth() * scalef, m_Textures[0]->GetHeight() * scalef, m_Textures[0]->GetTextureID(), 0.0f, 0.0f, 1.0f, 1.0f, 180.0f, 1.0f, 1.0f - m_DrawCallData.redValue, 1.0f - m_DrawCallData.redValue, m_DrawCallData.lastAlpha, 0.9f);
+			IRenderAuxImage::Draw2dImage(0.f, 200.f, m_Textures[1]->GetWidth() * scalef, m_Textures[1]->GetHeight() * scalef, m_Textures[1]->GetTextureID(), 0.0f, 0.0f, 1.0f, 1.0f, 180.0f, 1.0f, 1.0f, 1.0f, m_DrawCallData.redValue, 1.0f);
 		}
 		else
 		{
@@ -451,6 +446,7 @@ CGame::CGame()
 	m_pMatchMakingTelemetry(NULL),
 	m_pDataPatchDownloader(0),
 	m_pGameLocalizationManager(0),
+	m_pGameStateRecorder(0),
 #if USE_LAGOMETER
 	m_pLagOMeter(0),
 #endif
@@ -599,7 +595,12 @@ CGame::~CGame()
 
 	gEnv->pGameFramework->EndGameContext();
 	gEnv->pGameFramework->UnregisterListener(this);
-	GetISystem()->GetPlatformOS()->RemoveListener(this);
+
+	if (IPlatformOS* pPlatformOS = GetISystem()->GetPlatformOS())
+	{
+		pPlatformOS->RemoveListener(this);
+	}
+
 	gEnv->pSystem->GetISystemEventDispatcher()->RemoveListener(this);
 	ReleaseScriptBinds();
 
@@ -645,6 +646,7 @@ CGame::~CGame()
 	SAFE_DELETE(m_patchPakManager);
 	SAFE_DELETE(m_pDataPatchDownloader);
 	SAFE_DELETE(m_pGameLocalizationManager);
+	SAFE_RELEASE(m_pGameStateRecorder);
 	SAFE_DELETE(m_pGameTokenSignalCreator);
 #if USE_LAGOMETER
 	SAFE_DELETE(m_pLagOMeter);
@@ -708,8 +710,6 @@ CGame::~CGame()
 			pLobby->Terminate(eCLS_Online, eCLSO_All, NULL, NULL);
 		}
 	}
-
-	gEnv->pSystem->UnloadEngineModule("CryLobby", "EngineModule_CryLobby");
 
 	GAME_FX_SYSTEM.Destroy();
 
@@ -865,10 +865,9 @@ bool CGame::Init(/*IGameFramework* pFramework*/)
 
 		if (gEnv->IsDedicated())
 		{
-			const char* const DEDICATED_BASE_CONFIG_NAME = "dedicated";
-			string path = gEnv->pSystem->GetRootFolder();
+			const char* const szDedicatedBaseConfigName = "dedicated.cfg";
+			const string configFileName = PathUtil::Make(gEnv->pSystem->GetRootFolder(), szDedicatedBaseConfigName);
 
-			configFileName.Format("%s%s.cfg", path.c_str(), DEDICATED_BASE_CONFIG_NAME);
 			CryLog("[dedicated] loading dedicated config %s", configFileName.c_str());
 
 			SDedicatedConfigSink sink;
@@ -930,12 +929,7 @@ bool CGame::Init(/*IGameFramework* pFramework*/)
 		}
 #endif
 
-		if (!gEnv->pSystem->InitializeEngineModule("CryLobby", "EngineModule_CryLobby", false))
-		{
-			CryWarning(VALIDATOR_MODULE_GAME, VALIDATOR_ERROR, "Error creating Lobby System!");
-		}
-
-		auto pLobby = gEnv->pNetwork->GetLobby();
+		ICryLobby* pLobby = gEnv->pNetwork->GetLobby();
 		if (pLobby)
 		{
 			pLobby->SetUserPacketEnd(eGUPD_End);
@@ -978,12 +972,6 @@ bool CGame::Init(/*IGameFramework* pFramework*/)
 
 			m_pGameLobbyManager = new CGameLobbyManager();
 		}
-	}
-
-	//perception system plugin must be loaded here by default (cryplugin.csv cannot be used because GameSDK doesn't exist as cry project yet)
-	if (!gEnv->pSystem->GetIPluginManager()->LoadPluginFromDisk(ICryPluginManager::EPluginType::EPluginType_CPP, "CryPerceptionSystem", "Plugin_CryPerceptionSystem"))
-	{
-		CryWarning(VALIDATOR_MODULE_GAME, VALIDATOR_ERROR, "Error loading Perception System!");
 	}
 
 	m_pGameAchievements = new CGameAchievements;  //Should be after GameLobbyManager
@@ -1237,7 +1225,8 @@ bool CGame::Init(/*IGameFramework* pFramework*/)
 	{
 		// register the custom DRS actions and conditions
 		REGISTER_DRS_CUSTOM_ACTION(CActionExecuteAudioTrigger);
-		REGISTER_DRS_CUSTOM_ACTION(CActionSpeakLineBasedOnVariable);
+		REGISTER_DRS_CUSTOM_ACTION(CActionSetAudioSwitch);
+		REGISTER_DRS_CUSTOM_ACTION(CActionSetAudioParameter);
 		REGISTER_DRS_CUSTOM_CONDITION(CConditionDistanceToEntity);
 
 		// create a special DrsActor that sends out our automatic signals every time a gametoken changes its value
@@ -1428,7 +1417,9 @@ void CGame::InitGameType(bool multiplayer, bool fromInit /*= false*/)
 		EPlatform platform = GetPlatform();
 		switch (platform)
 		{
-		case ePlatform_PC:
+			case EPlatform::Windows:
+			case EPlatform::Linux:
+			case EPlatform::MacOS:
 			{
 				mpConfigName = "multiplayer_pc";
 				break;
@@ -2472,7 +2463,7 @@ int CGame::Update(bool haveFocus, unsigned int updateFlags) PREFAST_SUPPRESS_WAR
 	{
 		if (m_pRayCaster)
 		{
-			FRAME_PROFILER("GlobalRayCaster", gEnv->pSystem, PROFILE_AI);
+			CRY_PROFILE_REGION(PROFILE_GAME, "GlobalRayCaster");
 
 			m_pRayCaster->SetQuota(g_pGameCVars->g_gameRayCastQuota);
 			m_pRayCaster->Update(frameTime);
@@ -2480,7 +2471,7 @@ int CGame::Update(bool haveFocus, unsigned int updateFlags) PREFAST_SUPPRESS_WAR
 
 		if (m_pIntersectionTester)
 		{
-			FRAME_PROFILER("GlobalIntersectionTester", gEnv->pSystem, PROFILE_AI);
+			CRY_PROFILE_REGION(PROFILE_GAME, "GlobalIntersectionTester");
 
 			m_pIntersectionTester->SetQuota(g_pGameCVars->g_gameIntersectionTestQuota);
 			m_pIntersectionTester->Update(frameTime);
@@ -2690,7 +2681,7 @@ int CGame::Update(bool haveFocus, unsigned int updateFlags) PREFAST_SUPPRESS_WAR
 			if (timeRemaining > 0.f)
 			{
 				SHUDEvent resumingEvent(eHUDEvent_OnUpdateGameResumeMessage);
-				int time = MAX(int(floor(timeRemaining + 0.5f)), 0);
+				int time = std::max(int(floor(timeRemaining + 0.5f)), 0);
 				resumingEvent.AddData(time);
 				CHUDEventDispatcher::CallEvent(resumingEvent);
 			}
@@ -2995,10 +2986,6 @@ int CGame::Update(bool haveFocus, unsigned int updateFlags) PREFAST_SUPPRESS_WAR
 	}
 #endif //#if USE_TELEMETRY_BUFFERS
 
-#ifdef ENABLE_STATS_AGENT
-	CStatsAgent::Update();
-#endif // #ifdef ENABLE_STATS_AGENT
-
 	if (m_telemetryCollector)
 	{
 		m_telemetryCollector->Update();
@@ -3156,17 +3143,7 @@ const char* CGame::GetName()
 
 EPlatform CGame::GetPlatform() const
 {
-	EPlatform platform = ePlatform_Unknown;
-
-#if CRY_PLATFORM_WINDOWS || CRY_PLATFORM_DURANGO || CRY_PLATFORM_APPLE || CRY_PLATFORM_LINUX || CRY_PLATFORM_ANDROID
-	platform = ePlatform_PC;
-#elif CRY_PLATFORM_ORBIS
-	platform = ePlatform_PS4;
-#else
-	#error Unsupported Platform
-#endif
-
-	return platform;
+	return EPlatform::Current;
 }
 
 void CGame::InitPlatformOS()
@@ -3646,7 +3623,7 @@ void CGame::OnActionEvent(const SActionEvent& event)
 		break;
 	case eAE_disconnectCommandFinished:
 #if CRY_PLATFORM_DURANGO
-		if (!g_pGame->GetGameLobby()->IsCurrentlyInSession())
+		if (g_pGame->GetGameLobby() && !g_pGame->GetGameLobby()->IsCurrentlyInSession())
 		{
 			EnsureSigninState();
 		}
@@ -4038,13 +4015,13 @@ void CGame::LoadMappedLevelNames(const char* xmlPath)
 
 IGameStateRecorder* CGame::CreateGameStateRecorder(IGameplayListener* pL)
 {
-	CGameStateRecorder* pGSP = new CGameStateRecorder();
-
-	if (pGSP)
-		pGSP->RegisterListener(pL);
-
-	return (IGameStateRecorder*)pGSP;
-
+	if (!m_pGameStateRecorder)
+	{
+		m_pGameStateRecorder = new CGameStateRecorder();
+		CRY_ASSERT(m_pGameStateRecorder);
+		m_pGameStateRecorder->RegisterListener(pL);
+	}
+	return m_pGameStateRecorder;
 }
 
 CInteractiveObjectRegistry& CGame::GetInteractiveObjectsRegistry() const
@@ -4351,7 +4328,7 @@ float CGame::GetRemainingHostMigrationTimeoutTime() const
 {
 	const float timePassed = GetTimeSinceHostMigrationStateChanged();
 	const float timeRemaining = m_hostMigrationNetTimeoutLength - timePassed;
-	return MAX(timeRemaining, 0.f);
+	return std::max(timeRemaining, 0.f);
 }
 
 //------------------------------------------------------------------------
@@ -4366,7 +4343,7 @@ float CGame::GetHostMigrationTimeTillResume() const
 	{
 		const float curTime = gEnv->pTimer->GetAsyncCurTime();
 		const float timePassed = curTime - m_hostMigrationTimeStateChanged;
-		timeRemaining = MAX(g_pGameCVars->g_hostMigrationResumeTime - timePassed, 0.f);
+		timeRemaining = std::max(g_pGameCVars->g_hostMigrationResumeTime - timePassed, 0.f);
 	}
 	return timeRemaining;
 }
@@ -4917,13 +4894,8 @@ void CGame::OnSystemEvent(ESystemEvent event, UINT_PTR wparam, UINT_PTR lparam)
 
 			if (gEnv->pScriptSystem)
 			{
-				static bool physicsLuaLoaded = false;
-				if (!physicsLuaLoaded)
-				{
-					// Load explosion shapes.
-					gEnv->pScriptSystem->ExecuteFile("scripts/physics.lua", true, true);
-					physicsLuaLoaded = true;
-				}
+				// Load explosion shapes.
+				gEnv->pScriptSystem->ExecuteFile("scripts/physics.lua", true, true);
 			}
 		}
 		break;

@@ -187,6 +187,7 @@ def configure(conf):
 	###########################################
 	# Load support for c# and swig
 	conf.load('swig', tooldir=CRY_WAF_TOOL_DIR)
+	conf.load('protoc', tooldir=CRY_WAF_TOOL_DIR)
 	conf.load('cs', tooldir=CRY_WAF_TOOL_DIR)
 		
 	#Get user defined active specs
@@ -253,7 +254,8 @@ def configure(conf):
 			# Try to load the function			
 			getattr(conf, function_name)()
 			
-			conf.configure_qt()
+			conf.configure_qt()			
+			conf.configure_protoc()
 
 			# Load swig and mono
 			conf.configure_swig()
@@ -1038,6 +1040,8 @@ def get_output_folders(self, platform, configuration, target_spec = None, game_p
 		path += self.options.out_folder_darwin64
 	elif platform == 'android_arm':
 		path += self.options.out_folder_android
+	elif platform == 'android_arm64':
+		path += self.options.out_folder_android64
 	else:
 		path += 'bin/platform_unknown'
 				
@@ -1122,7 +1126,8 @@ def ExecuteBootstrap(bld):
 	ret = subprocess.call(
                 executable + [
                         '-d' + bootstrap_dat,
-                        '-m' + bootstrap_digest.abspath()])
+                        '-m' + bootstrap_digest.abspath(),
+						'--addrelevance=buildmachine'])
 	if ret == 0:
 		bld.msg('branch bootstrap', 'done')
 	else:

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 // -------------------------------------------------------------------------
 //  File name:   timedemorecorder.cpp
@@ -27,6 +27,8 @@
 #include <CrySystem/VR/IHMDManager.h>
 #include <CrySystem/VR/IHMDDevice.h>
 #include <CryCore/Platform/CryWindows.h>
+
+#include <array>
 
 //////////////////////////////////////////////////////////////////////////
 // Brush Export structures.
@@ -365,7 +367,7 @@ void CTimeDemoRecorder::cmd_Play(IConsoleCmdArgs* pArgs)
 		{
 			s_timedemo_file->Set(pArgs->GetArg(1));
 		}
-		s_pTimeDemoRecorder->StartDemoDelayed(2);
+		s_pTimeDemoRecorder->StartDemoDelayed();
 	}
 }
 
@@ -455,7 +457,7 @@ CTimeDemoRecorder::CTimeDemoRecorder()
 	, m_pTimeDemoInfo(nullptr)
 	, m_numLoops(0)
 	, m_bAIEnabled(false)
-	, m_countDownPlay(0)
+	, m_bDelayedPlayFlag(false)
 	, m_prevGodMode(0)
 	, m_nCurrentDemoLevel(0)
 	, m_lastChainDemoTime(0.0f)
@@ -542,7 +544,7 @@ const char* CTimeDemoRecorder::GetCurrentLevelPath()
 {
 	static char buf[_MAX_PATH];
 	gEnv->pGameFramework->GetAbsLevelPath(buf, sizeof(buf));
-	return &buf[0];
+	return buf;
 	/*
 	   ILevel *pLevel = gEnv->pGameFramework->GetILevelSystem()->GetCurrentLevel();
 	   if (!pLevel)
@@ -553,6 +555,20 @@ const char* CTimeDemoRecorder::GetCurrentLevelPath()
 	   return pLevelInfo->GetPath();
 	 */
 }
+
+std::array<EEntityEvent, 8> g_recordedEntityEvents =
+{
+	{
+		ENTITY_EVENT_XFORM,
+		ENTITY_EVENT_HIDE,
+		ENTITY_EVENT_UNHIDE,
+		ENTITY_EVENT_ATTACH,
+		ENTITY_EVENT_DETACH,
+		ENTITY_EVENT_DETACH_THIS,
+		ENTITY_EVENT_ENABLE_PHYSICS,
+		ENTITY_EVENT_ENTER_SCRIPT_STATE
+	}
+};
 
 //////////////////////////////////////////////////////////////////////////
 void CTimeDemoRecorder::Record(bool bEnable)
@@ -572,17 +588,16 @@ void CTimeDemoRecorder::Record(bool bEnable)
 	{
 		SaveAllEntitiesState();
 
-		uint64 onEventSubscriptions = 0;
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_XFORM);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_HIDE);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_UNHIDE);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_ATTACH);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_DETACH);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_DETACH_THIS);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_ENABLE_PHYSICS);
-		onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_ENTER_SCRIPT_STATE);
+		gEnv->pEntitySystem->AddSink(this, IEntitySystem::OnSpawn);
 
-		gEnv->pEntitySystem->AddSink(this, IEntitySystem::OnEvent, onEventSubscriptions);
+		IEntityItPtr pEntityIter = gEnv->pEntitySystem->GetEntityIterator();
+		while (IEntity* pEntity = pEntityIter->Next())
+		{
+			for (const EEntityEvent event : g_recordedEntityEvents)
+			{
+				pEntity->AddEventListener(event, this);
+			}
+		}
 
 		// Start recording.
 		m_records.clear();
@@ -606,6 +621,15 @@ void CTimeDemoRecorder::Record(bool bEnable)
 		m_lastFrameTime = GetTime();
 
 		gEnv->pEntitySystem->RemoveSink(this);
+
+		IEntityItPtr pEntityIter = gEnv->pEntitySystem->GetEntityIterator();
+		while (IEntity* pEntity = pEntityIter->Next())
+		{
+			for (const EEntityEvent event : g_recordedEntityEvents)
+			{
+				pEntity->RemoveEventListener(event, this);
+			}
+		}
 
 		m_currentFrameInputEvents.clear();
 		m_currentFrameEntityEvents.clear();
@@ -633,7 +657,7 @@ void CTimeDemoRecorder::Play(bool bEnable)
 
 	if (bEnable)
 	{
-		CRY_ASSERT(*GetCurrentLevelPath() != 0);
+		CRY_ASSERT(strlen(GetCurrentLevelPath()));
 
 		// Try to load demo file.
 		string filename = PathUtil::Make(GetCurrentLevelPath(), s_timedemo_file->GetString(), "tmd");
@@ -1419,7 +1443,7 @@ void CTimeDemoRecorder::PostUpdate()
 		return;
 	}
 
-	if (!m_countDownPlay && !m_bPlaying && m_bDemoFinished)
+	if (!m_bDelayedPlayFlag && !m_bPlaying && m_bDemoFinished)
 	{
 		if (!m_demoLevels.empty())
 		{
@@ -1445,12 +1469,14 @@ void CTimeDemoRecorder::PostUpdate()
 		}
 	}
 
-	if (m_countDownPlay)
+	if (m_bDelayedPlayFlag)
 	{
 		// to avoid playing demo before game is initialized (when running autotest)
-		m_countDownPlay--;
-		if (m_countDownPlay == 0)
+		if (strlen(GetCurrentLevelPath()))
+		{
+			m_bDelayedPlayFlag = false;
 			Play(true);
+		}
 	}
 
 	ProcessKeysInput();
@@ -1464,8 +1490,10 @@ void CTimeDemoRecorder::PostUpdate()
 		}
 	}
 
-	if ((m_bPlaying || m_bRecording) && m_demo_noinfo <= 0)
+	if (gEnv->pRenderer && (m_bPlaying || m_bRecording) && m_demo_noinfo <= 0)
+	{
 		RenderInfo(1);
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1682,9 +1710,9 @@ bool CTimeDemoRecorder::PlayFrame()
 	//////////////////////////////////////////////////////////////////////////
 	if (m_pTimeDemoInfo)
 	{
-		m_pTimeDemoInfo->pFrames[m_currentFrame].fFrameRate = (float)(1.0 / deltaFrameTime.GetSeconds());
-		m_pTimeDemoInfo->pFrames[m_currentFrame].nPolysRendered = nPolygons;
-		m_pTimeDemoInfo->pFrames[m_currentFrame].nDrawCalls = gEnv->pRenderer->GetCurrentNumberOfDrawCalls();
+		m_pTimeDemoInfo->frames[m_currentFrame].fFrameRate = (float)(1.0 / deltaFrameTime.GetSeconds());
+		m_pTimeDemoInfo->frames[m_currentFrame].nPolysRendered = nPolygons;
+		m_pTimeDemoInfo->frames[m_currentFrame].nDrawCalls = gEnv->pRenderer ? gEnv->pRenderer->GetCurrentNumberOfDrawCalls() : 0;
 	}
 	//////////////////////////////////////////////////////////////////////////
 	m_lastFrameTime = GetTime();
@@ -1904,16 +1932,12 @@ void CTimeDemoRecorder::StartSession()
 	if (!m_pTimeDemoInfo)
 	{
 		m_pTimeDemoInfo = new STimeDemoInfo();
-		m_pTimeDemoInfo->pFrames = 0;
 	}
 
 	int size = GetNumberOfFrames();
-	if (m_pTimeDemoInfo && m_pTimeDemoInfo->nFrameCount != size)
+	if (m_pTimeDemoInfo && m_pTimeDemoInfo->frames.size() != size)
 	{
-		delete[]m_pTimeDemoInfo->pFrames;
-		STimeDemoInfo* pTD = m_pTimeDemoInfo;
-		pTD->nFrameCount = size;
-		pTD->pFrames = new STimeDemoFrameInfo[pTD->nFrameCount];
+		m_pTimeDemoInfo->frames.resize(size);
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -2048,10 +2072,6 @@ void CTimeDemoRecorder::LogInfo(const char* format, ...)
 	cry_vsprintf(szBuffer, format, ArgList);
 	va_end(ArgList);
 
-	va_start(ArgList, format);
-	gEnv->pLog->LogV(IMiniLog::eMessage, format, ArgList);
-	va_end(ArgList);
-
 	gEnv->pLog->Log("%s", szBuffer);
 
 	string filename = PathUtil::Make("%USER%/TestResults", PathUtil::ReplaceExtension(CTimeDemoRecorder::s_timedemo_file->GetString(), "log"));
@@ -2125,69 +2145,53 @@ void CTimeDemoRecorder::GetMemoryStatistics(ICrySizer* s) const
 	s->AddObject(m_currentFrameGameEvents);
 }
 
-bool CTimeDemoRecorder::OnBeforeSpawn(SEntitySpawnParams& params)
-{
-	return true;
-}
-
 //////////////////////////////////////////////////////////////////////////
 void CTimeDemoRecorder::OnSpawn(IEntity* pEntity, SEntitySpawnParams& params)
 {
+	pEntity->AddEventListener(ENTITY_EVENT_XFORM, this);
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool CTimeDemoRecorder::OnRemove(IEntity* pEntity)
+void CTimeDemoRecorder::OnEntityEvent(IEntity* pEntity, const SEntityEvent& event)
 {
-	return true;
-}
+	CRY_ASSERT(m_bRecording);
 
-//////////////////////////////////////////////////////////////////////////
-void CTimeDemoRecorder::OnReused(IEntity* pEntity, SEntitySpawnParams& params)
-{
-}
+	// Record entity event for this frame.
+	EntityGUID guid = pEntity->GetGuid();
+	if (guid.IsNull())
+		return;
 
-//////////////////////////////////////////////////////////////////////////
-void CTimeDemoRecorder::OnEvent(IEntity* pEntity, SEntityEvent& event)
-{
-	if (m_bRecording)
+	// Record entity event for this frame.
+	switch (event.event)
 	{
-		// Record entity event for this frame.
-		EntityGUID guid = pEntity->GetGuid();
-		if (!guid)
-			return;
-
-		// Record entity event for this frame.
-		switch (event.event)
+	// Events to save.
+	case ENTITY_EVENT_XFORM:
+	case ENTITY_EVENT_HIDE:
+	case ENTITY_EVENT_UNHIDE:
+	case ENTITY_EVENT_ATTACH:
+	case ENTITY_EVENT_DETACH:
+	case ENTITY_EVENT_DETACH_THIS:
+	case ENTITY_EVENT_ENABLE_PHYSICS:
+	case ENTITY_EVENT_ENTER_SCRIPT_STATE:
 		{
-		// Events to save.
-		case ENTITY_EVENT_XFORM:
-		case ENTITY_EVENT_HIDE:
-		case ENTITY_EVENT_UNHIDE:
-		case ENTITY_EVENT_ATTACH:
-		case ENTITY_EVENT_DETACH:
-		case ENTITY_EVENT_DETACH_THIS:
-		case ENTITY_EVENT_ENABLE_PHYSICS:
-		case ENTITY_EVENT_ENTER_SCRIPT_STATE:
-			{
-				EntityEventRecord rec;
-				memset(&rec, 0, sizeof(rec));
-				rec.entityId = pEntity->GetId();
-				rec.guid = guid;
-				rec.eventType = event.event;
-				rec.nParam[0] = event.nParam[0];
-				rec.nParam[1] = event.nParam[1];
-				rec.nParam[2] = event.nParam[2];
-				rec.nParam[3] = event.nParam[3];
-				rec.pos = pEntity->GetPos();
-				rec.q = pEntity->GetRotation();
-				m_currentFrameEntityEvents.push_back(rec);
-			}
-			break;
-
-		// Skip all other events.
-		default:
-			break;
+			EntityEventRecord rec;
+			memset(&rec, 0, sizeof(rec));
+			rec.entityId = pEntity->GetId();
+			rec.guid = guid;
+			rec.eventType = event.event;
+			rec.nParam[0] = event.nParam[0];
+			rec.nParam[1] = event.nParam[1];
+			rec.nParam[2] = event.nParam[2];
+			rec.nParam[3] = event.nParam[3];
+			rec.pos = pEntity->GetPos();
+			rec.q = pEntity->GetRotation();
+			m_currentFrameEntityEvents.push_back(rec);
 		}
+		break;
+
+	// Skip all other events.
+	default:
+		break;
 	}
 }
 
@@ -2221,7 +2225,7 @@ void CTimeDemoRecorder::PlayBackEntityEvent(const EntityEventRecord& rec)
 	case ENTITY_EVENT_DETACH:
 		break;
 	case ENTITY_EVENT_DETACH_THIS:
-		pEntity->DetachThis(0, ENTITY_XFORM_TIMEDEMO);
+		pEntity->DetachThis(IEntity::EAttachmentFlags(0), ENTITY_XFORM_TIMEDEMO);
 		break;
 	case ENTITY_EVENT_ENABLE_PHYSICS:
 		if (rec.nParam[0] == 0)
@@ -2251,7 +2255,7 @@ void CTimeDemoRecorder::SaveAllEntitiesState()
 	while (pEntity = pEntityIter->Next())
 	{
 		EntityGUID guid = pEntity->GetGuid();
-		if (guid)
+		if (!guid.IsNull())
 		{
 			EntityEventRecord rec;
 			memset(&rec, 0, sizeof(rec));
@@ -2332,6 +2336,10 @@ void CTimeDemoRecorder::OnFrameProfilerPeak(CFrameProfiler* pProfiler, float fPe
 //////////////////////////////////////////////////////////////////////////
 int CTimeDemoRecorder::ComputePolyCount()
 {
+	if (!gEnv->pRenderer)
+	{
+		return 0;
+	}
 	int nPolygons, nShadowVolPolys;
 	gEnv->pRenderer->GetPolyCount(nPolygons, nShadowVolPolys);
 	m_nPolysCounter += nPolygons;
@@ -2459,7 +2467,7 @@ void CTimeDemoRecorder::StartNextChainedLevel()
 			CryStackStringT<char, 256> mapCmd("map ");
 			mapCmd += m_demoLevels[m_nCurrentDemoLevel].level;
 			gEnv->pConsole->ExecuteString(mapCmd);
-			StartDemoDelayed(50);
+			StartDemoDelayed();
 			m_nCurrentDemoLevel++;
 			return;
 		}
@@ -2658,10 +2666,11 @@ void CTimeDemoRecorder::ReplayGameState(FrameRecord& rec)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CTimeDemoRecorder::StartDemoDelayed(int nFrames)
+void CTimeDemoRecorder::StartDemoDelayed()
 {
+	CRY_ASSERT(!m_bDelayedPlayFlag);
 	EraseLogFile();
-	m_countDownPlay = nFrames;
+	m_bDelayedPlayFlag = true;
 }
 
 //////////////////////////////////////////////////////////////////////////

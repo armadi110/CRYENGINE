@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "CET_GameRules.h"
@@ -93,10 +93,10 @@ public:
 		IGameRulesSystem* pGameRulesSystem = CCryAction::GetCryAction()->GetIGameRulesSystem();
 		const char* gameRulesName = pGameRulesSystem->GetGameRulesName(CCryAction::GetCryAction()->GetGameContext()->GetRequestedGameRules());
 
-		if (!gameRulesName || !m_pRep->ClassIdFromName(id, string(gameRulesName)) || id == (uint16)(~uint16(0)))
+		if ((!gameRulesName || !m_pRep->ClassIdFromName(id, string(gameRulesName)) || id == (uint16)(~uint16(0)))
+			&& !CCryAction::GetCryAction()->GetGameContext()->HasContextFlag(eGSF_NoGameRules))
 		{
 			GameWarning("Cannot find rules %s in network class registry", CCryAction::GetCryAction()->GetGameContext()->GetRequestedGameRules().c_str());
-			return eCETR_Failed;
 		}
 
 		// called on the server, we should send any information about the

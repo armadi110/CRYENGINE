@@ -2,13 +2,13 @@
 
 #pragma once
 
-#include <CryAISystem/INavigationSystem.h>
+#include <CryAISystem/Serialization/NavigationSerialize.h>
 
 // *INDENT-OFF* - <hard to read code and declarations due to inconsistent indentation>
 
-namespace uqs
+namespace UQS
 {
-	namespace stdlib
+	namespace StdLib
 	{
 
 		//===================================================================================
@@ -20,7 +20,7 @@ namespace uqs
 		//
 		//===================================================================================
 
-		class CItemMonitor_NavMeshChangesInAABB : public uqs::client::IItemMonitor
+		class CItemMonitor_NavMeshChangesInAABB : public UQS::Client::IItemMonitor
 		{
 		public:
 			explicit               CItemMonitor_NavMeshChangesInAABB(NavigationAgentTypeID agentTypeID);
@@ -28,7 +28,7 @@ namespace uqs
 			void                   AddPointToMonitoredArea(const Vec3& pointToCover);
 
 			// IItemMonitor
-			virtual EHealthState   UpdateAndCheckForCorruption(shared::IUqsString& outExplanationInCaseOfCorruption) override;
+			virtual EHealthState   UpdateAndCheckForCorruption(Shared::IUqsString& outExplanationInCaseOfCorruption) override;
 			// ~IItemMonitor
 
 		private:

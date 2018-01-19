@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef STEREORENDERER_H
 #define STEREORENDERER_H
@@ -11,7 +11,6 @@ class CD3D9Renderer;
 
 //////////////////////////////////////////////////////////////////////////
 // LIQUID VR
-//#include<d3d11.h>
 enum GpuMask
 {
 	GPUMASK_LEFT  = 0x1,
@@ -19,7 +18,7 @@ enum GpuMask
 	GPUMASK_BOTH  = (GPUMASK_LEFT | GPUMASK_RIGHT)
 };
 
-#if defined(AMD_LIQUID_VR) && !defined(OPENGL)
+#if defined(AMD_LIQUID_VR) && !CRY_RENDERER_OPENGL
 	#include <LiquidVR/public_mgpu/inc/AmdExtMgpuAppControl.h>
 	#include <LiquidVR/public_mgpu/inc/AmdDxExtMgpuAppControlApi.h>
 
@@ -83,8 +82,8 @@ public:
 	void              Update();
 	void              ProcessScene(int sceneFlags, const SRenderingPassInfo& passInfo);
 	void              ReleaseBuffers();
-	void              OnResolutionChanged();
-	void              CalculateBackbufferResolution(int nativeWidth, int nativeHeight, int* pRenderWidth, int *pRenderHeight);
+	void              OnResolutionChanged(int newWidth, int newHeight);
+	void              CalculateResolution(int requestedWidth, int requestedHeight, int* pRenderWidth, int *pRenderHeight);
 
 	void              SubmitFrameToHMD();
 	void              DisplayStereo();
@@ -100,7 +99,7 @@ public:
 	void              BeginRenderingToVrQuadLayer(RenderLayer::EQuadLayers id);
 	void              EndRenderingToVrQuadLayer(RenderLayer::EQuadLayers id);
 
-	void              TakeScreenshot(const char path[]);
+	bool              TakeScreenshot(const char path[]);
 
 	float             GetNearGeoShift()    { return m_zeroParallaxPlaneDist; }
 	float             GetNearGeoScale()    { return m_nearGeoScale; }
@@ -110,7 +109,7 @@ public:
 	// This is called from the render thread
 	void TryInjectHmdCameraAsync(CRenderView* pRenderView);
 
-	CTexture* WrapD3DRenderTarget(D3DTexture* d3dTexture, uint32 width, uint32 height, ETEX_Format format, const char* name, bool shaderResourceView);
+	CTexture* WrapD3DRenderTarget(D3DTexture* d3dTexture, uint32 width, uint32 height, DXGI_FORMAT format, const char* name, bool shaderResourceView);
 
 public:
 	// IStereoRenderer Interface
@@ -151,8 +150,8 @@ private:
 	CTexture*     m_pVrQuadLayerTex[RenderLayer::eQuadLayers_Total];
 	CTexture*     m_pSideTexs[2];
 
-	CCamera       m_previousCamera[2];
-	bool          m_bPreviousCameraValid;
+	std::array<CCamera, 2> m_previousCameras;
+	bool                   m_bPreviousCameraValid;
 
 	void*         m_nvStereoHandle;
 	float         m_nvStereoStrength;
@@ -184,7 +183,7 @@ private:
 private:
 	void          SelectDefaultDevice();
 
-	void          CreateIntermediateBuffers();
+	void          CreateIntermediateBuffers(int nWidth, int nHeight);
 
 	bool          EnableStereo();
 	void          DisableStereo();

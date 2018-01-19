@@ -28,7 +28,7 @@
 		"CryPhysics",
 		"CryRenderD3D11",
 		"CryRenderD3D12",
-		"CryRenderOpenGL",
+		"CryRenderVulkan",
 		"CryScriptSystem",
 		"CryAudioSystem",
 		"CryAudioCommon",
@@ -80,6 +80,7 @@
 		"DialogEditorPlugin",
 		"VehicleEditorPlugin",
 		"SmartObjectEditorPlugin",
+		"MaterialEditorPlugin",
 		
 		"zlib",
 		"tiff",
@@ -98,6 +99,7 @@
 		"jsmn",
 		"png16",
 		"jpeg",
+		"spirv-cross",
 
 		"LuaCompiler",
 

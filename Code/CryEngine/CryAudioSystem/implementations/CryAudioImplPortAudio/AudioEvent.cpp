@@ -1,16 +1,20 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioEvent.h"
 #include "AudioObject.h"
+#include <Logger.h>
 #include <CryAudio/IAudioSystem.h>
 #include <CrySystem/ISystem.h> // needed for gEnv in Release builds
 #include <portaudio.h>
 #include <sndfile.hh>
 
-using namespace CryAudio;
-using namespace CryAudio::Impl::PortAudio;
-
+namespace CryAudio
+{
+namespace Impl
+{
+namespace PortAudio
+{
 static long unsigned const s_bufferLength = 256;
 
 // Callbacks
@@ -25,7 +29,7 @@ static int StreamCallback(
 {
 	CRY_ASSERT(framesPerBuffer == s_bufferLength);
 	sf_count_t numFramesRead = 0;
-	CAudioEvent* const pAudioEvent = static_cast<CAudioEvent*>(pUserData);
+	CEvent* const pAudioEvent = static_cast<CEvent*>(pUserData);
 
 	switch (pAudioEvent->sampleFormat)
 	{
@@ -82,20 +86,20 @@ static int StreamCallback(
 }
 
 //////////////////////////////////////////////////////////////////////////
-CAudioEvent::CAudioEvent(CATLEvent& _audioEvent)
+CEvent::CEvent(CATLEvent& event_)
 	: pSndFile(nullptr)
 	, pStream(nullptr)
 	, pData(nullptr)
-	, pPAAudioObject(nullptr)
+	, pObject(nullptr)
 	, numChannels(0)
 	, remainingLoops(0)
-	, audioEvent(_audioEvent)
+	, event(event_)
 	, bDone(false)
 {
 }
 
 //////////////////////////////////////////////////////////////////////////
-CAudioEvent::~CAudioEvent()
+CEvent::~CEvent()
 {
 	if (pStream != nullptr)
 	{
@@ -103,7 +107,7 @@ CAudioEvent::~CAudioEvent()
 
 		if (err != paNoError)
 		{
-			g_audioImplLogger.Log(eAudioLogType_Error, "CloseStream failed: %s", Pa_GetErrorText(err));
+			Cry::Audio::Log(ELogType::Error, "CloseStream failed: %s", Pa_GetErrorText(err));
 		}
 	}
 
@@ -117,17 +121,17 @@ CAudioEvent::~CAudioEvent()
 		delete pData;
 	}
 
-	if (pPAAudioObject != nullptr)
+	if (pObject != nullptr)
 	{
-		pPAAudioObject->UnregisterAudioEvent(this);
+		pObject->UnregisterEvent(this);
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool CAudioEvent::Execute(
+bool CEvent::Execute(
   int const numLoops,
   double const sampleRate,
-  CryFixedStringT<512> const& filePath,
+  CryFixedStringT<MaxFilePathLength> const& filePath,
   PaStreamParameters const& streamParameters)
 {
 	bool bSuccess = false;
@@ -184,12 +188,12 @@ bool CAudioEvent::Execute(
 			}
 			else
 			{
-				g_audioImplLogger.Log(eAudioLogType_Error, "StartStream failed: %s", Pa_GetErrorText(err));
+				Cry::Audio::Log(ELogType::Error, "StartStream failed: %s", Pa_GetErrorText(err));
 			}
 		}
 		else
 		{
-			g_audioImplLogger.Log(eAudioLogType_Error, "OpenStream failed: %s", Pa_GetErrorText(err));
+			Cry::Audio::Log(ELogType::Error, "OpenStream failed: %s", Pa_GetErrorText(err));
 		}
 	}
 
@@ -197,7 +201,7 @@ bool CAudioEvent::Execute(
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CAudioEvent::Update()
+void CEvent::Update()
 {
 	if (bDone)
 	{
@@ -212,7 +216,7 @@ void CAudioEvent::Update()
 		}
 		else
 		{
-			gEnv->pAudioSystem->ReportFinishedEvent(audioEvent, true);
+			gEnv->pAudioSystem->ReportFinishedEvent(event, true);
 		}
 
 		bDone = false;
@@ -220,8 +224,11 @@ void CAudioEvent::Update()
 }
 
 //////////////////////////////////////////////////////////////////////////
-ERequestStatus CAudioEvent::Stop()
+ERequestStatus CEvent::Stop()
 {
-	gEnv->pAudioSystem->ReportFinishedEvent(audioEvent, true);
-	return eRequestStatus_Success;
+	gEnv->pAudioSystem->ReportFinishedEvent(event, true);
+	return ERequestStatus::Success;
 }
+} // namespace PortAudio
+} // namespace Impl
+} // namespace CryAudio

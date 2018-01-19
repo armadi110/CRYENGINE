@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "MannequinObject.h"
@@ -62,7 +62,7 @@ void CMannequinObject::OnShutDown()
 	}
 }
 
-void CMannequinObject::ProcessEvent(SEntityEvent& event)
+void CMannequinObject::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{
@@ -105,7 +105,10 @@ void CMannequinObject::Reset()
 	if (!m_pAnimatedCharacter)
 	{
 		m_pAnimatedCharacter = static_cast<IAnimatedCharacter*>(pGameObject->AcquireExtension("AnimatedCharacter"));
-		assert(m_pAnimatedCharacter);
+		if (!m_pAnimatedCharacter)
+		{
+			return;
+		}
 	}
 
 	m_pAnimatedCharacter->ResetState();

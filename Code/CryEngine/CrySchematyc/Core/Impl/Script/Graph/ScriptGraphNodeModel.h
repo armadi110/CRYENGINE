@@ -1,11 +1,11 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
 #include <CryCore/StaticInstanceList.h>
 #include <CrySerialization/Forward.h>
 
-#include "Schematyc/Utils/GUID.h"
+#include "CrySchematyc/Utils/GUID.h"
 
 #define SCHEMATYC_REGISTER_SCRIPT_GRAPH_NODE(function) static Schematyc::CScriptGraphNodeRegistrar SCHEMATYC_PP_JOIN_XY(schematycScriptGraphNodeRegistrar, __COUNTER__)(function);
 
@@ -31,7 +31,7 @@ public:
 
 	virtual void            Init();
 
-	virtual SGUID           GetTypeGUID() const = 0;
+	virtual CryGUID           GetTypeGUID() const = 0;
 	virtual void            CreateLayout(CScriptGraphNodeLayout& layout) = 0;
 	virtual void            Compile(SCompilerContext& context, IGraphNodeCompiler& compiler) const = 0;
 

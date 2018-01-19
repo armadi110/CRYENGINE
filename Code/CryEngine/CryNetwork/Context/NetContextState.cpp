@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "NetContextState.h"
@@ -21,6 +21,39 @@
 #if ENABLE_NET_DEBUG_ENTITY_INFO
 	#include <CryRenderer/IRenderAuxGeom.h>
 #endif
+
+static uint8 GetDefaultProfileForAspect(EntityId id, EEntityAspects aspectID)
+{
+	IEntity* pEntity = gEnv->pEntitySystem->GetEntity(id);
+	if (!pEntity)
+	{
+		CRY_ASSERT_MESSAGE(gEnv->IsEditor(), "Trying to get default profile for aspect %d on unknown entity %d", aspectID, id);
+		return ~uint8(0);
+	}
+	INetEntity* pNetEntity = pEntity->GetNetEntity();
+	return pNetEntity ? pNetEntity->GetDefaultProfile(aspectID) : 0;
+}
+
+static void SetEntityAspectProfile(EntityId id, NetworkAspectType aspectBit, uint8 profile)
+{
+	CRY_ASSERT(0 == (aspectBit & (aspectBit - 1)));
+
+	if (id == INVALID_ENTITYID)
+	{
+		// Object is unbound while waiting for profile change propagation
+		return;
+	}
+
+	if (IEntity* pEntity = gEnv->pEntitySystem->GetEntity(id))
+	{
+		if (INetEntity* pNetEntity = pEntity->GetNetEntity())
+		{
+			pNetEntity->SetAspectProfile(static_cast<EEntityAspects>(aspectBit), profile, true);
+			return;
+		}
+	}
+	NetWarning("SetEntityAspectProfile: unable to find entity %08x", id);
+}
 
 CNetContextState::CNetContextState(CNetContext* pContext, int token, CNetContextState* pPrev) : m_pMMM(new CMementoMemoryManager(string().Format("NetContextState[%d]", token)))
 {
@@ -443,7 +476,7 @@ void CNetContextState::FetchAndPropogateChangesFromGame(bool allowFetch)
 	if (!changed.empty())
 	{
 		// fetch changes from game
-		FUNCTION_PROFILER(gEnv->pSystem, PROFILE_NETWORK);
+		CRY_PROFILE_FUNCTION(PROFILE_NETWORK);
 
 		// we'll need the timestamp (probably)
 		CTimeValue newPhysicsTime = m_pGameContext->GetPhysicsTime();
@@ -549,7 +582,7 @@ void CNetContextState::PropogateProfileChangesToGame()
 		for (TChangedProfiles::iterator it = m_changedProfiles.begin(); it != m_changedProfiles.end(); ++it)
 		{
 			ASSERT_PRIMARY_THREAD;
-			m_pGameContext->SetAspectProfile(m_vObjects[it->obj.GetID().id].userID, it->aspect, it->profile);
+			SetEntityAspectProfile(m_vObjects[it->obj.GetID().id].userID, it->aspect, it->profile);
 			UnlockObject(it->obj.GetID(), eCOL_GameDataSync);
 		}
 		m_changedProfiles.resize(0);
@@ -886,7 +919,7 @@ private:
 
 void CNetContextState::PropogateChangesToGame()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_NETWORK);
+	CRY_PROFILE_FUNCTION(PROFILE_NETWORK);
 	MMM_REGION(m_pMMM);
 
 	if (!m_pContext || m_vNetChangeLog.empty())
@@ -1049,7 +1082,7 @@ void CNetContextState::SetAspectProfile(EntityId id, NetworkAspectType aspectBit
 		// not sure if this is the correct thing to do, but should work
 		// if the object is not bound, allow the SetAspectProfile to succeed anyway
 		ASSERT_PRIMARY_THREAD;
-		m_pGameContext->SetAspectProfile(id, aspectBit, profile);
+		SetEntityAspectProfile(id, aspectBit, profile);
 	}
 	else
 	{
@@ -1057,7 +1090,7 @@ void CNetContextState::SetAspectProfile(EntityId id, NetworkAspectType aspectBit
 		if (obj.bOwned)
 		{
 			ASSERT_PRIMARY_THREAD;
-			m_pGameContext->SetAspectProfile(id, aspectBit, profile);
+			SetEntityAspectProfile(id, aspectBit, profile);
 			LockObject(netID, eCOL_GameDataSync);
 			lockedUpdate = true;
 		}
@@ -1444,7 +1477,8 @@ void CNetContextState::RebindObject(SNetObjectID netId, EntityId userId)
 		obj.refUserID = obj.userID = userId;
 
 		for (NetworkAspectID i = 0; i < NumAspects; ++i)
-			obj.vAspectProfiles[i] = obj.vAspectDefaultProfiles[i] = m_pGameContext->GetDefaultProfileForAspect(userId, 1 << i);
+			obj.vAspectProfiles[i] = obj.vAspectDefaultProfiles[i] = 
+				GetDefaultProfileForAspect(userId, static_cast<EEntityAspects>(1 << i));
 
 		// TODO: make sure only relevant to mp - Lin
 		if (m_multiplayer)
@@ -1676,7 +1710,7 @@ bool CNetContextState::AllocateObject(EntityId userID, SNetObjectID netID, Netwo
 		for (NetworkAspectID i = 0; i < NumAspects; i++)
 		{
 			ASSERT_PRIMARY_THREAD;
-			profiles[i] = m_pGameContext->GetDefaultProfileForAspect(userID, 1 << i);
+			profiles[i] = GetDefaultProfileForAspect(userID, static_cast<EEntityAspects>(1 << i));
 			if (profiles[i] >= MaxProfilesPerAspect)
 			{
 #if ENABLE_DEBUG_KIT
@@ -1705,145 +1739,11 @@ bool CNetContextState::AllocateObject(EntityId userID, SNetObjectID netID, Netwo
 	// dense, so we try to keep a reflecting structure here)
 	if (!netID)
 	{
-		if (m_multiplayer)
+		netID = AllocateNetObjectID(spawnType, userID);
+		if (!netID)
 		{
-			CNetCVars& netCVars = CNetCVars::Get();
-			bool lowBitID = false;
-			int numObjects = m_vObjects.size();
-			const char* pName = "<no name>";
-
-			if (userID)
-			{
-				IEntity* pEntity = gEnv->pEntitySystem->GetEntity(userID);
-
-				if (pEntity)
-				{
-					IEntityClass* pClass = pEntity->GetClass();
-
-					pName = pEntity->GetName();
-
-					if (CryStringUtils::stristr(pClass->GetName(), "player"))
-					{
-						lowBitID = true;
-					}
-				}
-			}
-
-			if (lowBitID)
-			{
-				if (m_freeLowBitObjects.empty())
-				{
-					if (numObjects < netCVars.net_numNetIDLowBitIDs)
-					{
-						netID.id = numObjects;
-					}
-					else
-					{
-						NetLog("AllocateObject: Failed to allocate a low bit netid for %s try increasing net_numNetIDLowBitBits (Currently %d). Will try to allocate from medium bit netids.", pName, netCVars.net_numNetIDLowBitBits);
-					}
-				}
-				else
-				{
-					netID.id = m_freeLowBitObjects.top();
-					m_freeLowBitObjects.pop();
-				}
-			}
-
-			if (!netID && (spawnType != eST_Static))
-			{
-				if (m_freeMediumBitObjects.empty())
-				{
-					if (numObjects < netCVars.net_netIDHighBitStart)
-					{
-						if (numObjects > netCVars.net_numNetIDLowBitIDs)
-						{
-							netID.id = numObjects;
-						}
-						else
-						{
-							// netCVars.net_numNetIDLowBitIDs is used for invalid so start +1
-							netID.id = netCVars.net_numNetIDLowBitIDs + 1;
-						}
-					}
-					else
-					{
-						NetLog("AllocateObject: Failed to allocate a medium bit netid for %s try increasing net_numNetIDMediumBitBits (Currently %d). Will try to allocate from high bit netids.", pName, netCVars.net_numNetIDMediumBitBits);
-					}
-				}
-				else
-				{
-					netID.id = m_freeMediumBitObjects.top();
-					m_freeMediumBitObjects.pop();
-				}
-			}
-
-			if (!netID)
-			{
-				if (m_freeHighBitObjects.empty())
-				{
-					if (numObjects < netCVars.net_numNetIDs)
-					{
-						if (numObjects > netCVars.net_netIDHighBitStart)
-						{
-							netID.id = numObjects;
-						}
-						else
-						{
-							netID.id = netCVars.net_netIDHighBitStart;
-						}
-					}
-					else
-					{
-						NetLog("AllocateObject: Failed to allocate a high bit netid for %s try increasing net_numNetIDHighBitBits (Currently %d).", pName, netCVars.net_numNetIDHighBitBits);
-						CryFatalError("AllocateObject: Failed to allocate a netid for %s. See Game.log for details.", pName);
-						return false;
-					}
-				}
-				else
-				{
-					netID.id = m_freeHighBitObjects.top();
-					m_freeHighBitObjects.pop();
-				}
-			}
-
-			while (numObjects <= netID.id)
-			{
-				if (numObjects < netID.id)
-				{
-					AddToFreeObjects(numObjects);
-				}
-
-				m_vObjects.push_back(SContextObject());
-				m_vObjectsEx.push_back(SContextObjectEx());
-				numObjects = m_vObjects.size();
-			}
+			return false;
 		}
-		else
-		{
-			if (m_freeLowBitObjects.empty())
-			{
-				if (m_vObjects.size() == SNetObjectID::InvalidId)
-				{
-					CryFatalError("WAY too many synchronized objects");
-				}
-
-				netID.id = static_cast<uint16>(m_vObjects.size());
-				m_vObjects.push_back(SContextObject());
-			}
-			else
-			{
-				netID.id = m_freeLowBitObjects.top();
-				m_freeLowBitObjects.pop();
-			}
-		}
-
-		NET_ASSERT(!m_vObjects[netID.id].bAllocated);
-
-		do
-		{
-			netID.salt = ++m_vObjects[netID.id].salt;
-		}
-		while (!netID.salt);
 	}
 	else if (netID.id >= m_vObjects.size())
 	{
@@ -2442,7 +2342,7 @@ NetworkAspectType CNetContextState::UpdateAspectData(SNetObjectID id, NetworkAsp
 {
 	MMM_REGION(m_pMMM);
 
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_NETWORK);
+	CRY_PROFILE_FUNCTION(PROFILE_NETWORK);
 	ASSERT_GLOBAL_LOCK;
 	NET_ASSERT(GetContextObject(id).main);
 	if (!m_multiplayer || !m_pContext)
@@ -2541,16 +2441,26 @@ void CNetContextState::GC_ControlObject(SNetObjectID id, bool controlled, CNetOb
 	ASSERT_GLOBAL_LOCK;
 	ASSERT_PRIMARY_THREAD;
 	ENSURE_REALTIME;
-	if (m_vObjects[id.id].userID)
-		m_pGameContext->ControlObject(m_vObjects[id.id].userID, controlled);
+	if (const EntityId eid = m_vObjects[id.id].userID)
+	{
+		if (IEntity* pEntity = gEnv->pEntitySystem->GetEntity(eid))
+		{
+			pEntity->GetNetEntity()->SetAuthority(controlled);
+		}
+		m_pGameContext->ControlObject(eid, controlled);
+	}
 }
 
-void CNetContextState::GC_BoundObject(std::pair<EntityId, NetworkAspectType> p)
+void CNetContextState::GC_BoundObject(const EntityId eid)
 {
 	ASSERT_GLOBAL_LOCK;
 	ASSERT_PRIMARY_THREAD;
 	ENSURE_REALTIME;
-	m_pGameContext->BoundObject(p.first, p.second);
+
+	IEntity* pEntity = gEnv->pEntitySystem->GetEntity(eid);
+	CRY_ASSERT_MESSAGE(pEntity, "[net] notification of binding non existant entity %.8x received", eid);
+	if (INetEntity* pNetEntity = (pEntity ? pEntity->GetNetEntity() : nullptr))
+		pNetEntity->BecomeBound();
 }
 
 void CNetContextState::GC_SendPostSpawnEntities(CContextViewPtr pView)
@@ -2584,7 +2494,7 @@ void CNetContextState::GC_SetAspectProfile(NetworkAspectType aspect, uint8 profi
 	ENSURE_REALTIME;
 	ASSERT_PRIMARY_THREAD;
 	if (m_vObjects[netID.id].userID)
-		m_pGameContext->SetAspectProfile(m_vObjects[netID.id].userID, aspect, profile);
+		SetEntityAspectProfile(m_vObjects[netID.id].userID, aspect, profile);
 	UnlockObject(netID, eCOL_GameDataSync);
 }
 
@@ -3030,7 +2940,7 @@ void CNetContextState::NetDump(ENetDumpType type)
 							//IGameChannel* pGameChan = pChan ? pChan-> : NULL;
 							TNetChannelID chanid = pChan ? pChan->GetLocalChannelID() : 0;
 
-							NetLog("  %d %s %s flags:%d%d%d%d aspects:%.2x class %s channel=%p controlchan %d",
+							NetLog("  %d %s %s flags(alc,ctrl,stc,own):%d%d%d%d aspects:%.2x class %s channel=%p controlchan %d",
 							       iterNetIDs->first, iterNetIDs->second.GetText(), name,
 							       obj.main->bAllocated, obj.main->bControlled, obj.main->spawnType, obj.main->bOwned,
 							       obj.xtra->nAspectsEnabled, nom.c_str(), pChan, chanid);
@@ -3168,9 +3078,13 @@ void CNetContextState::DrawDebugScreens()
 		SObjectMemUsage muAll;
 		static SObjectMemUsage muMax;
 
+#if USE_NETID_PACKING
 		muAll.required += sizeof(uint16) * m_freeLowBitObjects.size();                      //-- m_freeLowBitObjects vector approximate
 		muAll.required += sizeof(uint16) * m_freeMediumBitObjects.size();                   //-- m_freeMediumBitObjects vector approximate
 		muAll.required += sizeof(uint16) * m_freeHighBitObjects.size();                     //-- m_freeHighBitObjects vector approximate
+#else
+		muAll.required += sizeof(uint16) * m_freeObjects.size();                            //-- m_freeObjects vector approximate
+#endif
 		muAll.required += (sizeof(EntityId) + sizeof(SNetObjectID)) * m_pNetIDs->size();    //-- m_pNetIds hash_map approximate
 
 		for (ClassMap::const_iterator cmiter = cm.begin(); cmiter != cm.end(); ++cmiter)
@@ -3298,15 +3212,15 @@ void CNetContextState::DrawDebugScreens()
 							pRenderAuxGeom->DrawAABB(aabb, pEntity->GetWorldTM(), false, color, eBBD_Faceted);
 
 							Vec3 aabbCenterPos = pEntity->GetWorldTM() * aabb.GetCenter();
-							Vec3 viewPos = pRenderer->GetCamera().GetPosition();
+							Vec3 viewPos = GetISystem()->GetViewCamera().GetPosition();
 							Vec3 dir = (viewPos - aabbCenterPos).GetNormalized();
 							Vec3 textPos;
 
 							textPos = aabbCenterPos + aabb.GetRadius() * dir;
 
 							char buff[160];
-							cry_sprintf(buff, "%s\n%s\nAct %d Hid %d Inv %d\nID %u\nNetID %s\nGUID %016" PRIx64,
-							            pEntity->GetName(), pEntity->GetClass()->GetName(), pEntity->IsActive(), pEntity->IsHidden(), pEntity->IsInvisible(), pEntity->GetId(), netID.GetText(), pEntity->GetGuid());
+							cry_sprintf(buff, "%s\n%s\nAct %d Hid %d Inv %d\nID %u\nNetID %s\nGUID %s",
+							           pEntity->GetName(), pEntity->GetClass()->GetName(), pEntity->IsActivatedForUpdates(), pEntity->IsHidden(), pEntity->IsInvisible(), pEntity->GetId(), netID.GetText(), pEntity->GetGuid().ToDebugString());
 
 							IRenderAuxText::DrawText(textPos, textSize, color, eDrawText_DepthTest | eDrawText_FixedSize | eDrawText_Center | eDrawText_CenterV | eDrawText_800x600, buff);
 						}
@@ -3318,8 +3232,182 @@ void CNetContextState::DrawDebugScreens()
 #endif
 }
 
+SNetObjectID CNetContextState::AllocateNetObjectID(ESpawnType spawnType, EntityId userID)
+{
+	SNetObjectID netID;
+
+#if USE_NETID_PACKING
+	if (m_multiplayer)
+	{
+		CNetCVars& netCVars = CNetCVars::Get();
+		bool lowBitID = false;
+		int numObjects = m_vObjects.size();
+		const char* pName = "<no name>";
+
+		if (userID)
+		{
+			IEntity* pEntity = gEnv->pEntitySystem->GetEntity(userID);
+
+			if (pEntity)
+			{
+				IEntityClass* pClass = pEntity->GetClass();
+
+				pName = pEntity->GetName();
+
+				if (CryStringUtils::stristr(pClass->GetName(), "player"))
+				{
+					lowBitID = true;
+				}
+			}
+		}
+
+		if (lowBitID)
+		{
+			if (m_freeLowBitObjects.empty())
+			{
+				if (numObjects < netCVars.net_numNetIDLowBitIDs)
+				{
+					netID.id = numObjects;
+				}
+				else
+				{
+					NetLog("AllocateObject: Failed to allocate a low bit netid for %s try increasing net_numNetIDLowBitBits (Currently %d). Will try to allocate from medium bit netids.", pName, netCVars.net_numNetIDLowBitBits);
+				}
+			}
+			else
+			{
+				netID.id = m_freeLowBitObjects.top();
+				m_freeLowBitObjects.pop();
+			}
+		}
+
+		if (!netID && (spawnType != eST_Static))
+		{
+			if (m_freeMediumBitObjects.empty())
+			{
+				if (numObjects < netCVars.net_netIDHighBitStart)
+				{
+					if (numObjects > netCVars.net_numNetIDLowBitIDs)
+					{
+						netID.id = numObjects;
+					}
+					else
+					{
+						// netCVars.net_numNetIDLowBitIDs is used for invalid so start +1
+						netID.id = netCVars.net_numNetIDLowBitIDs + 1;
+					}
+				}
+				else
+				{
+					NetLog("AllocateObject: Failed to allocate a medium bit netid for %s try increasing net_numNetIDMediumBitBits (Currently %d). Will try to allocate from high bit netids.", pName, netCVars.net_numNetIDMediumBitBits);
+				}
+			}
+			else
+			{
+				netID.id = m_freeMediumBitObjects.top();
+				m_freeMediumBitObjects.pop();
+			}
+		}
+
+		if (!netID)
+		{
+			if (m_freeHighBitObjects.empty())
+			{
+				if (numObjects < netCVars.net_numNetIDs)
+				{
+					if (numObjects > netCVars.net_netIDHighBitStart)
+					{
+						netID.id = numObjects;
+					}
+					else
+					{
+						netID.id = netCVars.net_netIDHighBitStart;
+					}
+				}
+				else
+				{
+					NetLog("AllocateObject: Failed to allocate a high bit netid for %s try increasing net_numNetIDHighBitBits (Currently %d).", pName, netCVars.net_numNetIDHighBitBits);
+					CryFatalError("AllocateObject: Failed to allocate a netid for %s. See Game.log for details.", pName);
+					return SNetObjectID();
+				}
+			}
+			else
+			{
+				netID.id = m_freeHighBitObjects.top();
+				m_freeHighBitObjects.pop();
+			}
+		}
+
+		while (numObjects <= netID.id)
+		{
+			if (numObjects < netID.id)
+			{
+				AddToFreeObjects(numObjects);
+			}
+
+			m_vObjects.push_back(SContextObject());
+			m_vObjectsEx.push_back(SContextObjectEx());
+			numObjects = m_vObjects.size();
+		}
+	}
+	else
+	{
+		if (m_freeLowBitObjects.empty())
+		{
+			if (m_vObjects.size() == SNetObjectID::InvalidId)
+			{
+				CryFatalError("AllocateObject: Failed to allocate a netid, too many synchronized objects.");
+			}
+
+			netID.id = static_cast<uint16>(m_vObjects.size());
+			m_vObjects.push_back(SContextObject());
+		}
+		else
+		{
+			netID.id = m_freeLowBitObjects.top();
+			m_freeLowBitObjects.pop();
+		}
+	}
+#else
+	if (m_freeObjects.empty())
+	{
+		if (m_vObjects.size() == SNetObjectID::InvalidId)
+		{
+			CryFatalError("AllocateObject: Failed to allocate a netid, too many synchronized objects.");
+			return SNetObjectID();
+		}
+
+		netID.id = static_cast<uint16>(m_vObjects.size());
+		m_vObjects.push_back(SContextObject());
+		if (m_multiplayer)
+		{
+			m_vObjectsEx.push_back(SContextObjectEx());
+		}
+	}
+	else
+	{
+		netID.id = m_freeObjects.top();
+		m_freeObjects.pop();
+	}
+#endif // USE_NETID_PACKING
+
+	NET_ASSERT(netID);
+	NET_ASSERT(netID.id < m_vObjects.size());
+	NET_ASSERT(!m_multiplayer || netID.id < m_vObjectsEx.size());
+	NET_ASSERT(!m_vObjects[netID.id].bAllocated);
+	
+	do
+	{
+		netID.salt = ++m_vObjects[netID.id].salt;
+	} while (!netID.salt);
+
+	return netID;
+}
+
+
 void CNetContextState::AddToFreeObjects(uint16 id)
 {
+#if USE_NETID_PACKING
 	CNetCVars& netCVars = CNetCVars::Get();
 
 	if (id != netCVars.net_invalidNetID)
@@ -3347,10 +3435,15 @@ void CNetContextState::AddToFreeObjects(uint16 id)
 			m_freeLowBitObjects.push(id);
 		}
 	}
+#else
+	NET_ASSERT(id != SNetObjectID::InvalidId);
+	m_freeObjects.push(id);
+#endif // USE_NETID_PACKING
 }
 
 void CNetContextState::ClearFreeObjects()
 {
+#if USE_NETID_PACKING
 	// Empty the free objects queue (no clear() member!)
 	while (!m_freeLowBitObjects.empty())
 	{
@@ -3366,4 +3459,10 @@ void CNetContextState::ClearFreeObjects()
 	{
 		m_freeHighBitObjects.pop();
 	}
+#else
+	while (!m_freeObjects.empty())
+	{
+		m_freeObjects.pop();
+	}
+#endif // USE_NETID_PACKING
 }

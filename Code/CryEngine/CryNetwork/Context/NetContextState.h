@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __NETCONTEXTSTATE_H__
 #define __NETCONTEXTSTATE_H__
@@ -238,7 +238,7 @@ public:
 	void GC_UnboundObject(EntityId);
 	void GC_BeginContext(CTimeValue);
 	void GC_ControlObject(SNetObjectID, bool, CNetObjectBindLock);
-	void GC_BoundObject(std::pair<EntityId, NetworkAspectType> );
+	void GC_BoundObject(const EntityId);
 	void GC_SendPostSpawnEntities(CContextViewPtr pView);
 	void GC_SetAspectProfile(NetworkAspectType, uint8, SNetObjectID, CNetObjectBindLock);
 	void GC_EndContext();
@@ -438,9 +438,13 @@ private:
 	CChangeList<SNetObjectAspectChange>    m_vGameChangedObjects;
 	std::vector<SChannelChange>            m_vNetChangeLog;
 	std::vector<SChannelChange>            m_vNetChangeLogUnique;
+#if USE_NETID_PACKING
 	std::priority_queue<uint16, std::vector<uint16>, std::greater<uint16>> m_freeLowBitObjects;
 	std::priority_queue<uint16, std::vector<uint16>, std::greater<uint16>> m_freeMediumBitObjects;
 	std::priority_queue<uint16, std::vector<uint16>, std::greater<uint16>> m_freeHighBitObjects;
+#else // USE_NETID_PACKING
+	std::priority_queue<uint16, std::vector<uint16>, std::greater<uint16>> m_freeObjects;
+#endif // USE_NETID_PACKING
 	TChangedProfiles          m_changedProfiles;
 	std::vector<EntityId>     m_removedStaticEntities;
 #if RESERVE_UNBOUND_ENTITIES
@@ -464,6 +468,7 @@ private:
 	mutable SContextObjectRef m_cacheObjectRef;
 	void ClearContextObjectCache() { m_cacheObjectID = SNetObjectID(); m_cacheObjectRef = SContextObjectRef(); }
 
+	SNetObjectID AllocateNetObjectID(ESpawnType spawnType, EntityId userID);
 	void AddToFreeObjects(uint16 id);
 	void ClearFreeObjects();
 

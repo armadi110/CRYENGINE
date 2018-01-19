@@ -96,11 +96,6 @@ void CShake::HandleEvent(const SGameObjectEvent &event)
 }
 
 //------------------------------------------------------------------------
-void CShake::ProcessEvent(SEntityEvent &event)
-{
-}
-
-//------------------------------------------------------------------------
-void CShake::SetAuthority(bool auth)
+void CShake::ProcessEvent(const SEntityEvent& event)
 {
 }

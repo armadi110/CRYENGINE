@@ -268,6 +268,7 @@ public:
 public:
 	virtual IScaleformPlayback*    GetPlayback() const = 0;
 
+	virtual void                   SetClearFlags(uint32 clearFlags, ColorF clearColor = Clr_Transparent) = 0;
 	virtual void                   SetCompositingDepth(float depth) = 0;
 
 	virtual void                   SetStereoMode(bool stereo, bool isLeft) = 0;
@@ -315,7 +316,7 @@ struct IScaleformPlayback
 	{
 		Vertex_None      = 0,
 		Vertex_XY16i     = 1,
-		Vertex_XY32f     = 2,
+		Vertex_XY32f     = 2, // Unsupported
 		Vertex_XY16iC32  = 3,
 		Vertex_XY16iCF32 = 4,
 		Vertex_Glyph     = 5, // Custom value
@@ -431,7 +432,7 @@ struct IScaleformPlayback
 			struct
 			{
 				IScaleformPlayback::VertexFormat VertexFormat;
-				EVertexFormat                    eVertexFormat;
+				InputLayoutHandle::ValueType    eVertexFormat;
 			};
 
 			struct
@@ -493,7 +494,7 @@ public:
 
 	virtual void  SetPerspective3D(const Matrix44& projMatIn) = 0;
 	virtual void  SetView3D(const Matrix44& viewMatIn) = 0;
-	virtual void  SetWorld3D(const Matrix44* pWorldMatIn) = 0;
+	virtual void  SetWorld3D(const Matrix44f* pWorldMatIn) = 0;
 
 	virtual void  SetVertexData(const DeviceData* pVertices) = 0;
 	virtual void  SetIndexData(const DeviceData* pIndices) = 0;
@@ -528,6 +529,7 @@ public:
 
 	// IScaleformRenderer interface
 public:
+	virtual void                   SetClearFlags(uint32 clearFlags, ColorF clearColor = Clr_Transparent) = 0;
 	virtual void                   SetCompositingDepth(float depth) = 0;
 
 	virtual void                   SetStereoMode(bool stereo, bool isLeft) = 0;

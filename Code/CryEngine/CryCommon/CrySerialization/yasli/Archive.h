@@ -8,7 +8,6 @@
  */
 
 #pragma once
-#pragma warning (disable : 4100) 
 
 #include <stdarg.h>
 
@@ -71,18 +70,19 @@ struct BlackBox;
 class Archive{
 public:
 	enum ArchiveCaps{
-		INPUT = 1 << 0,
-		OUTPUT = 1 << 1,
-		TEXT = 1 << 2,
-		BINARY = 1 << 3,
-		EDIT = 1 << 4,
-		INPLACE = 1 << 5,
+		INPUT          = 1 << 0,
+		OUTPUT         = 1 << 1,
+		TEXT           = 1 << 2,
+		BINARY         = 1 << 3,
+		EDIT           = 1 << 4,
+		INPLACE        = 1 << 5,
 		NO_EMPTY_NAMES = 1 << 6,
-		VALIDATION = 1 << 7,
-		DOCUMENTATION = 1 << 8,
-		CUSTOM1 = 1 << 9,
-		CUSTOM2 = 1 << 10,
-		CUSTOM3 = 1 << 11
+		VALIDATION     = 1 << 7,
+		DOCUMENTATION  = 1 << 8,
+		XML_VERSION_1  = 1 << 9,
+		CUSTOM1        = 1 << 10,
+		CUSTOM2        = 1 << 11,
+		CUSTOM3        = 1 << 12
 	};
 
 	Archive(int caps)
@@ -153,15 +153,15 @@ public:
 	// values. Output depends on the specific implementation of Archive,
 	// for example PropertyTree uses it to show bubbles with errors in UI
 	// next to the mentioned property.
-	template<class T> void error(T& value, const char* format, ...);
-	template<class T> void warning(T& value, const char* format, ...);
+	template<class T> void error(const T& value, const char* format, ...);
+	template<class T> void warning(const T& value, const char* format, ...);
 
 	void error(const void* value, const yasli::TypeID& type, const char* format, ...);
 	// Used to add tooltips in PropertyTree
 	void doc(const char* docString);
 
 	// block call are osbolete, please do not use
-	virtual bool openBlock(const char* name, const char* label) { return true; }
+	virtual bool openBlock(const char* name, const char* label,const char* icon=0) { return true; }
 	virtual void closeBlock() {}
 
 	template<class T>
@@ -204,9 +204,22 @@ struct SerializeStruct{
 	};
 };
 
-template<class Enum>
+//Enum classes may define an enum type that is not sizeof(int), therefore reinterpret_cast is dangerous and leads to bugs.
+template<class Enum, int size = sizeof(Enum)>
 struct SerializeEnum{
-	static bool invoke(Archive& ar, Enum& value, const char* name, const char* label){
+	static bool invoke(Archive& ar, Enum& value, const char* name, const char* label) {
+		static_assert(size < sizeof(int), "Enum of integer size should use specialized template, bigger than int should not be serialized");
+		const EnumDescription& enumDescription = getEnumDescription<Enum>();
+		int valueHolder = (int)value;
+		bool ret = serializeEnum(enumDescription, ar, valueHolder, name, label);
+		value = (Enum)valueHolder;
+		return ret;
+	};
+};
+
+template<class Enum>
+struct SerializeEnum<Enum, sizeof(int)>{
+	static bool invoke(Archive& ar, Enum& value, const char* name, const char* label) {
 		const EnumDescription& enumDescription = getEnumDescription<Enum>();
 		return serializeEnum(enumDescription, ar, reinterpret_cast<int&>(value), name, label);
 	};
@@ -263,7 +276,7 @@ inline void Archive::doc(const char* docString)
 }
 
 template<class T>
-void Archive::error(T& value, const char* format, ...)
+void Archive::error(const T& value, const char* format, ...)
 {
 #if !YASLI_NO_EDITING
 	if ((caps_ & VALIDATION) == 0)
@@ -292,7 +305,7 @@ inline void Archive::error(const void* handle, const yasli::TypeID& type, const 
 }
 
 template<class T>
-void Archive::warning(T& value, const char* format, ...)
+void Archive::warning(const T& value, const char* format, ...)
 {
 #if !YASLI_NO_EDITING
 	if ((caps_ & VALIDATION) == 0)

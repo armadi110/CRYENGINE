@@ -1,43 +1,47 @@
 #pragma once
 
 #include "MonoDomain.h"
-#include <CryMono/IMonoObject.h>
 
 // Wrapped manager of a mono app domain
 class CAppDomain final : public CMonoDomain
 {
+	friend class CMonoLibrary;
+	friend class CMonoClass;
+	friend class CMonoRuntime;
+
 public:
 	CAppDomain(char *name, bool bActivate = false);
-	CAppDomain(MonoDomain* pMonoDomain);
-	virtual ~CAppDomain() {}
+	CAppDomain(MonoInternals::MonoDomain* pMonoDomain);
+	virtual ~CAppDomain();
 
 	// CMonoDomain
-	virtual void Release() override { delete this; }
-
 	virtual bool IsRoot() override { return false; }
 
 	virtual bool Reload() override;
+	virtual bool IsReloading() override { return m_isReloading; }
 	// ~CMonoDomain
 
-	void Serialize(MonoObject* pObject, bool bIsAssembly);
-	std::shared_ptr<IMonoObject> Deserialize(bool bIsAssembly);
+	CMonoLibrary* GetCryCommonLibrary() const { return m_pLibCommon; }
+	CMonoLibrary* GetCryCoreLibrary() const { return m_pLibCore; }
+
+	CMonoLibrary* CompileFromSource(const char* szDirectory);
+	CMonoLibrary* GetCompiledLibrary();
+
+	void SerializeObject(CMonoObject* pSerializer, MonoInternals::MonoObject* pObject, bool bIsAssembly);
+	std::shared_ptr<CMonoObject> DeserializeObject(CMonoObject* pSerializer, const CMonoClass* const pObjectClass);
 
 protected:
 	void CreateDomain(char *name, bool bActivate);
 
-	void CreateSerializationUtilities(bool bWriting);
-
-	void SerializeDomainData();
-	void DeserializeDomainData();
+	void SerializeDomainData(std::vector<char>& bufferOut);
+	std::shared_ptr<CMonoObject> CreateDeserializer(const std::vector<char>& serializedData);
 
 protected:
 	string m_name;
-
-	std::shared_ptr<IMonoObject> m_pMemoryStream;
-	std::shared_ptr<IMonoObject> m_pSerializer;
-
-	char* m_pSerializedData;
-	size_t m_serializedDataSize;
+	bool  m_isReloading = false;
 
 	uint64 m_serializationTicks;
+
+	CMonoLibrary* m_pLibCore;
+	CMonoLibrary* m_pLibCommon;
 };

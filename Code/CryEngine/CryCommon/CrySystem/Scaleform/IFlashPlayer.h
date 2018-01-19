@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -10,6 +10,7 @@ struct IFlashPlayerBootStrapper;
 struct IFSCommandHandler;
 struct IExternalInterfaceHandler;
 struct IActionScriptFunction;
+struct IScaleformPlayback;
 
 struct SFlashVarValue;
 struct SFlashCxform;
@@ -99,6 +100,7 @@ struct IFlashPlayer
 	virtual void           GetScissorRect(int& x0, int& y0, int& width, int& height) const = 0;
 	virtual void           Advance(float deltaTime) = 0;
 	virtual void           Render(bool stereo = false) = 0;
+	virtual void           SetClearFlags(uint32 clearFlags, ColorF clearColor = Clr_Transparent) = 0;
 	virtual void           SetCompositingDepth(float depth) = 0;
 	virtual void           StereoEnforceFixedProjectionDepth(bool enforce) = 0;
 	virtual void           StereoSetCustomMaxParallax(float maxParallax = -1.0f) = 0;
@@ -178,6 +180,8 @@ struct IFlashPlayer
 #if defined(ENABLE_DYNTEXSRC_PROFILING)
 	virtual void LinkDynTextureSource(const struct IDynTextureSource* pDynTexSrc) = 0;
 #endif
+
+	virtual IScaleformPlayback* GetPlayback() = 0;
 
 protected:
 	IFlashPlayer() {}
@@ -297,6 +301,7 @@ protected:
 	virtual ~IFlashVariableObject() {}
 };
 
+//! \cond INTERNAL
 //! Bootstrapper to efficiently instantiate Flash assets on demand with minimal file IO.
 struct IFlashPlayerBootStrapper
 {
@@ -322,6 +327,7 @@ struct IFlashPlayerBootStrapper
 protected:
 	virtual ~IFlashPlayerBootStrapper() {}
 };
+//! \endcond
 
 //! Clients of IFlashPlayer implement this interface to receive action script events.
 struct IFSCommandHandler
@@ -332,6 +338,7 @@ protected:
 	virtual ~IFSCommandHandler() {}
 };
 
+//! \cond INTERNAL
 //! Clients of IFlashPlayer implement this interface to expose external interface calls.
 struct IExternalInterfaceHandler
 {
@@ -410,6 +417,7 @@ struct IFlashLoadMovieHandler
 protected:
 	virtual ~IFlashLoadMovieHandler() {}
 };
+//! \endcond
 
 //! Variant type to pass values to flash variables.
 struct SFlashVarValue
@@ -587,6 +595,7 @@ protected:
 	}
 };
 
+//! \cond INTERNAL
 //! Color transformation to control flash movie clips.
 struct SFlashCxform
 {
@@ -728,6 +737,7 @@ private:
 
 	unsigned short m_varsSet;
 };
+//! \endcond
 
 //! Cursor input event sent to flash.
 struct SFlashCursorEvent

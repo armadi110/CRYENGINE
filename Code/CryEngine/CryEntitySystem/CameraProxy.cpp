@@ -1,15 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
-
-// -------------------------------------------------------------------------
-//  File name:   CameraProxy.h
-//  Version:     v1.00
-//  Created:     5/12/2005 by Timur.
-//  Compilers:   Visual Studio.NET 2003
-//  Description:
-// -------------------------------------------------------------------------
-//  History:
-//
-////////////////////////////////////////////////////////////////////////////
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "CameraProxy.h"
@@ -18,13 +7,20 @@
 CRYREGISTER_CLASS(CEntityComponentCamera);
 
 //////////////////////////////////////////////////////////////////////////
+CEntityComponentCamera::CEntityComponentCamera()
+{
+	m_componentFlags.Add(EEntityComponentFlags::Legacy);
+	m_componentFlags.Add(EEntityComponentFlags::NoSave);
+}
+
+//////////////////////////////////////////////////////////////////////////
 void CEntityComponentCamera::Initialize()
 {
 	UpdateMaterialCamera();
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CEntityComponentCamera::ProcessEvent(SEntityEvent& event)
+void CEntityComponentCamera::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{

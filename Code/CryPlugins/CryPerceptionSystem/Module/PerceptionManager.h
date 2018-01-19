@@ -14,7 +14,7 @@ struct IAIObject;
 
 class CScriptBind_PerceptionManager;
 
-class CPerceptionManager : public IPerceptionManager, public IAISystemComponent
+class CPerceptionManager : public IPerceptionManager, public IAISystemComponent, public ISystemEventListener
 {
 public:
 	CPerceptionManager();
@@ -39,9 +39,11 @@ public:
 	void ResetActor(IAIObject* pAIObject);
 
 private:
+	// ISystemEventListener
+	virtual void OnSystemEvent(ESystemEvent event, UINT_PTR wparam, UINT_PTR lparam) override;
+	// !ISystemEventListener
+
 	// IAISystemComponent
-	virtual void Init() override;
-	virtual void PostInit() override;
 	virtual void Reset(IAISystem::EResetReason reason) override;
 	virtual void Update(float deltaTime) override;
 	virtual void Serialize(TSerialize ser) override;
@@ -212,5 +214,6 @@ private:
 
 	PerfStats                  m_stats;
 
+	bool m_bRegistered;
 	static CPerceptionManager* s_pInstance;
 };

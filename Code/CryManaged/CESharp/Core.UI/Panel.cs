@@ -11,12 +11,16 @@ namespace CryEngine.UI
 	[DataContract]
 	public class Panel : UIElement
 	{
-		public Image Background { get; private set; } ///< Optional Background image for the Panel.
+		/// <summary>
+		/// Optional Background image for the Panel.
+		/// </summary>
+		/// <value>The background.</value>
+		public Image Background { get; private set; }
 
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnAwake()
+		protected override void OnAwake()
 		{
 			Background = AddComponent<Image>();
 		}

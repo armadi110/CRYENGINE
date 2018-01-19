@@ -26,10 +26,6 @@
 #if ENABLE_AUTO_TESTER 
 static CAutoTester s_autoTesterSingleton;
 #endif
- 
-#if defined(ENABLE_STATS_AGENT)
-#include "StatsAgent.h"
-#endif
 
 #ifdef __LINK_GCOV__
 extern "C" void __gcov_flush(void);
@@ -53,12 +49,6 @@ namespace
 #define GCOV_FLUSH ((void)0)
 #define GCOV_FLUSH_UPDATE ((void)0)
 #endif
-
-#if defined(_LIB) || CRY_PLATFORM_LINUX || CRY_PLATFORM_ANDROID
-	extern "C" IGameFramework *CreateGameFramework();
-#endif
-
-#define DLL_INITFUNC_CREATEGAME "CreateGameFramework"
 
 #if CRY_PLATFORM_WINDOWS
 bool g_StickyKeysStatusSaved = false;
@@ -459,14 +449,13 @@ IGameRef CGameStartup::Init(SSystemInitParams &startupParams)
 #if defined(CVARS_WHITELIST)
 	startupParams.pCVarsWhitelist = &g_CVarsWhiteList;
 #endif // defined(CVARS_WHITELIST)
-	startupParams.pGameStartup = this;
 
 	InlineInitializationProcessing("CGameStartup::Init");
 
   LOADING_TIME_PROFILE_SECTION(GetISystem());
 
 	// Load thread config
-	gEnv->pThreadManager->GetThreadConfigManager()->LoadConfig("config/game.thread_config");
+	gEnv->pThreadManager->GetThreadConfigManager()->LoadConfig("%engine%/config/game.thread_config");
 
 	const ICmdLineArg* pSvBind = GetISystem()->GetICmdLine()->FindArg(eCLAT_Pre, "sv_bind");
 	IConsole* pConsole = GetISystem()->GetIConsole();
@@ -475,11 +464,6 @@ IGameRef CGameStartup::Init(SSystemInitParams &startupParams)
 		string command = pSvBind->GetName() + string(" ") + pSvBind->GetValue();
 		pConsole->ExecuteString(command.c_str(), true, false);
 	}
-
-#if defined(ENABLE_STATS_AGENT)
-	const ICmdLineArg *pPipeArg = GetISystem()->GetICmdLine()->FindArg(eCLAT_Pre,"lt_pipename");
-	CStatsAgent::CreatePipe( pPipeArg );
-#endif
 
 	// load the appropriate game/mod
 #if !defined(_RELEASE)
@@ -537,10 +521,6 @@ void CGameStartup::Shutdown()
 
 #if CRY_PLATFORM_WINDOWS
 	AllowAccessibilityShortcutKeys(true);
-#endif
-
-#if defined(ENABLE_STATS_AGENT)
-	CStatsAgent::ClosePipe();
 #endif
 
 	GetISystem()->UnregisterErrorObserver(&m_errorObsever);

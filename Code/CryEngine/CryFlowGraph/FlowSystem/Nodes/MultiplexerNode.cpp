@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -67,7 +67,7 @@ public:
 					return;
 				else if (mode == eTM_PortsOnly && !bPortActive)
 					return;
-				ActivateOutput(pActInfo, 0, pActInfo->pInputPorts[port]);
+				ActivateOutput(pActInfo, 0, GetPortAny(pActInfo, port));
 			}
 		}
 		;

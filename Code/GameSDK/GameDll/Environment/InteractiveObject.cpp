@@ -273,7 +273,7 @@ void CInteractiveObjectEx::HandleEvent( const SGameObjectEvent &goEvent )
 
 }
 
-void CInteractiveObjectEx::ProcessEvent( SEntityEvent &entityEvent )
+void CInteractiveObjectEx::ProcessEvent( const SEntityEvent &entityEvent )
 {
 	switch (entityEvent.event)
 	{
@@ -305,12 +305,12 @@ void CInteractiveObjectEx::ProcessEvent( SEntityEvent &entityEvent )
 	}
 }
 
-void CInteractiveObjectEx::SetChannelId( uint16 id )
+uint64 CInteractiveObjectEx::GetEventMask() const
 {
-
+	return BIT64(ENTITY_EVENT_RESET) | BIT64(ENTITY_EVENT_ATTACH_THIS) | BIT64(ENTITY_EVENT_XFORM) | BIT64(ENTITY_EVENT_START_LEVEL);
 }
 
-void CInteractiveObjectEx::SetAuthority( bool auth )
+void CInteractiveObjectEx::SetChannelId( uint16 id )
 {
 
 }

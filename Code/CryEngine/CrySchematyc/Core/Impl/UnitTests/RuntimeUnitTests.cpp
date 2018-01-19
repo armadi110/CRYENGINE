@@ -1,10 +1,10 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
-#include <Schematyc/Runtime/RuntimeParams.h>
-#include <Schematyc/Utils/Scratchpad.h>
-#include <Schematyc/Utils/SharedString.h>
+#include <CrySchematyc/Runtime/RuntimeParams.h>
+#include <CrySchematyc/Utils/Scratchpad.h>
+#include <CrySchematyc/Utils/SharedString.h>
 
 #include "UnitTests/UnitTestRegistrar.h"
 

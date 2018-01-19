@@ -6,9 +6,9 @@
 
 // *INDENT-OFF* - <hard to read code and declarations due to inconsistent indentation>
 
-namespace uqs
+namespace UQS
 {
-	namespace core
+	namespace Core
 	{
 
 		//===================================================================================
@@ -20,7 +20,7 @@ namespace uqs
 		//
 		//===================================================================================
 
-		class CQueryHistoryInGameGUI : public IQueryHistoryListener, public IQueryHistoryConsumer, public IInputEventListener
+		class CQueryHistoryInGameGUI : public IQueryHistoryListener, public IQueryHistoryConsumer, public ISystemEventListener, public IInputEventListener
 		{
 		public:
 
@@ -33,11 +33,15 @@ namespace uqs
 
 			// IQueryHistoryConsumer
 			virtual void                                 AddOrUpdateHistoricQuery(const SHistoricQueryOverview& overview) override;
-			virtual void                                 AddTextLineToCurrentHistoricQuery(const ColorF& color, const char* fmt, ...) override;
-			virtual void                                 AddTextLineToFocusedItem(const ColorF& color, const char* fmt, ...) override;
+			virtual void                                 AddTextLineToCurrentHistoricQuery(const ColorF& color, const char* szFormat, ...) override;
+			virtual void                                 AddTextLineToFocusedItem(const ColorF& color, const char* szFormat, ...) override;
 			virtual void                                 AddInstantEvaluatorName(const char* szInstantEvaluatorName) override;
 			virtual void                                 AddDeferredEvaluatorName(const char* szDeferredEvaluatorName) override;
 			// ~IQueryHistoryConsumer
+
+			// ISystemEventListener
+			virtual void                                 OnSystemEvent(ESystemEvent event, UINT_PTR wparam, UINT_PTR lparam) override;
+			// ~ISystemEventListener
 
 			// IInputEventListener
 			virtual bool                                 OnInputEvent(const SInputEvent& event) override;
@@ -54,7 +58,7 @@ namespace uqs
 			void                                         RefreshDetailedInfoAboutFocusedItem();
 			void                                         FindScrollIndexInHistoricQueries();
 
-			int                                          DrawQueryHistoryOverview(IQueryHistoryManager::EHistoryOrigin whichHistory, const char* descriptiveHistoryName, float xPos, int row) const;
+			int                                          DrawQueryHistoryOverview(IQueryHistoryManager::EHistoryOrigin whichHistory, const char* szDescriptiveHistoryName, float xPos, int row) const;
 			int                                          DrawListOfHistoricQueries(float xPos, int row) const;
 			int                                          DrawDetailsAboutCurrentHistoricQuery(float xPos, int row) const;
 			int                                          DrawDetailsAboutFocusedItem(float xPos, int row) const;

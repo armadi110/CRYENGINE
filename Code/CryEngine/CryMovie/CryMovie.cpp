@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "CryMovie.h"
@@ -13,12 +13,15 @@
 
 #undef GetClassName
 
-struct CSystemEventListner_Movie : public ISystemEventListener
+struct CSystemEventListener_Movie : public ISystemEventListener
 {
 public:
-	virtual ~CSystemEventListner_Movie()
+	virtual ~CSystemEventListener_Movie()
 	{
-		gEnv->pSystem->GetISystemEventDispatcher()->RemoveListener(this);
+		if (gEnv->pSystem)
+		{
+			gEnv->pSystem->GetISystemEventDispatcher()->RemoveListener(this);
+		}
 	}
 
 	virtual void OnSystemEvent(ESystemEvent event, UINT_PTR wparam, UINT_PTR lparam)
@@ -34,12 +37,16 @@ public:
 	}
 };
 
-static CSystemEventListner_Movie g_system_event_listener_movie;
+static CSystemEventListener_Movie g_system_event_listener_movie;
 
-class CEngineModule_CryMovie : public IEngineModule
+class CEngineModule_CryMovie : public IMovieEngineModule
 {
-	CRYINTERFACE_SIMPLE(IEngineModule)
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_CryMovie, "EngineModule_CryMovie", 0xdce26beebdc6400f, 0xa0e9b42839f2dd5b)
+	CRYINTERFACE_BEGIN()
+		CRYINTERFACE_ADD(Cry::IDefaultModule)
+		CRYINTERFACE_ADD(IMovieEngineModule)
+	CRYINTERFACE_END()
+
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_CryMovie, "EngineModule_CryMovie", "dce26bee-bdc6-400f-a0e9-b42839f2dd5b"_cry_guid)
 
 	virtual ~CEngineModule_CryMovie()
 	{

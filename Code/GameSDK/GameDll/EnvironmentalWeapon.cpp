@@ -1171,7 +1171,12 @@ void CEnvironmentalWeapon::RenderDebugStats() const
 }
 #endif // #ifndef _RELEASE
 
-void CEnvironmentalWeapon::ProcessEvent(SEntityEvent& event)
+uint64 CEnvironmentalWeapon::GetEventMask() const
+{
+	return BIT64(ENTITY_EVENT_LEVEL_LOADED) | BIT64(ENTITY_EVENT_RESET) | BIT64(ENTITY_EVENT_LINK) | BIT64(ENTITY_EVENT_DELINK) | BIT64(ENTITY_EVENT_START_LEVEL) | BIT64(ENTITY_EVENT_XFORM);
+}
+
+void CEnvironmentalWeapon::ProcessEvent(const SEntityEvent& event)
 {
 	switch(event.event)
 	{
@@ -2869,10 +2874,11 @@ void CEnvironmentalWeapon::DelegateAuthorityOnOwnershipChanged(EntityId prevOwne
 			// If new owner is a remote player
 			IActor* pActor = g_pGame->GetIGameFramework()->GetIActorSystem()->GetActor(newOwnerId);
 			CRY_ASSERT_MESSAGE(pActor, "CEnvironmentalWeapon::DelegateAuthorityOnOwnershipChanged < Something has gone wrong here - perhaps trying to hand ownership to a player that has left the game?"); 
-			if(pActor) 
+			INetChannel *pNetChannel = gEnv->pGameFramework->GetNetChannel(pActor->GetChannelId());
+			if (pActor && pNetChannel)
 			{
 				// If somebody picked it up that wasn't the server.. hand over control. 
-				pNetContext->DelegateAuthority( GetEntityId(), pActor->GetGameObject()->GetNetChannel() );
+				pNetContext->DelegateAuthority(GetEntityId(), pNetChannel);
 			}
 		}
 	}	

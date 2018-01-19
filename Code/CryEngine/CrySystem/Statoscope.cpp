@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   Statoscope.cpp
@@ -933,40 +933,38 @@ struct SParticlesDG : public IStatoscopeDataGroup
 
 	virtual void Write(IStatoscopeFrameRecord& fr)
 	{
-		SParticleCounts particleCounts;
-		gEnv->pParticleManager->GetCounts(particleCounts);
-
-		SParticleCounts particleCountsPfx2;
-		pfx2::GetIParticleSystem()->GetCounts(particleCountsPfx2);
-
-		particleCounts.ParticlesRendered    += particleCountsPfx2.ParticlesRendered;
-		particleCounts.ParticlesActive      += particleCountsPfx2.ParticlesActive;
-		particleCounts.ParticlesAlloc       += particleCountsPfx2.ParticlesAlloc;
-		particleCounts.PixelsRendered       += particleCountsPfx2.PixelsRendered;
-		particleCounts.PixelsProcessed      += particleCountsPfx2.PixelsProcessed;
-		particleCounts.EmittersRendered     += particleCountsPfx2.EmittersRendered;
-		particleCounts.EmittersActive       += particleCountsPfx2.EmittersActive;
-		particleCounts.EmittersAlloc        += particleCountsPfx2.EmittersAlloc;
-		particleCounts.ParticlesReiterate   += particleCountsPfx2.ParticlesReiterate;
-		particleCounts.ParticlesReject      += particleCountsPfx2.ParticlesReject;
-		particleCounts.ParticlesCollideTest += particleCountsPfx2.ParticlesCollideTest;
-		particleCounts.ParticlesCollideHit  += particleCountsPfx2.ParticlesCollideHit;
-		particleCounts.ParticlesClip        += particleCountsPfx2.ParticlesClip;
+		SParticleCounts stats;
+		gEnv->pParticleManager->GetCounts(stats);
 
 		float fScreenPix = (float)(gEnv->pRenderer->GetWidth() * gEnv->pRenderer->GetHeight());
-		fr.AddValue(particleCounts.ParticlesRendered);
-		fr.AddValue(particleCounts.ParticlesActive);
-		fr.AddValue(particleCounts.ParticlesAlloc);
-		fr.AddValue(particleCounts.PixelsRendered / fScreenPix);
-		fr.AddValue(particleCounts.PixelsProcessed / fScreenPix);
-		fr.AddValue(particleCounts.EmittersRendered);
-		fr.AddValue(particleCounts.EmittersActive);
-		fr.AddValue(particleCounts.EmittersAlloc);
-		fr.AddValue(particleCounts.ParticlesReiterate);
-		fr.AddValue(particleCounts.ParticlesReject);
-		fr.AddValue(particleCounts.ParticlesCollideTest);
-		fr.AddValue(particleCounts.ParticlesCollideHit);
-		fr.AddValue(particleCounts.ParticlesClip);
+		stats.pixels.updated  /= fScreenPix;
+		stats.pixels.rendered /= fScreenPix;
+		for (auto stat: stats)
+			fr.AddValue(int(stat));
+	}
+};
+
+struct SWavicleDG : public IStatoscopeDataGroup
+{
+	virtual SDescription GetDescription() const
+	{
+		return SDescription(
+			'P', "Wavicle", "['/Wavicle/'"
+			"(int emittersAlive)(int emittersUpdated)(int emittersRendererd)"
+			"(int componentsAlive)(int componentsUpdated)(int componentsRendered)"
+			"(int particlesAllocated)(int particlesAlive)(int particlesUpdated)(int particlesRendered)(int particlesClipped)"
+			"]");
+	}
+
+	virtual void Write(IStatoscopeFrameRecord& fr)
+	{
+		using namespace pfx2;
+
+		SParticleStats stats;
+		GetIParticleSystem()->GetStats(stats);
+		
+		for (auto stat: stats)
+			fr.AddValue(int(stat));
 	}
 };
 
@@ -979,8 +977,8 @@ struct SLocationDG : public IStatoscopeDataGroup
 
 	virtual void Write(IStatoscopeFrameRecord& fr)
 	{
-		Matrix33 m = Matrix33(gEnv->pRenderer->GetCamera().GetMatrix());
-		Vec3 pos = gEnv->pRenderer->GetCamera().GetPosition();
+		Matrix33 m = Matrix33(GetISystem()->GetViewCamera().GetMatrix());
+		Vec3 pos = GetISystem()->GetViewCamera().GetPosition();
 		Ang3 rot = RAD2DEG(Ang3::GetAnglesXYZ(m));
 
 		fr.AddValue(pos.x);
@@ -1021,8 +1019,8 @@ struct SPerCGFGPUProfilersDG : public IStatoscopeDataGroup
 
 		IRenderer::RNDrawcallsMapMesh& drawCallsInfo = gEnv->pRenderer->GetDrawCallsInfoPerMesh();
 
-		IRenderer::RNDrawcallsMapMeshItor pEnd = drawCallsInfo.end();
-		IRenderer::RNDrawcallsMapMeshItor pItor = drawCallsInfo.begin();
+		auto pEnd = drawCallsInfo.end();
+		auto pItor = drawCallsInfo.begin();
 
 		string sPathName;
 		sPathName.reserve(64);
@@ -1129,8 +1127,8 @@ struct SPerCGFGPUProfilersDG : public IStatoscopeDataGroup
 		IRenderer* pRenderer = gEnv->pRenderer;
 		pRenderer->CollectDrawCallsInfo(true);
 		IRenderer::RNDrawcallsMapMesh& drawCallsInfo = gEnv->pRenderer->GetDrawCallsInfoPerMesh();
-		IRenderer::RNDrawcallsMapMeshItor pEnd = drawCallsInfo.end();
-		IRenderer::RNDrawcallsMapMeshItor pItor = drawCallsInfo.begin();
+		auto pEnd = drawCallsInfo.end();
+		auto pItor = drawCallsInfo.begin();
 
 		//Per RenderNode Stats
 		for (; pItor != pEnd; ++pItor)
@@ -1812,7 +1810,7 @@ CStatoscope::~CStatoscope()
 
 static char* Base64Encode(const uint8* buffer, int len)
 {
-	FRAME_PROFILER("CStatoscope::Base64Encode", gEnv->pSystem, PROFILE_SYSTEM);
+	CRY_PROFILE_REGION(PROFILE_SYSTEM, "CStatoscope::Base64Encode");
 
 	static const char base64Dict[64] = {
 		'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
@@ -1906,7 +1904,7 @@ void CStatoscope::UnregisterDataGroup(IStatoscopeDataGroup* pDG)
 
 void CStatoscope::Tick()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_SYSTEM);
+	CRY_PROFILE_FUNCTION(PROFILE_SYSTEM);
 
 	if (m_pStatoscopeEnabledCVar->GetIVal() != 0)
 	{
@@ -1963,7 +1961,7 @@ void CStatoscope::SetCurrentProfilerRecords(const std::vector<CFrameProfiler*>* 
 		// even if numProfilers is quite large (in the thousands), it'll only be tens of KB
 		uint32 numProfilers = profilers->size();
 		m_perfStatDumpProfilers.clear();
-		m_perfStatDumpProfilers.reserve(MAX(numProfilers, m_perfStatDumpProfilers.size()));		
+		m_perfStatDumpProfilers.reserve(std::max((size_t)numProfilers, m_perfStatDumpProfilers.size()));		
 
 		float minFuncTime = m_pStatoscopeMinFuncLengthMsCVar->GetFVal();
 
@@ -1999,7 +1997,7 @@ void CStatoscope::SetCurrentProfilerRecords(const std::vector<CFrameProfiler*>* 
 		{
 			uint32 maxNumFuncs = (uint32)m_pStatoscopeMaxNumFuncsPerFrameCVar->GetIVal();
 			// limit the number being recorded
-			m_perfStatDumpProfilers.resize(MIN(m_perfStatDumpProfilers.size(), maxNumFuncs));
+			m_perfStatDumpProfilers.resize(std::min(m_perfStatDumpProfilers.size(), (size_t)maxNumFuncs));
 		}
 
 		uint32 numDumpProfilers = m_perfStatDumpProfilers.size();
@@ -2122,10 +2120,14 @@ void CStatoscope::CloseTelemetryStream()
 
 void CStatoscope::PrepareScreenShot()
 {
-	const int widthDelta = m_lastScreenWidth - gEnv->pRenderer->GetWidth();
+	const int widthDelta  = m_lastScreenWidth  - gEnv->pRenderer->GetWidth();
 	const int heightDelta = m_lastScreenHeight - gEnv->pRenderer->GetHeight();
-	m_lastScreenWidth = gEnv->pRenderer->GetWidth();
+
+	m_lastScreenWidth  = gEnv->pRenderer->GetWidth();
 	m_lastScreenHeight = gEnv->pRenderer->GetHeight();
+
+	CRY_ASSERT(gEnv->pRenderer->GetWidth () == gEnv->pRenderer->GetOverlayWidth ());
+	CRY_ASSERT(gEnv->pRenderer->GetHeight() == gEnv->pRenderer->GetOverlayHeight());
 
 	const int shrunkenWidthNotAligned = OnGetFrameWidth();
 	const int shrunkenWidth = shrunkenWidthNotAligned - (shrunkenWidthNotAligned % 4);
@@ -2188,7 +2190,7 @@ uint8* CStatoscope::ProcessScreenShot()
 
 void CStatoscope::AddFrameRecord(bool bOutputHeader)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_SYSTEM);
+	CRY_PROFILE_FUNCTION(PROFILE_SYSTEM);
 
 	float currentTime = gEnv->pTimer->GetAsyncTime().GetSeconds();
 
@@ -2787,6 +2789,7 @@ void CStatoscope::RegisterBuiltInDataGroups()
 	RegisterDataGroup(new SCPUTimesDG());
 	RegisterDataGroup(new SVertexCostDG());
 	RegisterDataGroup(new SParticlesDG);
+	RegisterDataGroup(new SWavicleDG);
 	RegisterDataGroup(new SLocationDG());
 	RegisterDataGroup(new SPerCGFGPUProfilersDG());
 	RegisterDataGroup(m_pParticleProfilers);
@@ -3001,7 +3004,7 @@ void CStatoscopeServer::SendData(const char* buffer, int bufferSize)
 		return;
 	}
 
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_SYSTEM);
+	CRY_PROFILE_FUNCTION(PROFILE_SYSTEM);
 
 	//float startTime = gEnv->pTimer->GetAsyncCurTime();
 	//int origBufferSize = bufferSize;
@@ -3158,7 +3161,7 @@ void CDataWriter::WriteData(const void* vpData, int vsize)
 				return;
 			}
 
-			Sleep(1);
+			CrySleep(1);
 		}
 		while (true);
 

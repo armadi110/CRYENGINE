@@ -662,11 +662,11 @@ CPlayer::CPlayer()
 
 	CALL_PLAYER_EVENT_LISTENERS(OnToggleThirdPerson(this,m_stats.isThirdPerson));
 
-	gEnv->pAudioSystem->GetAudioTriggerId("water_enter", m_waterEnter);
-	gEnv->pAudioSystem->GetAudioTriggerId("water_exit", m_waterExit);
-	gEnv->pAudioSystem->GetAudioTriggerId("water_dive_in", m_waterDiveIn);
-	gEnv->pAudioSystem->GetAudioTriggerId("water_dive_out", m_waterDiveOut);
-	gEnv->pAudioSystem->GetAudioParameterId("water_in_out_speed", m_waterInOutSpeed);
+	m_waterEnter = CryAudio::StringToId("water_enter");
+	m_waterExit = CryAudio::StringToId("water_exit");
+	m_waterDiveIn = CryAudio::StringToId("water_dive_in");
+	m_waterDiveOut = CryAudio::StringToId("water_dive_out");
+	m_waterInOutSpeed = CryAudio::StringToId("water_in_out_speed");
 }
 
 CPlayer::~CPlayer()
@@ -1075,7 +1075,9 @@ void CPlayer::InitLocalPlayer()
 	if (m_pPlayerTypeComponent)
 		return;
 
+	// Make the player a local actor and update the third person state so the player is now in first person state
 	CActor::InitLocalPlayer();
+	UpdateThirdPersonState();
 
 	CGameLobby* pGameLobby = g_pGame->GetGameLobby();
 	if(pGameLobby && pGameLobby->GetSpectatorStatusFromChannelId(GetGameObject()->GetChannelId()))
@@ -1326,7 +1328,7 @@ void CPlayer::ResetAnimationState()
 	}
 }
 
-void CPlayer::ProcessEvent(SEntityEvent& event)
+void CPlayer::ProcessEvent(const SEntityEvent& event)
 {
 	if (event.event == ENTITY_EVENT_XFORM)
 	{
@@ -1512,7 +1514,41 @@ void CPlayer::ProcessEvent(SEntityEvent& event)
 			}
 		}
 		break;
+	case ENTITY_EVENT_SET_AUTHORITY:
+		{
+			const bool auth = event.nParam[0] ? true : false;
+			// we've been given authority of this entity, mark the physics as changed
+			// so that we send a current position, failure to do this can result in server/client
+			// disagreeing on where the entity is. most likely to happen on restart
+			if (auth)
+			{
+				CHANGED_NETWORK_STATE(this, eEA_Physics | ASPECT_RANK_CLIENT);
+
+				if (g_pGame->IsGameSessionHostMigrating())
+				{
+					// If we're migrating, we've probably set our selected item before we were allowed to, resend it here
+					CHANGED_NETWORK_STATE(this, ASPECT_CURRENT_ITEM);
+				}
+			}
+		}
 	}
+}
+
+uint64 CPlayer::GetEventMask() const
+{
+	return CActor::GetEventMask()
+		| BIT64(ENTITY_EVENT_XFORM)
+		| BIT64(ENTITY_EVENT_TIMER)
+		| BIT64(ENTITY_EVENT_PREPHYSICSUPDATE)
+		| BIT64(ENTITY_EVENT_PRE_SERIALIZE)
+		| BIT64(ENTITY_EVENT_START_GAME)
+		| BIT64(ENTITY_EVENT_RESET)
+		| BIT64(ENTITY_EVENT_DONE)
+		| BIT64(ENTITY_EVENT_ATTACH_THIS)
+		| BIT64(ENTITY_EVENT_DETACH_THIS)
+		| BIT64(ENTITY_EVENT_ENABLE_PHYSICS)
+		| BIT64(ENTITY_EVENT_SET_AUTHORITY);
+
 }
 
 void CPlayer::SetChannelId(uint16 id)
@@ -1567,7 +1603,7 @@ void CPlayer::AddViewAngleOffsetForFrame(const Ang3 &offset)
 
 void CPlayer::Update(SEntityUpdateContext& ctx, int updateSlot)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 
 #if ENABLE_RMI_BENCHMARK
 	if ( gEnv->bMultiplayer && IsClient() && ( g_pGameCVars->g_RMIBenchmarkInterval > 0 ) )
@@ -1736,7 +1772,7 @@ void CPlayer::Update(SEntityUpdateContext& ctx, int updateSlot)
 	}
 
 	{
-		FRAME_PROFILER("Player Update :: UpdateListeners", GetISystem(), PROFILE_GAME);
+		CRY_PROFILE_REGION(PROFILE_GAME, "Player Update :: UpdateListeners");
 
 		TPlayerUpdateListeners::iterator it = m_playerUpdateListeners.begin();
 		TPlayerUpdateListeners::iterator end = m_playerUpdateListeners.end();
@@ -1982,7 +2018,7 @@ void CPlayer::UpdateAnimationState(const SActorFrameMovementParams &frameMovemen
 	IActionController *pActionController = GetAnimatedCharacter()->GetActionController();
 	IMannequin &mannequinSys = gEnv->pGameFramework->GetMannequinInterface();
 
-	if (IsAIControlled())
+	if (IsAIControlled() && pActionController)
 	{
 		UpdateAIAnimationState(frameMovementParams, pWeapon, pICharInst, pActionController, mannequinSys);
 	}
@@ -2060,7 +2096,7 @@ void CPlayer::UpdateAnimationState(const SActorFrameMovementParams &frameMovemen
 
 void CPlayer::PrePhysicsUpdate()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 
 	// TODO: This whole function needs to be optimized.
 
@@ -2298,7 +2334,11 @@ void CPlayer::SetIK( const SActorFrameMovementParams& frameMovementParams )
 	{
 		if (IsThirdPerson()) 
 		{
-			const Vec3 cameraPosition = GetViewMatrix().GetTranslation();
+			Vec3 cameraPosition;
+			if (IsClient())
+				cameraPosition = GetViewMatrix().GetTranslation();
+			else
+				cameraPosition = curMovementState.eyePosition;
 
 			const Vec3 down = Vec3(0, 0, -1);
 			const float dotProd = curMovementState.aimDirection.dot(down);
@@ -2413,7 +2453,7 @@ void CPlayer::SetIK( const SActorFrameMovementParams& frameMovementParams )
 
 void CPlayer::UpdateView(SViewParams &viewParams)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 
 #ifndef _RELEASE
 	if (g_pGameCVars->pl_debug_view != 0)
@@ -2475,7 +2515,7 @@ void CPlayer::UpdateView(SViewParams &viewParams)
 
 void CPlayer::PostUpdateView(SViewParams &viewParams)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 
 	if (CItem *pItem=GetItem(GetInventory()->GetCurrentItem()))
 		pItem->PostFilterView(viewParams);
@@ -2820,7 +2860,7 @@ void CPlayer::SetStance(EStance desiredStance)
 
 void CPlayer::OnStanceChanged(EStance newStance, EStance oldStance)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 
 	CActor::OnStanceChanged(newStance, oldStance);
 
@@ -2955,7 +2995,7 @@ void CPlayer::SetStats(SmartScriptTable &rTable)
 //------------------------------------------------------------------------
 void CPlayer::UpdateStats(float frameTime)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 	
 	//The results from GetEntity() are used without checking in
 	//	CPlayer::Update, so should be safe here!
@@ -4675,23 +4715,6 @@ void CPlayer::UpdateHealthRegeneration(float fHealth, float frameTime)
 	}
 }
 
-void CPlayer::SetAuthority( bool auth )
-{
-	// we've been given authority of this entity, mark the physics as changed
-	// so that we send a current position, failure to do this can result in server/client
-	// disagreeing on where the entity is. most likely to happen on restart
-	if(auth)
-	{
-		CHANGED_NETWORK_STATE(this, eEA_Physics|ASPECT_RANK_CLIENT);
-
-		if (g_pGame->IsGameSessionHostMigrating())
-		{
-			// If we're migrating, we've probably set our selected item before we were allowed to, resend it here
-			CHANGED_NETWORK_STATE(this, ASPECT_CURRENT_ITEM);
-		}
-	}
-}
-
 //------------------------------------------------------------------------
 
 void CPlayer::SetAngles(const Ang3 &angles) 
@@ -5107,25 +5130,13 @@ void CPlayer::NetSerialize_Spectator( TSerialize ser, bool bReading )
 void CPlayer::NetSerialize_InputClient( TSerialize ser, bool bReading )
 {
 	NET_PROFILE_SCOPE("PlayerInput", bReading);
-#ifdef SEG_WORLD
-	ISegmentsManager *pSM = gEnv->p3DEngine->GetSegmentsManager();
-#endif
 	SSerializedPlayerInput serializedInput;
 	if (m_pPlayerInput.get())
 	{
 		m_pPlayerInput->GetState(serializedInput);
 		if (!IsRemote() && !bReading)
 		{
-#ifdef SEG_WORLD
-			Vec3 pos(GetEntity()->GetPos());
-			if(gEnv->IsClient() && !gEnv->bServer && pSM)
-			{
-				pos = pSM->LocalToAbsolutePosition(pos);
-			}
-			serializedInput.position	= pos;
-#else
 			serializedInput.position	= GetEntity()->GetPos();
-#endif
 			serializedInput.physCounter = GetNetPhysCounter();
 		}
 	}
@@ -5141,13 +5152,6 @@ void CPlayer::NetSerialize_InputClient( TSerialize ser, bool bReading )
 
 	if (bReading)
 	{
-#ifdef SEG_WORLD
-		m_lastSyncedWorldPosition = serializedInput.position;
-		if (gEnv->IsClient() && !gEnv->bServer && pSM)
-		{
-			serializedInput.position = pSM->WorldVecToLocalSegVec(serializedInput.position);
-		}
-#endif
 		if(m_pPlayerInput.get())
 		{
 			m_pPlayerInput->SetState(serializedInput);
@@ -5221,9 +5225,6 @@ void CPlayer::NetSerialize_InputClient_Aug( TSerialize ser, bool bReading )
 {
 	// This aspect is used for serialising what the player is standing on
 	NET_PROFILE_SCOPE("PlayerInput_Aug", bReading);
-#ifdef SEG_WORLD
-	ISegmentsManager *pSM = gEnv->p3DEngine->GetSegmentsManager();
-#endif
 	SSerializedPlayerInput serializedInput;
 
 	if (m_pPlayerInput.get())
@@ -5231,16 +5232,7 @@ void CPlayer::NetSerialize_InputClient_Aug( TSerialize ser, bool bReading )
 
 	if (!bReading && !IsRemote())
 	{
-#ifdef SEG_WORLD
-		Vec3 pos(GetEntity()->GetPos());
-		if(gEnv->IsClient() && !gEnv->bServer && pSM)
-		{
-			pos = pSM->LocalToAbsolutePosition(pos);
-		}
-		serializedInput.position = pos;
-#else
 		serializedInput.position = GetEntity()->GetPos();
-#endif
 	}
 	
 	NET_PROFILE_BEGIN("SerializedInput::Serialize", ser.IsReading());
@@ -5249,13 +5241,6 @@ void CPlayer::NetSerialize_InputClient_Aug( TSerialize ser, bool bReading )
 
 	if (bReading && m_pPlayerInput.get())
 	{
-#ifdef SEG_WORLD
-		if (gEnv->IsClient() && !gEnv->bServer && pSM)
-		{
-			m_lastSyncedWorldPosition = serializedInput.position;
-			serializedInput.position = pSM->WorldVecToLocalSegVec(serializedInput.position);
-		}
-#endif
 		m_pPlayerInput->SetState(serializedInput);
 	}
 }
@@ -5733,6 +5718,14 @@ void CPlayer::OnLocalSpectatorStateSerialize(CActor::EActorSpectatorState newSta
 void CPlayer::PostSerialize()
 {
 	CActor::PostSerialize();
+
+	if (IScriptTable* pScriptTable = GetEntity()->GetScriptTable())
+	{
+		if (pScriptTable->HaveValue("OnPlayerPostSerialize"))
+		{
+			Script::CallMethod(pScriptTable, "OnPlayerPostSerialize");
+		}
+	}
 
 	StateMachineHandleEventMovement( SStateEvent( STATE_EVENT_POST_SERIALIZE ) );
 
@@ -7405,7 +7398,7 @@ void CPlayer::AnimationEvent(ICharacterInstance *pCharacter, const AnimEventInst
 			//Only client ones (the rest are processed in AudioProxy)
 			if (isClient && m_pIEntityAudioComponent)
 			{
-				CryAudio::AuxObjectId nAudioProxyID = CryAudio::InvalidAuxObjectId;
+				CryAudio::AuxObjectId auxObjectId = CryAudio::InvalidAuxObjectId;
 
 				if (event.m_BonePathName && event.m_BonePathName[0] && pCharacter)
 				{
@@ -7414,23 +7407,18 @@ void CPlayer::AnimationEvent(ICharacterInstance *pCharacter, const AnimEventInst
 					int nJointID = rIDefaultSkeleton.GetJointIDByName(event.m_BonePathName);
 					if (nJointID >= 0)
 					{
-						nAudioProxyID = stl::find_in_map(m_cJointAudioProxies, nJointID, CryAudio::InvalidAuxObjectId);
-						if (nAudioProxyID == CryAudio::InvalidAuxObjectId)
+						auxObjectId = stl::find_in_map(m_cJointAudioProxies, nJointID, CryAudio::InvalidAuxObjectId);
+						if (auxObjectId == CryAudio::InvalidAuxObjectId)
 						{
-							nAudioProxyID = m_pIEntityAudioComponent->CreateAudioAuxObject();
-							m_cJointAudioProxies[nJointID] = nAudioProxyID;
+							auxObjectId = m_pIEntityAudioComponent->CreateAudioAuxObject();
+							m_cJointAudioProxies[nJointID] = auxObjectId;
 						}
 
-						m_pIEntityAudioComponent->SetAudioAuxObjectOffset(Matrix34(pSkeletonPose->GetAbsJointByID(nJointID)), nAudioProxyID);
+						m_pIEntityAudioComponent->SetAudioAuxObjectOffset(Matrix34(pSkeletonPose->GetAbsJointByID(nJointID)), auxObjectId);
 					}
 				}
-				CryAudio::ControlId nTriggerID = CryAudio::InvalidControlId;
-				gEnv->pAudioSystem->GetAudioTriggerId(event.m_CustomParameter, nTriggerID);
-
-				if (nTriggerID != CryAudio::InvalidControlId)
-				{
-					m_pIEntityAudioComponent->ExecuteTrigger(nTriggerID, nAudioProxyID);
-				}
+				CryAudio::ControlId const triggerId = CryAudio::StringToId(event.m_CustomParameter);
+				m_pIEntityAudioComponent->ExecuteTrigger(triggerId, auxObjectId);
 
 				REINST("needs verification!");
 				/*int flags = FLAG_SOUND_DEFAULT_3D;
@@ -9192,19 +9180,19 @@ void SNetPlayerProgression::SyncOnLocalPlayer(const bool serialized/* = true*/)
 		bool  changeNetState = false;
 
 		newVal = pp->GetData(EPP_XP);
-		newVal = MIN(newVal, 0xffff);
+		newVal = std::min((int)newVal, (int)0xffff);
 		if (serialized && (m_serVals.xp != newVal))
 			changeNetState = true;
 		m_serVals.xp = newVal;
 
 		newVal = pp->GetData(EPP_Rank);
-		newVal = MIN(newVal, 0xff);
+		newVal = std::min((int)newVal, (int)0xff);
 		if (serialized && (m_serVals.rank != newVal))
 			changeNetState = true;
 		m_serVals.rank = newVal;
 
 		newVal = pp->GetData(EPP_Reincarnate);
-		newVal = MIN(newVal, 0xff);
+		newVal = std::min((int)newVal, (int)0xff);
 		if (serialized && (m_serVals.reincarnations != newVal))
 			changeNetState = true;
 		m_serVals.reincarnations = newVal;
@@ -10601,18 +10589,3 @@ void CPlayer::RMIBenchmarkCallback( ERMIBenchmarkLogPoint point0, ERMIBenchmarkL
 }
 
 #endif
-
-void CPlayer::OnShiftWorld()
-{
-	if (m_pPlayerInput.get() && m_pPlayerInput->GetType() == IPlayerInput::NETPLAYER_INPUT)
-	{
-		ISegmentsManager *pSM = gEnv->p3DEngine->GetSegmentsManager();
-		if (gEnv->IsClient() && !gEnv->bServer && pSM)
-		{
-			SSerializedPlayerInput serializedInput;
-			m_pPlayerInput->GetState(serializedInput);
-			serializedInput.position = pSM->WorldVecToLocalSegVec(m_lastSyncedWorldPosition);
-			m_pPlayerInput->SetState(serializedInput);
-		}
-	}
-}

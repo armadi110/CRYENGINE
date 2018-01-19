@@ -1248,7 +1248,7 @@ public:
 		float longestSequenceDuration = -1.0f;
 		for (int i = 0; i < 3; ++i)
 		{
-			longestSequenceDuration = MAX(longestSequenceDuration, GetIntroSequenceDuration(i));
+			longestSequenceDuration = std::max(longestSequenceDuration, GetIntroSequenceDuration(i));
 		}
 		// CryLog("OnDedicatedServerIntroStart() - Setting intro duration [%.3f]", longestSequenceDuration);
 		// -1.0f indicates no intros
@@ -1761,7 +1761,7 @@ public:
 		}
 	}
 
-	virtual void OnEntityEvent(IEntity* pEntity, SEntityEvent& event)
+	virtual void OnEntityEvent(IEntity* pEntity, const SEntityEvent& event)
 	{
 		if (event.event == ENTITY_EVENT_DONE)
 		{

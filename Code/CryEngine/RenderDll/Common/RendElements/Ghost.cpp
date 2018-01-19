@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "Ghost.h"
@@ -68,12 +68,12 @@ bool CLensGhost::PreparePrimitives(const SPreparePrimitivesContext& context)
 	ApplyGeneralFlags(rtFlags);
 	ApplyOcclusionBokehFlag(rtFlags);
 
-	CTexture* pGhostTex = GetTexture() ? GetTexture() : CTexture::s_ptexBlack;
+	CTexture* pGhostTex = GetTexture() ? GetTexture() : CRendererResources::s_ptexBlack;
 	m_primitive.SetTechnique(CShaderMan::s_ShaderLensOptics, techGhost, rtFlags);
 	m_primitive.SetRenderState(GS_NODEPTHTEST | GS_BLSRC_ONE | GS_BLDST_ONE);
 	m_primitive.SetPrimitiveType(CRenderPrimitive::ePrim_FullscreenQuadCentered);
 	m_primitive.SetTexture(0, pGhostTex);
-	m_primitive.SetSampler(0, m_samplerBilinearBorderBlack);
+	m_primitive.SetSampler(0, EDefaultSamplerStates::LinearBorder_Black);
 
 	// update constants
 	{
@@ -82,7 +82,7 @@ bool CLensGhost::PreparePrimitives(const SPreparePrimitivesContext& context)
 		if (m_globalOcclusionBokeh)
 			ApplyOcclusionPattern(constants, m_primitive);
 		else
-			m_primitive.SetTexture(5, CTexture::s_ptexBlack);
+			m_primitive.SetTexture(5, CRendererResources::s_ptexBlack);
 
 		ColorF c = m_globalColor;
 		c.NormalizeCol(c);
@@ -108,7 +108,8 @@ bool CLensGhost::PreparePrimitives(const SPreparePrimitivesContext& context)
 
 		m_primitive.GetConstantManager().EndTypedConstantUpdate(constants);
 	}
-
+	
+	m_primitive.Compile(context.pass);
 	context.pass.AddPrimitive(&m_primitive);
 
 	return true;

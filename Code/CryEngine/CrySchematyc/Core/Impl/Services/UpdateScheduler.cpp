@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "UpdateScheduler.h"
@@ -100,7 +100,7 @@ void CUpdateScheduler::CBucket::Update(const SUpdateContext(&frequencyUpdateCont
 		}
 		else if (observer.currentPriority <= beginPriority)
 		{
-			if (!observer.callback.IsEmpty() && (observer.filter.IsEmpty() || observer.filter()))
+			if (observer.callback && (!observer.filter || observer.filter()))
 			{
 				observer.callback(frequencyUpdateContexts[observer.frequency]);
 			}
@@ -241,7 +241,7 @@ bool CUpdateScheduler::BeginFrame(float frameTime)
 
 bool CUpdateScheduler::Update(UpdatePriority beginPriority, UpdatePriority endPriority)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_GAME);
+	CRY_PROFILE_FUNCTION(PROFILE_GAME);
 	if (m_bInFrame)
 	{
 		// Calculate cumulative frame times.

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -16,8 +16,6 @@
 #include "IItemSystem.h"
 #include "IItem.h"
 #include "IWeapon.h"
-
-using namespace CryAudio;
 
 //#pragma optimize("", off)
 //#pragma inline_depth(0)
@@ -57,10 +55,13 @@ CVehicleSeatActionWeapons::~CVehicleSeatActionWeapons()
 			pWeapon->RemoveEventListener(this);
 		}
 
-		if (static_cast<CVehicle*>(m_pVehicle)->SpawnAndDeleteEntities())
-			pEntitySystem->RemoveEntity(ite->weaponEntityId, true);
+		if (ite->weaponEntityId != INVALID_ENTITYID)
+		{
+			if (static_cast<CVehicle*>(m_pVehicle)->SpawnAndDeleteEntities())
+				pEntitySystem->RemoveEntity(ite->weaponEntityId, true);
 
-		(*ite).weaponEntityId = 0;
+			(*ite).weaponEntityId = INVALID_ENTITYID;
+		}
 	}
 
 	m_pVehicle->SetObjectUpdate(this, IVehicle::eVOU_NoUpdate);
@@ -511,7 +512,7 @@ void CVehicleSeatActionWeapons::UpdateFromPassenger(const float frameTime, Entit
 //------------------------------------------------------------------------
 void CVehicleSeatActionWeapons::DoUpdate(float frameTime)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	bool distant = m_pVehicle->IsProbablyDistant();
 	bool visible = m_pVehicle->GetGameObject()->IsProbablyVisible();
@@ -733,14 +734,14 @@ void CVehicleSeatActionWeapons::StartFire()
 		{
 			UpdateWeaponTM(vehicleWeapon);
 
-			IAudioSystem const* const pIAudioSystem = gEnv->pAudioSystem;
+			CryAudio::IAudioSystem const* const pIAudioSystem = gEnv->pAudioSystem;
 			IVehicleMovement const* const pMovement = m_pVehicle->GetMovement();
 			if (pMovement != nullptr && pWeapon->CanFire())
 			{
 				IEntityAudioComponent* const pAudioProxy = pMovement->GetAudioProxy();
 				if (pIAudioSystem != nullptr && pAudioProxy != nullptr)
 				{
-					ControlId audioControlID = InvalidControlId;
+					CryAudio::ControlId audioControlID = CryAudio::InvalidControlId;
 					if (m_attackInput == eAI_Primary)
 					{
 						audioControlID = pMovement->GetPrimaryWeaponAudioTrigger();
@@ -789,7 +790,7 @@ void CVehicleSeatActionWeapons::StopFire()
 			IEntityAudioComponent* const pAudioProxy = pMovement->GetAudioProxy();
 			if (pAudioProxy)
 			{
-				ControlId audioControlID = InvalidControlId;
+				CryAudio::ControlId audioControlID = CryAudio::InvalidControlId;
 				if (m_attackInput == eAI_Primary)
 				{
 					audioControlID = pMovement->GetPrimaryWeaponAudioStopTrigger();
@@ -907,7 +908,7 @@ void CVehicleSeatActionWeapons::ClSetupWeapon(unsigned int index, EntityId weapo
 //------------------------------------------------------------------------
 void CVehicleSeatActionWeapons::UpdateWeaponTM(SVehicleWeapon& weapon)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	if (IEntity* pEntityWeapon = GetEntity(weapon))
 	{
@@ -980,7 +981,7 @@ bool CVehicleSeatActionWeapons::GetProbableHit(EntityId weaponId, const IFireMod
 //------------------------------------------------------------------------
 bool CVehicleSeatActionWeapons::GetFiringPos(EntityId weaponId, const IFireMode* pFireMode, Vec3& pos)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	for (TVehicleWeaponVector::iterator ite = m_weapons.begin(); ite != m_weapons.end(); ++ite)
 	{
@@ -1026,7 +1027,7 @@ bool CVehicleSeatActionWeapons::GetFiringPos(EntityId weaponId, const IFireMode*
 //------------------------------------------------------------------------
 bool CVehicleSeatActionWeapons::GetFiringDir(EntityId weaponId, const IFireMode* pFireMode, Vec3& dir, const Vec3& probableHit, const Vec3& firingPos)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	IActor* pActor = GetUserActor();
 
@@ -1077,7 +1078,7 @@ bool CVehicleSeatActionWeapons::GetFiringDir(EntityId weaponId, const IFireMode*
 //------------------------------------------------------------------------
 bool CVehicleSeatActionWeapons::GetActualWeaponDir(EntityId weaponId, const IFireMode* pFireMode, Vec3& dir, const Vec3& probableHit, const Vec3& firingPos)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	IActor* pActor = GetUserActor();
 
@@ -1314,7 +1315,7 @@ void CVehicleSeatActionWeapons::OnShoot(IWeapon* pWeapon, EntityId shooterId, En
 //------------------------------------------------------------------------
 Vec3 CVehicleSeatActionWeapons::GetAverageFiringPos()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_ACTION);
+	CRY_PROFILE_FUNCTION(PROFILE_ACTION);
 
 	AABB bounds;
 	bounds.Reset();

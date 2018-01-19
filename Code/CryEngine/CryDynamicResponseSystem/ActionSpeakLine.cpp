@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 
@@ -23,7 +23,6 @@ static const CHashedString s_signalOnLineCancel = "LineCanceled";
 static const CHashedString s_signalOnLineSkip = "LineSkipped";
 static const CHashedString s_signalOnLineStart = "LineStarted";
 static const CHashedString s_signalOnLineFinish = "LineFinished";
-static const CHashedString s_allKeyWord = "All";
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -225,6 +224,8 @@ DRS::IResponseActionInstanceUniquePtr CActionCancelSpeaking::Execute(DRS::IRespo
 {
 	CResponseSystem* pDrs = CResponseSystem::GetInstance();
 	CResponseActor* pSpeaker = nullptr;
+	static const CHashedString s_allKeyWord = "All";
+
 	if (m_speakerOverrideName != s_allKeyWord)
 	{
 		if (m_speakerOverrideName.IsValid())
@@ -254,12 +255,12 @@ DRS::IResponseActionInstanceUniquePtr CActionCancelSpeaking::Execute(DRS::IRespo
 }
 
 //--------------------------------------------------------------------------------------------------
-CryDRS::CActionCancelSpeaking::CActionCancelSpeaking() : m_maxPrioToCancel(-1), m_lineId(s_allKeyWord)
+CryDRS::CActionCancelSpeaking::CActionCancelSpeaking() : m_maxPrioToCancel(-1), m_lineId(CHashedString("All"))
 {
 }
 
 //--------------------------------------------------------------------------------------------------
-CryDRS::CActionCancelSpeaking::CActionCancelSpeaking(const CHashedString& speakerName) : m_maxPrioToCancel(-1), m_lineId(s_allKeyWord)
+CryDRS::CActionCancelSpeaking::CActionCancelSpeaking(const CHashedString& speakerName) : m_maxPrioToCancel(-1), m_lineId(CHashedString("All"))
 {
 }
 
@@ -302,8 +303,3 @@ void CActionCancelSpeakingInstance::Cancel()
 {
 	m_pSpeaker = nullptr;
 }
-
-//--------------------------------------------------------------------------------------------------
-
-REGISTER_DRS_ACTION(CActionSpeakLine, "SpeakLine", "00FF00");
-REGISTER_DRS_ACTION(CActionCancelSpeaking, "CancelSpeaking", DEFAULT_DRS_ACTION_COLOR);

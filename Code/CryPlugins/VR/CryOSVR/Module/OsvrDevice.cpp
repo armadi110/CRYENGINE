@@ -17,6 +17,7 @@
 
 #include <CrySystem/VR/IHMDManager.h>
 
+#include <CryMath/Cry_Camera.h>
 #include <CryRenderer/IRenderer.h>
 
 namespace CryVR
@@ -484,8 +485,8 @@ void Device::CalculateSymmetricalFovsFromDisplayConfig(float& fovH, float& fovV)
 	//calculate symmetrical fov
 	float leftMatrix[OSVR_MATRIX_SIZE];
 	float rightMatrix[OSVR_MATRIX_SIZE];
-	float nearPlane = gEnv->pRenderer->GetCamera().GetNearPlane();
-	float farPlane = gEnv->pRenderer->GetCamera().GetFarPlane();
+	float nearPlane = GetISystem()->GetViewCamera().GetNearPlane();
+	float farPlane = GetISystem()->GetViewCamera().GetFarPlane();
 	osvrClientGetViewerEyeSurfaceProjectionMatrixf(m_displayConfig, 0, Left, 0, nearPlane, farPlane, OSVR_MATRIX_COLMAJOR | OSVR_MATRIX_COLVECTORS, leftMatrix);
 	osvrClientGetViewerEyeSurfaceProjectionMatrixf(m_displayConfig, 0, Right, 0, nearPlane, farPlane, OSVR_MATRIX_COLMAJOR | OSVR_MATRIX_COLVECTORS, rightMatrix);
 
@@ -532,8 +533,8 @@ void Device::UpdateRenderInfo()
 {
 	if (m_renderManager && m_renderManagerD3D11)
 	{
-		float nearPlane = gEnv->pRenderer->GetCamera().GetNearPlane();
-		float farPlane = gEnv->pRenderer->GetCamera().GetFarPlane();
+		float nearPlane = GetISystem()->GetViewCamera().GetNearPlane();
+		float farPlane = GetISystem()->GetViewCamera().GetFarPlane();
 		m_renderParams.nearClipDistanceMeters = nearPlane;
 		m_renderParams.farClipDistanceMeters = farPlane;
 
@@ -576,8 +577,8 @@ bool Device::InitializeRenderer(void* d3dDevice, void* d3dContext)
 	{
 		osvrRenderManagerGetDefaultRenderParams(&m_renderParams);
 
-		float nearPlane = gEnv->pRenderer->GetCamera().GetNearPlane();
-		float farPlane = gEnv->pRenderer->GetCamera().GetFarPlane();
+		float nearPlane = GetISystem()->GetViewCamera().GetNearPlane();
+		float farPlane = GetISystem()->GetViewCamera().GetFarPlane();
 		m_renderParams.nearClipDistanceMeters = nearPlane;
 		m_renderParams.farClipDistanceMeters = farPlane;
 		UpdateRenderInfo();
@@ -649,7 +650,9 @@ bool Device::RegisterTextureSwapSet(TextureSwapSet* swapSet)
 		}
 	}
 
-	return (bSuccess && osvrRenderManagerFinishRegisterRenderBuffers(m_renderManagerD3D11, regBufState, OSVR_TRUE) == OSVR_RETURN_SUCCESS);
+	// The final parameter specifies whether we won't overwrite the texture before presenting again
+	// We cannot currently guarantee this, so we indicate that a copy needs to be done on the OSVR side to enable Asynchronous Time Warp.
+	return (bSuccess && osvrRenderManagerFinishRegisterRenderBuffers(m_renderManagerD3D11, regBufState, OSVR_FALSE) == OSVR_RETURN_SUCCESS);
 }
 
 void Device::GetPreferredRenderResolution(unsigned int& width, unsigned int& height)

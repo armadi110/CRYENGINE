@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -13,10 +13,9 @@ public:
 	CSnowStage();
 	virtual ~CSnowStage();
 
-	virtual void Init() override;
-	virtual void Prepare(CRenderView* pRenderView) override;
+	void Init() final;
+	void Update() final;
 
-	void         ExecuteSnowPreprocess();
 	void         ExecuteDeferredSnowGBuffer();
 	void         ExecuteDeferredSnowDisplacement();
 	void         Execute();
@@ -61,9 +60,16 @@ private:
 	void UpdateSnowClusters();
 	void RenderSnowClusters();
 	void ExecuteHalfResComposite();
-	void GetScissorRegion(const CRenderCamera& rc, const Vec3& vCenter, float fRadius, int32& sX, int32& sY, int32& sWidth, int32& sHeight) const;
+	void GetScissorRegion(const Vec3& cameraOrigin, const Vec3& vCenter, float fRadius, int32& sX, int32& sY, int32& sWidth, int32& sHeight) const;
 
 private:
+	_smart_ptr<CTexture>      m_pSnowFlakesTex;
+	_smart_ptr<CTexture>      m_pSnowDerivativesTex;
+	_smart_ptr<CTexture>      m_pSnowSpatterTex;
+	_smart_ptr<CTexture>      m_pFrostBubblesBumpTex;
+	_smart_ptr<CTexture>      m_pSnowFrostBumpTex;
+	_smart_ptr<CTexture>      m_pSnowDisplacementTex;
+
 	CStretchRectPass          m_passCopyGBufferNormal;
 	CStretchRectPass          m_passCopyGBufferSpecular;
 	CStretchRectPass          m_passCopyGBufferDiffuse;
@@ -82,14 +88,6 @@ private:
 	std::vector<SSnowCluster> m_snowClusterArray;
 
 	buffer_handle_t           m_snowFlakeVertexBuffer = ~0u;
-
-	CTexture*                 m_pSnowFlakesTex = nullptr;
-	CTexture*                 m_pSnowDerivativesTex = nullptr;
-	CTexture*                 m_pSnowSpatterTex = nullptr;
-	CTexture*                 m_pFrostBubblesBumpTex = nullptr;
-	CTexture*                 m_pSnowFrostBumpTex = nullptr;
-	CTexture*                 m_pVolumeNoiseTex = nullptr;
-	CTexture*                 m_pSnowDisplacementTex = nullptr;
 
 	int32                     m_nSnowFlakeVertCount = 0;
 	int32                     m_nAliveClusters = 0;

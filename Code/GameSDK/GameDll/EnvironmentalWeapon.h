@@ -52,10 +52,9 @@ public:
 	virtual void PostUpdate(float frameTime) {}
 	virtual void PostRemoteSpawn() {}
 	virtual void HandleEvent(const SGameObjectEvent& event);
-	
-	virtual void ProcessEvent(SEntityEvent& event);
+	virtual uint64 GetEventMask() const;
+	virtual void ProcessEvent(const SEntityEvent& event);
 	virtual void SetChannelId(uint16 id) {}
-	virtual void SetAuthority(bool auth) {}
 	virtual void GetMemoryUsage(ICrySizer *pSizer) const;
 	virtual bool ReloadExtension( IGameObject * pGameObject, const SEntitySpawnParams &params );
 	virtual void PostReloadExtension( IGameObject * pGameObject, const SEntitySpawnParams &params ) {};

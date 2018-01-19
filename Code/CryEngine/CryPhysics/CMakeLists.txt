@@ -81,6 +81,8 @@ add_sources("NoUberFile"
 		"physarea.cpp"
 		"physicalplaceholder.h"
 		"physicalplaceholder.cpp"
+		"walkingrigidentity.cpp"
+		"walkingrigidentity.h"
 	SOURCE_GROUP "Root"
 		"CryPhysics.cpp"
 		"resource.h"
@@ -113,8 +115,16 @@ if(NOT RESOURCE_COMPILER)
 				-Wno-shift-negative-value
 			)
 		endif()
+		if(WIN32 OR WIN64)
+			target_compile_options(${THIS_PROJECT} PRIVATE $<$<CONFIG:Profile>:/GL /O2 /Ot> $<$<CONFIG:Release>:/GL /O2 /Ot> $<$<CONFIG:Debug>:/RTCu> )
+		endif() 
 	else()
 		CryFileContainer(CryPhysics SOLUTION_FOLDER "CryEngine")
+	endif()
+	if (OPTION_PHYSDBGR)
+		CryEngineStaticModule(CryPhysicsLib PCH "StdAfx.cpp" SOLUTION_FOLDER "PhysDebugger")
+		target_include_directories(${THIS_PROJECT} BEFORE PRIVATE ../../Tools/PhysDebugger)
+		target_compile_options(${THIS_PROJECT} PRIVATE $<$<CONFIG:Profile>:/GL /O2 /Ot> $<$<CONFIG:Release>:/GL /O2 /Ot> $<$<CONFIG:Debug>:/RTCu> )
 	endif()
 else()
 	CryResourceCompilerModule(CryPhysicsRC PCH "StdAfx.cpp" SOLUTION_FOLDER "RC")

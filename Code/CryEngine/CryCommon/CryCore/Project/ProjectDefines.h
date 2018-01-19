@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef PROJECTDEFINES_H
 #define PROJECTDEFINES_H
@@ -197,9 +197,6 @@ extern void SliceAndSleep(const char* pFunc, int line);
 #define ENABLE_FLASH_INFO
 #endif
 
-// Remove the line below to disable the console in release builds
-#define ENABLE_DEVELOPER_CONSOLE_IN_RELEASE
-
 #if !defined(ENABLE_LW_PROFILERS) && !defined(ENABLE_DEVELOPER_CONSOLE_IN_RELEASE)
 	#ifndef USE_NULLFONT
 		#define USE_NULLFONT      1
@@ -311,17 +308,9 @@ extern void SliceAndSleep(const char* pFunc, int line);
 	#define ENABLE_LOADING_PROFILER
 #endif
 
-#if CRY_PLATFORM_ORBIS && (!defined(_RELEASE) || defined(PERFORMANCE_BUILD))
-	#define SUPPORT_HW_MOUSE_CURSOR
-#endif
-
 #if !defined(_DEBUG) && CRY_PLATFORM_WINDOWS
 //# define CRY_PROFILE_MARKERS_USE_GPA
 //# define CRY_PROFILE_MARKERS_USE_NVTOOLSEXT
-#endif
-
-#if CRY_PLATFORM_WINDOWS
-//#define SEG_WORLD
 #endif
 
 #ifdef SEG_WORLD
@@ -332,20 +321,22 @@ extern void SliceAndSleep(const char* pFunc, int line);
 
 #include "ProjectDefinesInclude.h"
 
+#ifdef RELEASE
+// Forces the .cryproject and system.cfg file to be read from a .pak file instead of directly from disk.
+#define CRY_FORCE_CRYPROJECT_IN_PAK
+#endif
+
 //Encryption & security defines
 
 //! Defines for various encryption methodologies that we support (or did support at some stage).
 #define SUPPORT_UNENCRYPTED_PAKS             //Enable during dev and on consoles to support paks that aren't encrypted in any way
-#if !defined(_RELEASE)
-	#define SUPPORT_UNSIGNED_PAKS              //Enabled during dev to test release builds easier (remove this to enforce signed paks in release builds)
-#endif
 
 // #define SUPPORT_XTEA_PAK_ENCRYPTION                             //! C2 Style. Compromised - do not use.
 // #define SUPPORT_STREAMCIPHER_PAK_ENCRYPTION                     //! C2 DLC Style - by Mark Tully.
 #if !CRY_PLATFORM_DURANGO
 	#define SUPPORT_RSA_AND_STREAMCIPHER_PAK_ENCRYPTION //C3/Warface Style - By Timur Davidenko and integrated by Rob Jessop
 #endif
-#if !defined(_RELEASE) || defined(PERFORMANCE_BUILD)
+#if (!defined(_RELEASE) || defined(PERFORMANCE_BUILD)) && !defined(SUPPORT_UNSIGNED_PAKS)
 	#define SUPPORT_UNSIGNED_PAKS //Enable to load paks that aren't RSA signed
 #endif                          //!_RELEASE || PERFORMANCE_BUILD
 #if !CRY_PLATFORM_DURANGO

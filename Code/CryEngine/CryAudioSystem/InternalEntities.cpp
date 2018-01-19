@@ -1,12 +1,12 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "InternalEntities.h"
 #include "AudioListenerManager.h"
 #include "ATLAudioObject.h"
 
-using namespace CryAudio;
-
+namespace CryAudio
+{
 //////////////////////////////////////////////////////////////////////////
 COcclusionObstructionState::COcclusionObstructionState(SwitchStateId const stateId, CAudioListenerManager const& audioListenerManager, CATLAudioObject const& globalAudioObject)
 	: m_stateId(stateId)
@@ -23,54 +23,54 @@ ERequestStatus COcclusionObstructionState::Set(CATLAudioObject& audioObject) con
 		Vec3 const& audioListenerPosition = m_audioListenerManager.GetActiveListenerAttributes().transformation.GetPosition();
 		if (m_stateId == IgnoreStateId)
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_Ignore, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::Ignore, audioListenerPosition);
 			audioObject.SetObstructionOcclusion(0.0f, 0.0f);
 		}
 		else if (m_stateId == AdaptiveStateId)
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_Adaptive, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::Adaptive, audioListenerPosition);
 		}
 		else if (m_stateId == LowStateId)
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_Low, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::Low, audioListenerPosition);
 		}
 		else if (m_stateId == MediumStateId)
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_Medium, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::Medium, audioListenerPosition);
 		}
 		else if (m_stateId == HighStateId)
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_High, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::High, audioListenerPosition);
 		}
 		else
 		{
-			audioObject.HandleSetOcclusionType(eOcclusionType_Ignore, audioListenerPosition);
+			audioObject.HandleSetOcclusionType(EOcclusionType::Ignore, audioListenerPosition);
 			audioObject.SetObstructionOcclusion(0.0f, 0.0f);
 		}
 	}
 
-	return eRequestStatus_Success;
+	return ERequestStatus::Success;
 }
 
 //////////////////////////////////////////////////////////////////////////
-CDopplerTrackingState::CDopplerTrackingState(SwitchStateId const stateId, CATLAudioObject const& globalAudioObject)
+CRelativeVelocityTrackingState::CRelativeVelocityTrackingState(SwitchStateId const stateId, CATLAudioObject const& globalAudioObject)
 	: m_stateId(stateId)
 	, m_globalAudioObject(globalAudioObject)
 {
 }
 
 //////////////////////////////////////////////////////////////////////////
-ERequestStatus CDopplerTrackingState::Set(CATLAudioObject& audioObject) const
+ERequestStatus CRelativeVelocityTrackingState::Set(CATLAudioObject& audioObject) const
 {
 	if (&audioObject != &m_globalAudioObject)
 	{
 		if (m_stateId == OnStateId)
 		{
-			audioObject.SetDopplerTracking(true);
+			audioObject.SetFlag(EObjectFlags::TrackRelativeVelocity);
 		}
 		else if (m_stateId == OffStateId)
 		{
-			audioObject.SetDopplerTracking(false);
+			audioObject.RemoveFlag(EObjectFlags::TrackRelativeVelocity);
 		}
 		else
 		{
@@ -78,28 +78,28 @@ ERequestStatus CDopplerTrackingState::Set(CATLAudioObject& audioObject) const
 		}
 	}
 
-	return eRequestStatus_Success;
+	return ERequestStatus::Success;
 }
 
 //////////////////////////////////////////////////////////////////////////
-CVelocityTrackingState::CVelocityTrackingState(SwitchStateId const stateId, CATLAudioObject const& globalAudioObject)
+CAbsoluteVelocityTrackingState::CAbsoluteVelocityTrackingState(SwitchStateId const stateId, CATLAudioObject const& globalAudioObject)
 	: m_stateId(stateId)
 	, m_globalAudioObject(globalAudioObject)
 {
 }
 
 //////////////////////////////////////////////////////////////////////////
-ERequestStatus CVelocityTrackingState::Set(CATLAudioObject& audioObject) const
+ERequestStatus CAbsoluteVelocityTrackingState::Set(CATLAudioObject& audioObject) const
 {
 	if (&audioObject != &m_globalAudioObject)
 	{
 		if (m_stateId == OnStateId)
 		{
-			audioObject.SetVelocityTracking(true);
+			audioObject.SetFlag(EObjectFlags::TrackAbsoluteVelocity);
 		}
 		else if (m_stateId == OffStateId)
 		{
-			audioObject.SetVelocityTracking(false);
+			audioObject.RemoveFlag(EObjectFlags::TrackAbsoluteVelocity);
 		}
 		else
 		{
@@ -107,5 +107,18 @@ ERequestStatus CVelocityTrackingState::Set(CATLAudioObject& audioObject) const
 		}
 	}
 
-	return eRequestStatus_Success;
+	return ERequestStatus::Success;
 }
+
+//////////////////////////////////////////////////////////////////////////
+CDoNothingTrigger::CDoNothingTrigger(TriggerImplId const id)
+	: CATLTriggerImpl(id)
+{
+}
+
+//////////////////////////////////////////////////////////////////////////
+ERequestStatus CDoNothingTrigger::Execute(Impl::IObject* const pImplObject, Impl::IEvent* const pImplEvent) const
+{
+	return ERequestStatus::SuccessfullyStopped;
+}
+} // namespace CryAudio

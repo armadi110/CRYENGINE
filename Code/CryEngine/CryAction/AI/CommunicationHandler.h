@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __CommunicationHandler_h__
 #define __CommunicationHandler_h__
@@ -34,7 +34,7 @@ public:
 	virtual bool                IsPlayingAnimation() const override;
 	virtual bool                IsPlayingSound() const override;
 
-	virtual void                OnSoundTriggerFinishedToPlay(const CryAudio::ControlId nTriggerID) override;
+	virtual void                OnSoundTriggerFinishedToPlay(CryAudio::ControlId const triggerId) override;
 	//~IAICommunicationHandler
 
 	// IAnimationgGraphStateListener

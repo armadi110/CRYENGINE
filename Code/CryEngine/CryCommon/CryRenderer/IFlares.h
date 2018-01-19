@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 ////////////////////////////////////////////////////////////////////////////
@@ -138,13 +138,13 @@ public:
 	void Release()
 	{
 		if (CryInterlockedDecrement(&m_nRefCount) <= 0)
-			delete this;
+			DeleteThis();
 	}
 
 	// <interfuscator:shuffle>
 	virtual EFlareType          GetType() = 0;
 	virtual bool                IsGroup() const = 0;
-	virtual string              GetName() const = 0;
+	virtual const char*         GetName() const = 0;
 	virtual void                SetName(const char* ch_name) = 0;
 	virtual void                Load(IXmlNode* pNode) = 0;
 
@@ -173,6 +173,9 @@ public:
 #if defined(FLARES_SUPPORT_EDITING)
 	virtual DynArray<FuncVariableGroup> GetEditorParamGroups() = 0;
 #endif
+
+protected:
+	virtual void                DeleteThis() = 0;
 
 private:
 	volatile int m_nRefCount;

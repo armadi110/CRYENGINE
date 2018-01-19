@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef _ICONSOLE_H_
 #define _ICONSOLE_H_
@@ -101,6 +101,9 @@ struct IConsoleVarSink
 
 	//! Called by Console after variable has changed value.
 	virtual void OnAfterVarChange(ICVar* pVar) = 0;
+
+	//! Called by Console after variable has been unregistered.
+	virtual void OnVarUnregister(ICVar* pVar) = 0;
 	// </interfuscator:shuffle>
 };
 
@@ -361,7 +364,13 @@ struct IConsole
 	//! \param szCommand Must not be 0.
 	virtual void                   AddCommandToHistory(const char* szCommand) = 0;
 
+	//! Sets the value of a CVar as loaded from a config
+	//! Will defer setting of the value until the CVar is registered if it hasn't been already
 	virtual void                   LoadConfigVar(const char* sVariable, const char* sValue) = 0;
+	//! Executes a command with optional arguments
+	//! Will defer setting of the value until the command is registered if it hasn't been already
+	virtual void                   LoadConfigCommand(const char* szCommand, const char* szArguments = nullptr) = 0;
+
 	// Sets how to treat calls to LoadConfigVar, return previous configuration type.
 	virtual ELoadConfigurationType SetCurrentConfigType(ELoadConfigurationType configType) = 0;
 
@@ -465,6 +474,7 @@ protected:
 	virtual ICVar* Register(ICVar* pVar) = 0;
 };
 
+//! \cond INTERNAL
 //! This interface for the remote console.
 struct IRemoteConsoleListener
 {
@@ -494,6 +504,7 @@ struct IRemoteConsole
 	virtual void RegisterListener(IRemoteConsoleListener* pListener, const char* name) = 0;
 	virtual void UnregisterListener(IRemoteConsoleListener* pListener) = 0;
 };
+//! \endcond
 
 //! This interface is the 1:1 "C++ representation" of a console variable.
 //! \note A console variable is accessible in C++ trough this interface and in all

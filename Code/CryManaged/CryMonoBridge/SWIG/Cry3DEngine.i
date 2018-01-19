@@ -1,6 +1,7 @@
 %include "CryEngine.swig"
 
 %import "CryCommon.i"
+%import "CryAudio.i"
 
 %{
 #include <CrySystem/IStreamEngine.h>
@@ -15,6 +16,7 @@
 #include <CryEntitySystem/IEntity.h>
 #include <Cry3DEngine/ITimeOfDay.h>
 %}
+%ignore I3DEngineModule;
 %ignore ITimeOfDay::NetSerialize;
 %ignore I3DEngine::SerializeState;
 %ignore I3DEngine::SaveStatObj;
@@ -24,6 +26,12 @@
 %template(IStatObjPtr) _smart_ptr<IStatObj>;
 %template(IReadStreamPtr) _smart_ptr<IReadStream>;
 %template(IRenderMeshPtr) _smart_ptr<IRenderMesh>;
+
+%ignore CryRWLock;
+%ignore SRenderNodeTempData;
+%ignore IRenderNode::m_pTempData;
+%ignore IRenderNode::m_manipulationFrame;
+%ignore IRenderNode::m_manipulationLock;
 
 %typemap(cscode) IParticleEffect
 %{

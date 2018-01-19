@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /*************************************************************************
    -------------------------------------------------------------------------
@@ -1130,7 +1130,7 @@ static char* GetSpaces(int n)
 
 	if (n > spaceBufferSz)
 	{
-		spaceBufferSz = MAX(spaceBufferSz * 2, n);
+		spaceBufferSz = std::max(spaceBufferSz * 2, n);
 		delete[] spaceBuffer;
 		spaceBuffer = new char[spaceBufferSz];
 		memset(spaceBuffer, ' ', spaceBufferSz);
@@ -1844,7 +1844,7 @@ void CUNIXConsole::OnShutdown()
 
 void CUNIXConsole::OnUpdate()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_SYSTEM);
+	CRY_PROFILE_FUNCTION(PROFILE_SYSTEM);
 
 	IS_SHOW_CONSOLE
 

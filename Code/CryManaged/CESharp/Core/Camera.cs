@@ -15,13 +15,13 @@ namespace CryEngine
 		/// </summary>
 		public static Vector3 Position
 		{
-			set
-			{
-				Engine.System.GetViewCamera().SetPosition(value);
-			}
 			get
 			{
 				return Engine.System.GetViewCamera().GetPosition();
+			}
+			set
+			{
+				Engine.System.GetViewCamera().SetPosition(value);
 			}
 		}
 
@@ -30,16 +30,16 @@ namespace CryEngine
 		/// </summary>
 		public static Vector3 ForwardDirection
 		{
+			get
+			{
+				return Engine.System.GetViewCamera().GetMatrix().GetColumn1();
+			}
 			set
 			{
 				var camera = Engine.System.GetViewCamera();
 				var newRotation = new Quaternion(value);
 
 				camera.SetMatrix(new Matrix3x4(Vector3.One, newRotation, camera.GetPosition()));
-			}
-			get
-			{
-				return Engine.System.GetViewCamera().GetMatrix().GetColumn1();
 			}
 		}
 
@@ -48,13 +48,13 @@ namespace CryEngine
 		/// </summary>
 		public static Matrix3x4 Transform
 		{
-			set
-			{
-				Engine.System.GetViewCamera().SetMatrix(value);
-			}
 			get
 			{
 				return Engine.System.GetViewCamera().GetMatrix();
+			}
+			set
+			{
+				Engine.System.GetViewCamera().SetMatrix(value);
 			}
 		}
 
@@ -63,20 +63,20 @@ namespace CryEngine
 		/// </summary>
 		public static Quaternion Rotation
 		{
+			get
+			{
+				return new Quaternion(Engine.System.GetViewCamera().GetMatrix());
+			}
 			set
 			{
 				var camera = Engine.System.GetViewCamera();
 
 				camera.SetMatrix(new Matrix3x4(Vector3.One, value, camera.GetPosition()));
 			}
-			get
-			{
-				return new Quaternion(Engine.System.GetViewCamera().GetMatrix());
-			}
 		}
 
 		/// <summary>
-		/// Gets or sets the field of view by CVar.
+		/// Gets or sets the field of view of the view camera in degrees.
 		/// </summary>
 		/// <value>The field of view.</value>
 		public static float FieldOfView
@@ -105,63 +105,45 @@ namespace CryEngine
 		}
 
 		/// <summary>
-		/// Converts a point in world-space to screen-space.
+		/// Converts a point in world-space to the camera's screen-space.
 		/// </summary>
-		/// <param name="position"></param>
-		/// <returns></returns>
-		public static Vector2 ProjectToScreen(Vector3 position)
+		/// <returns><c>true</c>, if the point is visible, <c>false</c> otherwise.</returns>
+		/// <param name="position">Position of the point in world-space.</param>
+		/// <param name="screenPosition">Position of the point in the camera's screen-space.</param>
+		public static bool ProjectToScreen(Vector3 position, out Vector3 screenPosition)
 		{
-			return Global.gEnv.pRenderer.ProjectToScreen(position);
-		}
-
-		#region CCAmera-methods
-
-		/// <summary>
-		/// x-YAW
-		/// y-PITCH (negative=looking down / positive=looking up)
-		/// z-ROLL
-		/// Note: If we are looking along the z-axis, its not possible to specify the x and z-angle.
-		/// </summary>
-		/// <param name="m"></param>
-		/// <returns></returns>
-		public static Angles3 CreateAnglesYPR(Matrix3x4 m)
-		{
-			Matrix33 m33 = new Matrix33(m);
-			return CCamera.CreateAnglesYPR(m33);
+			var camera = Global.gEnv.pSystem.GetViewCamera();
+			Vec3 result = new Vec3();
+			var visible = camera.Project(position, result);
+			screenPosition = result;
+			return visible;
 		}
 
 		/// <summary>
-		/// This function builds a 3x3 orientation matrix using YPR-angles, and converts it to a Matrix3x4
-		/// Rotation order for the orientation-matrix is Z-X-Y. (Zaxis=YAW / Xaxis=PITCH / Yaxis=ROLL)
-		/// COORDINATE-SYSTEM
-		/// z-axis
-		///  ^
-		///  |
-		///  |  y-axis
-		///  |  /
-		///  | /
-		///  |/
-		///  +--------------->   x-axis
+		/// Converts a point in world-space to the camera's viewport-space.
 		/// </summary>
-		/// <param name="ypr"></param>
-		/// <returns></returns>
-		public static Matrix3x4 CreateOrientationYPR(Angles3 ypr)
+		/// <returns><c>true</c>, if the point is visible, <c>false</c> otherwise.</returns>
+		/// <param name="position">Position of the point in world-space.</param>
+		/// <param name="viewportPosition">Position of the point in the camera's viewport-space.</param>
+		public static bool ProjectToViewport(Vector3 position, out Vector3 viewportPosition)
 		{
-			return new Matrix34(CCamera.CreateOrientationYPR(ypr));
+			var camera = Global.gEnv.pSystem.GetViewCamera();
+			Vec3 result = new Vec3();
+			var visible = camera.Project(position, result);
+			viewportPosition = result;
+			viewportPosition.x /= camera.GetViewSurfaceX();
+			viewportPosition.y /= camera.GetViewSurfaceZ();
+			return visible;
 		}
 
 		/// <summary>
-		/// x=yaw
-		/// y=pitch
-		/// z=roll (we ignore this element, since its not possible to convert the roll-component into a vector)
+		/// Transforms a direction from world space to local space of the camera.
 		/// </summary>
-		/// <param name="ypr"></param>
+		/// <param name="direction"></param>
 		/// <returns></returns>
-		public static Vector3 CreateViewdir(Angles3 ypr)
+		public static Vector3 TransformDirection(Vector3 direction)
 		{
-			return CCamera.CreateViewdir(ypr);
+			return Rotation * direction;
 		}
-
-		#endregion
 	}
 }

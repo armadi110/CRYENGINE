@@ -4,6 +4,8 @@
 // CryEngine headers.
 
 #include <CryCore/Project/CryModuleDefs.h>
+#define eCryModule eCryM_Legacy
+
 #include <CryCore/Platform/platform.h>
 
 // MFC & XTToolkit Pro headers.
@@ -43,4 +45,4 @@
 #include <CrySchematyc/CoreAPI.h>
 
 
-Q_DECLARE_METATYPE(Schematyc::SGUID);
+Q_DECLARE_METATYPE(CryGUID);

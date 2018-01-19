@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef __FLOWSYSTEM_H__
 #define __FLOWSYSTEM_H__
@@ -66,6 +66,8 @@ public:
 	virtual IFlowSystemContainerPtr  GetContainer(TFlowSystemContainerId id);
 
 	virtual void                     Serialize(TSerialize ser);
+
+	virtual IFlowNodePtr             CreateNodeOfType(IFlowNode::SActivationInfo*, TFlowNodeTypeId typeId);
 	// ~IFlowSystem
 
 	// TODO Make a single point of entry for this and the AIProxyManager to share?
@@ -74,7 +76,6 @@ public:
 	virtual void OnSpawn(IEntity* pEntity, SEntitySpawnParams& params);
 	virtual bool OnRemove(IEntity* pEntity)                     { return true; }
 	virtual void OnReused(IEntity* pEntity, SEntitySpawnParams& params);
-	virtual void OnEvent(IEntity* pEntity, SEntityEvent& event) {}
 	//~IEntitySystemSink
 
 	// ISystemEventListener
@@ -85,7 +86,6 @@ public:
 	void OnEntityClassRegistryEvent(EEntityClassRegistryEvent event, const IEntityClass* pEntityClass);
 	// ~IEntityClassRegistryListener
 
-	IFlowNodePtr                   CreateNodeOfType(IFlowNode::SActivationInfo*, TFlowNodeTypeId typeId);
 	void                           NotifyCriticalLoadingError() { m_criticalLoadingErrorHappened = true; }
 
 	void                           PreInit();

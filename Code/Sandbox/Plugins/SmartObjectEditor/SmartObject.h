@@ -38,8 +38,6 @@ public:
 	bool          IsScalable() const override { return false; }
 	virtual void  OnEvent(ObjectEvent eventID);
 	virtual void  GetScriptProperties(XmlNodeRef xmlEntityNode);
-	virtual void  BeginEditParams(int flags);
-	virtual void  EndEditParams();
 
 	//////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +67,7 @@ public:
 	const char*    ClassName()         { return "SmartObject"; }
 	const char*    Category()          { return "AI"; }
 	CRuntimeClass* GetRuntimeClass()   { return RUNTIME_CLASS(CSmartObject); }
-	int            GameCreationOrder() { return 111; }
+	virtual bool   IsCreatable() const override { return gEnv->pEntitySystem->GetClassRegistry()->FindClass("SmartObject") != nullptr; }
 };
 
 #endif // __smartobject_h__

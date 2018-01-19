@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -25,6 +25,8 @@
 //!
 //////////////////////////////////////////////////////////////////////////
 
+namespace CryAudio
+{
 template<typename T, typename SyncMechanism>
 class CPoolObject
 {
@@ -50,7 +52,7 @@ public:
 
 	static void FreeMemoryPool()
 	{
-		ms_pAllocator->FreeMemoryForce();
+		s_pAllocator->FreeMemoryForce();
 	}
 
 protected:
@@ -60,10 +62,9 @@ protected:
 private:
 	static void* AllocateObjectStorage();
 
-	static Allocator* ms_pAllocator;
+	static Allocator* s_pAllocator;
 };
-
-//------------------------------------------------------------------------
+} // namespace CryAudio
 
 //! \note MSVC (tested@14u3) does not seem to automatically instantiate the
 //! operator delete and new CPoolObject member functions at the point of

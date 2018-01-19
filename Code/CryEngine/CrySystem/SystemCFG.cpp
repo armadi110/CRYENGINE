@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 //
 //	File: SystemCFG.cpp
@@ -41,6 +41,9 @@
 
 #if CRY_PLATFORM_DURANGO
 	#include <xdk.h>
+#if _XDK_EDITION < 171100
+	#error "Outdated XDK, please update to at least XDK edition November 2017"
+#endif // #if _XDK_EDITION
 #endif // #if CRY_PLATFORM_DURANGO
 
 //////////////////////////////////////////////////////////////////////////
@@ -198,21 +201,6 @@ void CSystem::LogVersion()
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CSystem::LogBuildInfo()
-{
-	ICVar* pGameName = m_env.pConsole->GetCVar("sys_game_name");
-	if (pGameName)
-	{
-		CryLogAlways("GameName: %s", pGameName->GetString());
-	}
-	else
-	{
-		CryLogAlways("Couldn't find game name in cvar sys_game_name");
-	}
-	CryLogAlways("BuildTime: " __DATE__ " " __TIME__);
-}
-
-//////////////////////////////////////////////////////////////////////////
 
 //////////////////////////////////////////////////////////////////////////
 class CCVarSaveDump : public ICVarDumpSink
@@ -309,7 +297,7 @@ bool CSystemConfiguration::OpenFile(const string& filename, CCryFile& file, int 
 	flags |= ICryPak::FOPEN_HINT_QUIET;
 
 	// Absolute paths first
-	if (gEnv->pCryPak->IsAbsPath(filename))
+	if (gEnv->pCryPak->IsAbsPath(filename) || filename[0] == '%')
 	{
 		if (file.Open(filename, "rb", flags | ICryPak::FLAGS_PATH_REAL))
 		{
@@ -388,6 +376,7 @@ bool CSystemConfiguration::ParseSystemConfig()
 
 	{
 		string filenameLog;
+
 		int flags = ICryPak::FOPEN_HINT_QUIET | ICryPak::FOPEN_ONDISK;
 
 		if (!OpenFile(filename, file, flags))

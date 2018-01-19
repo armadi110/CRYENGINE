@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "PlayerProfileManager.h"
@@ -261,6 +261,7 @@ CPlayerProfileManager::~CPlayerProfileManager()
 //------------------------------------------------------------------------
 bool CPlayerProfileManager::Initialize()
 {
+	LOADING_TIME_PROFILE_SECTION;
 	if (m_bInitialized)
 		return true;
 

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -6,21 +6,22 @@
 #include "../CryCore/BaseTypes.h"
 #include "../CryCore/smartptr.h"
 #include "../CryCore/Platform/platform.h"
+#include "../CryCore/CryEnumMacro.h"
 
 #define AUDIO_SYSTEM_DATA_ROOT "audio"
 
 namespace CryAudio
 {
-typedef uint32 IdType;
-typedef IdType ControlId;
-typedef IdType SwitchStateId;
-typedef IdType EnvironmentId;
-typedef IdType PreloadRequestId;
-typedef IdType FileEntryId;
-typedef IdType TriggerImplId;
-typedef IdType TriggerInstanceId;
-typedef IdType EnumFlagsType;
-typedef IdType AuxObjectId;
+using IdType = uint32;
+using ControlId = IdType;
+using SwitchStateId = IdType;
+using EnvironmentId = IdType;
+using PreloadRequestId = IdType;
+using FileEntryId = IdType;
+using TriggerImplId = IdType;
+using TriggerInstanceId = IdType;
+using EnumFlagsType = IdType;
+using AuxObjectId = IdType;
 
 static constexpr ControlId InvalidControlId = 0;
 static constexpr SwitchStateId InvalidSwitchStateId = 0;
@@ -32,48 +33,76 @@ static constexpr TriggerInstanceId InvalidTriggerInstanceId = 0;
 static constexpr EnumFlagsType InvalidEnumFlagType = 0;
 static constexpr AuxObjectId InvalidAuxObjectId = 0;
 static constexpr AuxObjectId DefaultAuxObjectId = 1;
-
+static constexpr uint8 MaxInfoStringLength = 128;
 static constexpr uint8 MaxControlNameLength = 128;
 static constexpr uint8 MaxFileNameLength = 128;
 static constexpr uint16 MaxFilePathLength = 256;
 static constexpr uint16 MaxObjectNameLength = 256;
 static constexpr uint16 MaxMiscStringLength = 512;
+static constexpr uint32 InvalidCRC32 = 0xFFFFffff;
+static constexpr float FloatEpsilon = 1.0e-3f;
 
 // Forward declarations.
 struct IObject;
 class CATLEvent;
 class CATLStandaloneFile;
 
-enum ERequestFlags : EnumFlagsType
+/**
+ * @enum CryAudio::ERequestFlags
+ * @brief A strongly typed enum class representing flags that can be passed into methods via the SRequestUserData parameter that control how an internally generated request behaves or what to do along with it.
+ * @var CryAudio::ERequestFlags::None
+ * @var CryAudio::ERequestFlags::ExecuteBlocking
+ * @var CryAudio::ERequestFlags::CallbackOnExternalOrCallingThread
+ * @var CryAudio::ERequestFlags::CallbackOnAudioThread
+ * @var CryAudio::ERequestFlags::DoneCallbackOnExternalThread
+ * @var CryAudio::ERequestFlags::DoneCallbackOnAudioThread
+ */
+enum class ERequestFlags : EnumFlagsType
 {
-	eRequestFlags_None                 = 0,
-	eRequestFlags_ExecuteBlocking      = BIT(0), // Blocks the calling thread until the requests has been processed.
-	eRequestFlags_SyncCallback         = BIT(1), // Issues a callback on the same thread as the caller is on.
-	eRequestFlags_SyncFinishedCallback = BIT(2), // Issues a callback upon a trigger instance finishing playback of all connected events on the same thread as the caller is on.
+	None,                                       /**< Used to initialize variables of this type. */
+	ExecuteBlocking                   = BIT(0), /**< Blocks the calling thread until the request has been processed. */
+	CallbackOnExternalOrCallingThread = BIT(1), /**< Invokes a callback on the calling thread for blocking requests or invokes a callback on the external thread for non-blocking requests. */
+	CallbackOnAudioThread             = BIT(2), /**< Invokes a callback on the audio thread informing of the outcome of the request. */
+	DoneCallbackOnExternalThread      = BIT(3), /**< Invokes a callback on the external thread once a trigger instance finished playback of all its events. */
+	DoneCallbackOnAudioThread         = BIT(4), /**< Invokes a callback on the audio thread once a trigger instance finished playback of all its events. */
+};
+CRY_CREATE_ENUM_FLAG_OPERATORS(ERequestFlags);
+
+/**
+ * @enum CryAudio::ERequestStatus
+ * @brief A strongly typed enum class representing a list of possible statuses of an internally generated audio request. Used as a return type for many methods used by the AudioSystem internally and also for most of the CryAudio::Impl::IImpl calls.
+ * @var CryAudio::ERequestStatus::None
+ * @var CryAudio::ERequestStatus::ExecuteBlocking
+ * @var CryAudio::ERequestStatus::CallbackOnExternalOrCallingThread
+ * @var CryAudio::ERequestStatus::CallbackOnAudioThread
+ * @var CryAudio::ERequestStatus::DoneCallbackOnExternalThread
+ * @var CryAudio::ERequestStatus::DoneCallbackOnAudioThread
+ */
+enum class ERequestStatus : EnumFlagsType
+{
+	None,                    /**< Used to initialize variables of this type and to determine whether the variable was properly handled. */
+	Success,                 /**< Returned if the request processed successfully. */
+	SuccessfullyStopped,     /**< Audio middleware implementations return this if during ExecuteTrigger an event was actually stopped so that internal data can be immediately freed. */
+	SuccessNeedsRefresh,     /**< Audio middleware implementations return this if after an action they require to be refreshed. */
+	PartialSuccess,          /**< Returned if the outcome of the request wasn't a complete success but also not complete failure. */
+	Failure,                 /**< Returned if the request failed to process. */
+	Pending,                 /**< Returned if the request was delivered but final execution is pending. It's then kept in the system until its status changed. */
+	FailureInvalidControlId, /**< Returned if the request referenced a non-existing audio control. */
+	FailureInvalidRequest,   /**< Returned if the request type is unknown/unhandled. */
 };
 
 /**
- * An enum that lists possible statuses of an AudioRequest.
- * Used as a return type for many function used by the AudioSystem internally,
- * and also for most of the IAudioImpl calls
+ * @enum CryAudio::ERequestResult
+ * @brief A strongly typed enum class representing a list of possible outcomes of a request which gets communicated via the callbacks if the user decided to be informed of the outcome of a particular request.
+ * @var CryAudio::ERequestResult::None
+ * @var CryAudio::ERequestResult::Success
+ * @var CryAudio::ERequestResult::Failure
  */
-enum ERequestStatus : EnumFlagsType
+enum class ERequestResult : EnumFlagsType
 {
-	eRequestStatus_None                    = 0,
-	eRequestStatus_Success                 = 1,
-	eRequestStatus_PartialSuccess          = 2,
-	eRequestStatus_Failure                 = 3,
-	eRequestStatus_Pending                 = 4,
-	eRequestStatus_FailureInvalidObjectId  = 5,
-	eRequestStatus_FailureInvalidControlId = 6,
-	eRequestStatus_FailureInvalidRequest   = 7,
-};
-
-enum ERequestResult : EnumFlagsType
-{
-	eRequestResult_None,
-	eRequestResult_Success,
-	eRequestResult_Failure,
+	None,    /**< Used to initialize variables of this type and to determine whether the variable was properly handled. */
+	Success, /**< Set if the request processed successfully. */
+	Failure, /**< Set if the request failed to process. */
 };
 
 class CObjectTransformation
@@ -81,7 +110,7 @@ class CObjectTransformation
 public:
 
 	CObjectTransformation()
-		: m_position(ZERO)
+		: m_position(Vec3Constants<float>::fVec3_Zero)
 		, m_forward(Vec3Constants<float>::fVec3_OneY)
 		, m_up(Vec3Constants<float>::fVec3_OneZ)
 	{}
@@ -94,18 +123,14 @@ public:
 
 	CObjectTransformation(Matrix34 const& transformation)
 		: m_position(transformation.GetColumn3())
-		, m_forward(transformation.GetColumn1())   //!< Assuming forward vector = (0,1,0), also assuming unscaled.
-		, m_up(transformation.GetColumn2())        //!< Assuming up vector = (0,0,1).
+		, m_forward(transformation.GetColumn1()) //!< Assuming forward vector = (0,1,0), also assuming unscaled.
+		, m_up(transformation.GetColumn2())      //!< Assuming up vector = (0,0,1).
 	{
 		m_forward.NormalizeFast();
 		m_up.NormalizeFast();
 	}
 
-	ILINE Vec3 const& GetPosition() const { return m_position; }
-	ILINE Vec3 const& GetForward() const  { return m_forward; }
-	ILINE Vec3 const& GetUp() const       { return m_up; }
-
-	bool              IsEquivalent(CObjectTransformation const& transformation, float const epsilon = VEC_EPSILON) const
+	bool IsEquivalent(CObjectTransformation const& transformation, float const epsilon = VEC_EPSILON) const
 	{
 		return m_position.IsEquivalent(transformation.GetPosition(), epsilon) &&
 		       m_forward.IsEquivalent(transformation.GetForward(), epsilon) &&
@@ -119,6 +144,13 @@ public:
 		       m_up.IsEquivalent(transformation.GetColumn2(), epsilon);
 	}
 
+	void                                SetPosition(Vec3 const& position) { m_position = position; }
+	ILINE Vec3 const&                   GetPosition() const               { return m_position; }
+	ILINE Vec3 const&                   GetForward() const                { return m_forward; }
+	ILINE Vec3 const&                   GetUp() const                     { return m_up; }
+
+	static CObjectTransformation const& GetEmptyObject()                  { static CObjectTransformation const emptyInstance; return emptyInstance; }
+
 private:
 
 	Vec3 m_position;
@@ -126,66 +158,25 @@ private:
 	Vec3 m_up;
 };
 
-static const CObjectTransformation s_nullAudioObjectTransformation;
-
 struct SRequestUserData
 {
 	explicit SRequestUserData(
-	  EnumFlagsType const _flags = eRequestFlags_None,
-	  void* const _pOwner = nullptr,
-	  void* const _pUserData = nullptr,
-	  void* const _pUserDataOwner = nullptr)
-		: flags(_flags)
-		, pOwner(_pOwner)
-		, pUserData(_pUserData)
-		, pUserDataOwner(_pUserDataOwner)
+	  ERequestFlags const flags_ = ERequestFlags::None,
+	  void* const pOwner_ = nullptr,
+	  void* const pUserData_ = nullptr,
+	  void* const pUserDataOwner_ = nullptr)
+		: flags(flags_)
+		, pOwner(pOwner_)
+		, pUserData(pUserData_)
+		, pUserDataOwner(pUserDataOwner_)
 	{}
 
 	static SRequestUserData const& GetEmptyObject() { static SRequestUserData const emptyInstance; return emptyInstance; }
 
-	EnumFlagsType const            flags;
+	ERequestFlags const            flags;
 	void* const                    pOwner;
 	void* const                    pUserData;
 	void* const                    pUserDataOwner;
-};
-
-struct SRequestInfo
-{
-	explicit SRequestInfo(
-	  ERequestResult const _requestResult,
-	  void* const _pOwner,
-	  void* const _pUserData,
-	  void* const _pUserDataOwner,
-	  EnumFlagsType const _audioSystemEvent,
-	  ControlId const _audioControlId,
-	  IObject* const _pAudioObject,
-	  CATLStandaloneFile* _pStandaloneFile,
-	  CATLEvent* _pAudioEvent)
-		: requestResult(_requestResult)
-		, pOwner(_pOwner)
-		, pUserData(_pUserData)
-		, pUserDataOwner(_pUserDataOwner)
-		, audioSystemEvent(_audioSystemEvent)
-		, audioControlId(_audioControlId)
-		, pAudioObject(_pAudioObject)
-		, pStandaloneFile(_pStandaloneFile)
-		, pAudioEvent(_pAudioEvent)
-	{}
-
-	SRequestInfo(SRequestInfo const&) = delete;
-	SRequestInfo(SRequestInfo&&) = delete;
-	SRequestInfo& operator=(SRequestInfo const&) = delete;
-	SRequestInfo& operator=(SRequestInfo&&) = delete;
-
-	ERequestResult const requestResult;
-	void* const          pOwner;
-	void* const          pUserData;
-	void* const          pUserDataOwner;
-	EnumFlagsType const  audioSystemEvent;
-	ControlId const      audioControlId;
-	IObject* const       pAudioObject;
-	CATLStandaloneFile*  pStandaloneFile;
-	CATLEvent*           pAudioEvent;
 };
 
 struct SFileData
@@ -208,7 +199,6 @@ struct STriggerData
 	STriggerData& operator=(STriggerData&&) = delete;
 
 	float radius = 0.0f;
-	float occlusionFadeOutDistance = 0.0f;
 };
 
 struct SPlayFileInfo
@@ -225,5 +215,11 @@ struct SPlayFileInfo
 	char const* const szFile;
 	bool const        bLocalized;
 	ControlId const   usedTriggerForPlayback;
+};
+
+struct SImplInfo
+{
+	CryFixedStringT<MaxInfoStringLength> name;
+	CryFixedStringT<MaxInfoStringLength> folderName;
 };
 } // namespace CryAudio
