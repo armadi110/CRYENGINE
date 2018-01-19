@@ -1,42 +1,32 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
-// -------------------------------------------------------------------------
-//  File name:   EntityClassRegistry.h
-//  Version:     v1.00
-//  Created:     3/8/2004 by Timur.
-//  Compilers:   Visual Studio.NET 2003
-//  Description:
-// -------------------------------------------------------------------------
-//  History:
-//
-////////////////////////////////////////////////////////////////////////////
-
-#ifndef __EntityClassRegistry_h__
-#define __EntityClassRegistry_h__
 #pragma once
 
 #include <CryCore/Containers/CryListenerSet.h>
 #include <CryEntitySystem/IEntityClass.h>
+#include <CrySchematyc/Utils/ScopedConnection.h>
 
-#include  <CrySchematyc/Utils/ScopedConnection.h>
+#include <CryNetwork/INetwork.h>
 
 namespace Schematyc
 {
-	struct IRuntimeClass;
+struct IRuntimeClass;
 };
 
 //////////////////////////////////////////////////////////////////////////
 // Description:
 //    Standard implementation of the IEntityClassRegistry interface.
 //////////////////////////////////////////////////////////////////////////
-class CEntityClassRegistry : public IEntityClassRegistry
+class CEntityClassRegistry final
+	: public IEntityClassRegistry
+	  , public INetworkedClientListener
 {
 public:
 	CEntityClassRegistry();
-	~CEntityClassRegistry();
+	virtual ~CEntityClassRegistry() override;
 
-	bool          RegisterEntityClass(IEntityClass* pClass);
-	bool          UnregisterEntityClass(IEntityClass* pClass);
+	bool RegisterEntityClass(IEntityClass* pClass);
+	bool UnregisterEntityClass(IEntityClass* pClass);
 
 	// IEntityClassRegistry
 	IEntityClass* FindClass(const char* sClassName) const override;
@@ -44,7 +34,9 @@ public:
 	IEntityClass* GetDefaultClass() const override;
 
 	IEntityClass* RegisterStdClass(const SEntityClassDesc& entityClassDesc) override;
-	virtual bool  UnregisterStdClass(const CryGUID &guid) override;
+	virtual bool  UnregisterStdClass(const CryGUID& guid) override;
+
+	void          UnregisterSchematycEntityClass() override;
 
 	void          RegisterListener(IEntityClassRegistryListener* pListener) override;
 	void          UnregisterListener(IEntityClassRegistryListener* pListener) override;
@@ -59,6 +51,7 @@ public:
 	IEntityClass* IteratorNext() override;
 	int           GetClassCount() const override { return m_mapClassName.size(); };
 
+	void          OnGameFrameworkInitialized();
 	void          InitializeDefaultClasses();
 
 	void          GetMemoryUsage(ICrySizer* pSizer) const
@@ -69,6 +62,14 @@ public:
 		pSizer->AddContainer(m_mapClassGUIDs);
 	}
 	//~IEntityClassRegistry
+
+	// INetworkedClientListener
+	virtual void OnLocalClientDisconnected(EDisconnectionCause cause, const char* description) override {}
+	virtual bool OnClientConnectionReceived(int channelId, bool bIsReset) override;
+	virtual bool OnClientReadyForGameplay(int channelId, bool bIsReset) override;
+	virtual void OnClientDisconnected(int channelId, EDisconnectionCause cause, const char* description, bool bKeepClient) override;
+	virtual bool OnClientTimingOut(int channelId, EDisconnectionCause cause, const char* description) override { return true; }
+	// ~INetworkedClientListener
 
 private:
 	void LoadArchetypeDescription(const XmlNodeRef& root);
@@ -82,19 +83,19 @@ private:
 private:
 
 	typedef std::map<string, IEntityClass*> ClassNameMap;
-	ClassNameMap           m_mapClassName;
+	ClassNameMap                       m_mapClassName;
 
-	std::map<CryGUID,IEntityClass*> m_mapClassGUIDs;
+	std::vector<std::vector<EntityId>> m_channelEntityInstances;
 
-	IEntityClass*          m_pDefaultClass;
+	std::map<CryGUID, IEntityClass*>   m_mapClassGUIDs;
 
-	ISystem*               m_pSystem;
-	ClassNameMap::iterator m_currentMapIterator;
+	IEntityClass*                      m_pDefaultClass;
+
+	ISystem*                           m_pSystem;
+	ClassNameMap::iterator             m_currentMapIterator;
 
 	typedef CListenerSet<IEntityClassRegistryListener*> TListenerSet;
-	TListenerSet m_listeners;
+	TListenerSet                m_listeners;
 
 	Schematyc::CConnectionScope m_connectionScope;
 };
-
-#endif // __EntityClassRegistry_h__

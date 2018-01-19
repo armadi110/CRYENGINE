@@ -2,31 +2,32 @@
 
 #include "StdAfx.h"
 #include "MonoProperty.h"
+#include "MonoMethod.h"
 #include "MonoRuntime.h"
 
-CMonoProperty::CMonoProperty(MonoInternals::MonoProperty* pProperty)
+CMonoProperty::CMonoProperty(MonoInternals::MonoProperty* pProperty, const char* szName)
 	: m_pProperty(pProperty)
+	, m_name(szName)
 {
 }
 
-CMonoProperty::CMonoProperty(MonoInternals::MonoReflectionProperty* pProperty)
+CMonoProperty::CMonoProperty(MonoInternals::MonoReflectionProperty* pProperty, const char* szName)
 	: m_pProperty(((InternalMonoReflectionType*)pProperty)->property)
+	, m_name(szName)
 {
 }
 
-std::shared_ptr<CMonoObject> CMonoProperty::Get(const CMonoObject* pObject, bool &bEncounteredException) const
+std::shared_ptr<CMonoObject> CMonoProperty::Get(MonoInternals::MonoObject* pObject, bool &bEncounteredException) const
 {
 	MonoInternals::MonoObject* pException = nullptr;
-	MonoInternals::MonoObject* pResult = MonoInternals::mono_property_get_value(m_pProperty, pObject->GetManagedObject(), nullptr, &pException);
+	MonoInternals::MonoObject* pResult = MonoInternals::mono_property_get_value(m_pProperty, pObject, nullptr, &pException);
 	bEncounteredException = pException != nullptr;
 
 	if (!bEncounteredException)
 	{
 		if (pResult != nullptr)
 		{
-			auto pResultObject = std::make_shared<CMonoObject>(pResult);
-			pResultObject->SetWeakPointer(pResultObject);
-			return pResultObject;
+			return std::make_shared<CMonoObject>(pResult);
 		}
 		else
 		{
@@ -38,16 +39,31 @@ std::shared_ptr<CMonoObject> CMonoProperty::Get(const CMonoObject* pObject, bool
 	return nullptr;
 }
 
-void CMonoProperty::Set(const CMonoObject* pObject, const CMonoObject* pValue, bool &bEncounteredException) const
+void CMonoProperty::Set(MonoInternals::MonoObject* pObject, MonoInternals::MonoObject* pValue, bool &bEncounteredException) const
 {
-	void* pParams[1] = { pValue->GetManagedObject() };
+	void* pParams[1];
+	if (pValue != nullptr)
+	{
+		if (MonoInternals::mono_class_is_valuetype(MonoInternals::mono_object_get_class(pValue)) != 0)
+		{
+			pParams[0] = MonoInternals::mono_object_unbox(pValue);
+		}
+		else
+		{
+			pParams[0] = pValue;
+		}
+	}
+	else
+	{
+		pParams[0] = nullptr;
+	}
 	Set(pObject, pParams, bEncounteredException);
 }
 
-void CMonoProperty::Set(const CMonoObject* pObject, void** pParams, bool &bEncounteredException) const
+void CMonoProperty::Set(MonoInternals::MonoObject* pObject, void** pParams, bool &bEncounteredException) const
 {
 	MonoInternals::MonoObject* pException = nullptr;
-	mono_property_set_value(m_pProperty, pObject->GetManagedObject(), pParams, &pException);
+	mono_property_set_value(m_pProperty, pObject, pParams, &pException);
 	bEncounteredException = pException != nullptr;
 
 	if (bEncounteredException)
@@ -56,7 +72,17 @@ void CMonoProperty::Set(const CMonoObject* pObject, void** pParams, bool &bEncou
 	}
 }
 
-MonoInternals::MonoTypeEnum CMonoProperty::GetType(MonoInternals::MonoReflectionProperty* pReflectionProperty) const
+CMonoMethod CMonoProperty::GetGetMethod() const
+{
+	return CMonoMethod(MonoInternals::mono_property_get_get_method(m_pProperty));
+}
+
+CMonoMethod CMonoProperty::GetSetMethod() const
+{
+	return CMonoMethod(MonoInternals::mono_property_get_set_method(m_pProperty));
+}
+
+MonoInternals::MonoType* CMonoProperty::GetUnderlyingType(MonoInternals::MonoReflectionProperty* pReflectionProperty) const
 {
 	InternalMonoReflectionType* pInternalProperty = (InternalMonoReflectionType*)pReflectionProperty;
 	CRY_ASSERT(m_pProperty == pInternalProperty->property);
@@ -64,6 +90,11 @@ MonoInternals::MonoTypeEnum CMonoProperty::GetType(MonoInternals::MonoReflection
 	MonoInternals::MonoMethod* pGetMethod = mono_property_get_get_method(m_pProperty);
 	MonoInternals::MonoMethodSignature* pGetMethodSignature = mono_method_get_signature(pGetMethod, mono_class_get_image(pInternalProperty->klass), mono_method_get_token(pGetMethod));
 
-	MonoInternals::MonoType* pPropertyType = mono_signature_get_return_type(pGetMethodSignature);
-	return (MonoInternals::MonoTypeEnum)mono_type_get_type(pPropertyType);
+	return mono_signature_get_return_type(pGetMethodSignature);
+}
+
+MonoInternals::MonoClass* CMonoProperty::GetUnderlyingClass(MonoInternals::MonoReflectionProperty* pReflectionProperty) const
+{
+	MonoInternals::MonoType* pPropertyType = GetUnderlyingType(pReflectionProperty);
+	return MonoInternals::mono_class_from_mono_type(pPropertyType);
 }

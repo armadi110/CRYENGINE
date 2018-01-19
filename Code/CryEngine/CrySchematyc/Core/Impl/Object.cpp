@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "Object.h"
@@ -16,10 +16,13 @@
 #include <CrySchematyc/Services/IUpdateScheduler.h>
 #include <CrySchematyc/Utils/Assert.h>
 #include <CrySchematyc/Utils/STLUtils.h>
+#include <CrySchematyc/Script/IScriptElement.h>
 
 #include "Core.h"
 #include "CVars.h"
 #include "CoreEnv/CoreEnvSignals.h"
+#include "Script/ScriptRegistry.h"
+#include "Script/Script.h"
 #include "Runtime/RuntimeRegistry.h"
 
 #include <CryEntitySystem/IEntitySystem.h>
@@ -104,6 +107,22 @@ const IRuntimeClass& CObject::GetClass() const
 {
 	CRY_ASSERT_MESSAGE(m_pClass, "Runtime class of Schematyc Object must be not null.");
 	return *m_pClass;
+}
+
+const char* CObject::GetScriptFile() const
+{
+	const IScriptElement* pElement = CCore::GetInstance().GetScriptRegistry().GetElement(m_pClass->GetGUID());
+	CRY_ASSERT_MESSAGE(pElement, "Script Element not found!");
+	if (pElement && pElement->GetType() == EScriptElementType::Class || pElement->GetType() == EScriptElementType::Module)
+	{
+		const IScript* pScript = pElement->GetScript();
+		CRY_ASSERT_MESSAGE(pScript, "Script Element doesn't have a script.");
+		if (pScript)
+		{
+			return pScript->GetFilePath() + sizeof("assets");
+		}
+	}
+	return nullptr;
 }
 
 void* CObject::GetCustomData() const
@@ -583,6 +602,20 @@ bool CObject::CreateComponents()
 				transform = component.classComponentInstance.transform;
 			}
 
+			// Add the component
+			IEntityComponent::SInitParams initParams(
+				pEntity,
+				component.classComponentInstance.guid,
+				component.classComponentInstance.name,
+				&classDesc,
+				flags,
+				pParent,
+				transform
+			);
+
+			// Initialize common component members
+			component.pComponent->PreInit(initParams);
+
 			// Read properties
 			bool bPublicPropertiesApplied = false;
 			if (m_pProperties && component.classComponentInstance.bPublic)
@@ -599,18 +632,14 @@ bool CObject::CreateComponents()
 				classComponentInstances[componentIdx].properties.Apply(component.classDesc, component.pComponent.get());
 			}
 
-			// Add the component
-			IEntityComponent::SInitParams initParams(
-			  pEntity,
-			  component.classComponentInstance.guid,
-			  component.classComponentInstance.name,
-			  &classDesc,
-			  flags,
-			  pParent,
-			  transform
-			  );
-
 			pEntity->AddComponent(component.pComponent, &initParams);
+		}
+
+		// Now initialize all the components
+		// This is done in a separate iteration step from adding in order to allow components to query each other in the Initialize call.
+		for (const SComponent& component : m_components)
+		{
+			component.pComponent->Initialize();
 		}
 	}
 

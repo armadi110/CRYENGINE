@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef CRYTEK_CRYCOLOR_H
 #define CRYTEK_CRYCOLOR_H
@@ -13,7 +13,8 @@ template<class T> struct Color_tpl;
 typedef Color_tpl<uint8> ColorB; //!< [0, 255]
 typedef Color_tpl<float> ColorF; //!< [0.0, 1.0]
 
-//! RGBA Color structure.
+//! RGBA Color structure
+//! \see ColorB and ColorF
 template<class T> struct Color_tpl
 {
 	T r, g, b, a;
@@ -481,6 +482,16 @@ template<class T>
 ILINE Color_tpl<T> operator*(T s, const Color_tpl<T>& v)
 {
 	return Color_tpl<T>(v.r * s, v.g * s, v.b * s, v.a * s);
+}
+
+ILINE ColorB operator*(const ColorB& v, float s)
+{
+	return ColorB(float_to_ufrac8(v.r * s), float_to_ufrac8(v.g * s), float_to_ufrac8(v.b * s), float_to_ufrac8(v.a * s));
+}
+
+ILINE ColorB operator*(float s, const ColorB& v)
+{
+	return v * s;
 }
 
 ///////////////////////////////////////////////
@@ -1021,7 +1032,6 @@ inline void Color_tpl<T >::grey(const Color_tpl<T>& c)
 	r = m;
 	g = m;
 	b = m;
-	a = a;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////

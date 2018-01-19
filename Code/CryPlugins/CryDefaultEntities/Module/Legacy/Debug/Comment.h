@@ -8,7 +8,7 @@ class CCommentEntity final
 	: public CDesignerEntityComponent<>
 	, public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CCommentEntity, "Comment", 0x979E412F68B94866, 0xB61EEB87CFA757CF);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CCommentEntity, "Comment", "979e412f-68b9-4866-b61e-eb87cfa757cf"_cry_guid);
 
 public:
 	virtual ~CCommentEntity() {}
@@ -16,7 +16,7 @@ public:
 	// ISimpleExtension
 	virtual void Initialize() override;
 
-	virtual void ProcessEvent(SEntityEvent& event) override;
+	virtual void ProcessEvent(const SEntityEvent& event) override;
 	virtual uint64 GetEventMask() const override { return BIT64(ENTITY_EVENT_UPDATE); }
 
 	virtual IEntityPropertyGroup* GetPropertyGroup() final { return this; }

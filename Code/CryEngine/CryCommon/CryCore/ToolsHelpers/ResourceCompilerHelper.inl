@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #if !defined(CRY_PLATFORM)
 	#error CRY_PLATFORM is not defined, probably #include "stdafx.h" is missing.
@@ -229,7 +229,7 @@ static bool CallProcessHelper(const wchar_t* szStartingDirectory, const wchar_t*
 		pCancellationToken->SetHandle(0);
 	}
 
-	DWORD processExitcode;
+	DWORD processExitcode = 0;
 	if (bFailedToReadOutput || GetExitCodeProcess(pi.hProcess, &processExitcode) == 0)
 	{
 		exitCode = eRcExitCode_Error;

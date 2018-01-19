@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "VKInstance.hpp"
@@ -179,6 +179,7 @@ bool CInstance::Initialize(const char* appName, uint32_t appVersion, const char*
 	GatherInstanceExtensionsToEnable();
 	if (InitializeInstance(appName, appVersion, engineName, engineVersion) != VK_SUCCESS)
 	{
+		CryWarning(VALIDATOR_MODULE_RENDERER, VALIDATOR_ERROR, "Vulkan instance initialization failed! Please make sure your GPU supports Vulkan.");
 		return false;
 	}
 

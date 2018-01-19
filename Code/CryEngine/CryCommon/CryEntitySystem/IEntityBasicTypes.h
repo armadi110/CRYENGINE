@@ -1,15 +1,26 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
-//!< Unique identifier for each entity instance. Don't change the type!
-typedef uint32 EntityId;
+#include <CrySchematyc/Utils/EnumFlags.h>
 
+//! Unique identifier for each entity instance.
+//! Entity identifiers are unique for the session, but cannot be guaranteed over the network, separate instances of the application and serialization / save games.
+//! Note that the type cannot be changed to increase entity count, since the entity system has specialized salting of entity identifiers
+using EntityId = uint32;
+//! Salt used in entity id in order to facilitate re-use of entity identifiers
+using EntitySalt = uint16;
+//! Index of an entity in the internal array, must be exactly half the size of EntityId!
+using EntityIndex = EntitySalt;
+
+static_assert(std::numeric_limits<EntityIndex>::digits == std::numeric_limits<EntityId>::digits / 2, "Entity Index must be exactly half the size of EntityId, identifier consists of both index and salt");
+
+//! The entity identifier '0' is always invalid, the minimum valid id is 1.
 constexpr EntityId INVALID_ENTITYID = 0;
 
 typedef CryGUID EntityGUID;
 
-enum class EEntitySimulationMode
+enum class EEntitySimulationMode : uint8
 {
 	Idle,   // Not running.
 	Game,   // Running in game mode.
@@ -22,7 +33,7 @@ enum class EEntitySimulationMode
 // (MATT) This should really live in a minimal AI include, which right now we don't have  {2009/04/08}
 #ifndef INVALID_AIOBJECTID
 typedef uint32 tAIObjectID;
-#define INVALID_AIOBJECTID ((tAIObjectID)(0))
+	#define INVALID_AIOBJECTID ((tAIObjectID)(0))
 #endif
 
 //! EEntityEvent defines all events that can be sent to an entity.
@@ -31,10 +42,6 @@ enum EEntityEvent
 	//! Sent when the entity local or world transformation matrix change (position/rotation/scale).
 	//! nParam[0] = combination of the EEntityXFormFlags.
 	ENTITY_EVENT_XFORM = 0,
-
-	//! Sent when the entity is updating every frame.
-	//! nParam[0] = pointer to SEntityUpdateContext structure.
-	ENTITY_EVENT_UPDATE,
 
 	//! Called when the entity is moved/scaled/rotated in the editor. Only send on mouseButtonUp (hence finished).
 	ENTITY_EVENT_XFORM_FINISHED_EDITOR,
@@ -48,10 +55,6 @@ enum EEntityEvent
 
 	//! Sent before entity is removed.
 	ENTITY_EVENT_DONE,
-
-	//! Sent when the entity becomes visible or invisible.
-	//! nParam[0] is 1 if the entity becomes visible or 0 if the entity becomes invisible.
-	ENTITY_EVENT_VISIBLITY,
 
 	//! Sent to reset the state of the entity (used from Editor).
 	//! nParam[0] is 1 if entering gamemode, 0 if exiting
@@ -136,18 +139,12 @@ enum EEntityEvent
 	//! nParam[0] = TriggerEntityId, nParam[1] = AreaId, nParam[2] = EntityId of Area, fParam[0] = FadeRatio (0-1)
 	ENTITY_EVENT_MOVENEARAREA,
 
-	//! Sent when triggering entity enters or leaves an area so all active areas of same group get notified. This event is sent to all target entities of the area.
-	ENTITY_EVENT_CROSS_AREA,
-
 	//! Sent when an entity with pef_monitor_poststep receives a poststep notification (the hamdler should be thread safe!)
 	//! fParam[0] = time interval
 	ENTITY_EVENT_PHYS_POSTSTEP,
 
 	//! Sent when Breakable object is broken in physics.
 	ENTITY_EVENT_PHYS_BREAK,
-
-	//! Sent when AI object of the entity finished executing current order/action.
-	ENTITY_EVENT_AI_DONE,
 
 	//! Physical collision.
 	ENTITY_EVENT_COLLISION,
@@ -158,9 +155,6 @@ enum EEntityEvent
 	//! nParam[0] == 0 if rendeing Stops.
 	//! nParam[0] == 1 if rendeing Starts.
 	ENTITY_EVENT_RENDER_VISIBILITY_CHANGE,
-
-	//! Called when the pre-physics update is done; fParam[0] is the frame time.
-	ENTITY_EVENT_PREPHYSICSUPDATE,
 
 	//! Called when the level loading is complete.
 	ENTITY_EVENT_LEVEL_LOADED,
@@ -252,15 +246,30 @@ enum EEntityEvent
 	ENTITY_EVENT_AUDIO_TRIGGER_STARTED,
 	ENTITY_EVENT_AUDIO_TRIGGER_ENDED,   //Remark: Will also be sent, if the trigger failed to start
 
-										//! Sent when an entity slot changes, i.e. geometry was added
-										//! nParam[0] stores the slot index
-										ENTITY_EVENT_SLOT_CHANGED,
+	//! Sent when an entity slot changes, i.e. geometry was added
+	//! nParam[0] stores the slot index
+	ENTITY_EVENT_SLOT_CHANGED,
 
-										//! Sent when the physical type of an entity changed, i.e. physicalized or dephysicalized.
-										ENTITY_EVENT_PHYSICAL_TYPE_CHANGED,
+	//! Sent when the physical type of an entity changed, i.e. physicalized or dephysicalized.
+	ENTITY_EVENT_PHYSICAL_TYPE_CHANGED,
 
-										//! Last entity event in list.
-										ENTITY_EVENT_LAST,
+	//! Entity was just spawned on this machine as requested by the server
+	ENTITY_EVENT_SPAWNED_REMOTELY,
+
+	//! Not an entity event, but signifies the last event that is sent via CEntity::SendEvent
+	//! Others are grouped in the entity system due to being sent by batch every frame.
+	ENTITY_EVENT_LAST_NON_PERFORMANCE_CRITICAL,
+
+	//! Called when the pre-physics update is done; fParam[0] is the frame time.
+	ENTITY_EVENT_PREPHYSICSUPDATE,
+
+	//! Sent when the entity is updating every frame.
+	//! nParam[0] = pointer to SEntityUpdateContext structure.
+	//! fParam[0] = frame time
+	ENTITY_EVENT_UPDATE,
+
+	//! Last entity event in list.
+	ENTITY_EVENT_LAST,
 };
 
 #define ENTITY_PERFORMANCE_EXPENSIVE_EVENTS_MASK (BIT64(ENTITY_EVENT_RENDER_VISIBILITY_CHANGE) | BIT64(ENTITY_EVENT_PREPHYSICSUPDATE) | BIT64(ENTITY_EVENT_UPDATE))
@@ -268,18 +277,20 @@ enum EEntityEvent
 //! Variant of default BIT macro to safely handle 64-bit numbers.
 #define ENTITY_EVENT_BIT(x) BIT64((x))
 
+using EntityEventMask = uint64;
+
 //! SEntityEvent structure describe event id and parameters that can be sent to an entity.
 struct SEntityEvent
 {
 	SEntityEvent(
-		const int n0,
-		const int n1,
-		const int n2,
-		const int n3,
-		const float f0,
-		const float f1,
-		const float f2,
-		Vec3 const& _vec)
+	  const int n0,
+	  const int n1,
+	  const int n2,
+	  const int n3,
+	  const float f0,
+	  const float f1,
+	  const float f2,
+	  Vec3 const& _vec)
 		: vec(_vec)
 	{
 		nParam[0] = n0;
@@ -311,4 +322,75 @@ struct SEntityEvent
 	intptr_t     nParam[4]; //!< Event parameters.
 	float        fParam[3];
 	Vec3         vec;
+};
+
+enum EEntityXFormFlags
+{
+	ENTITY_XFORM_POS            = BIT(1),
+	ENTITY_XFORM_ROT            = BIT(2),
+	ENTITY_XFORM_SCL            = BIT(3),
+	ENTITY_XFORM_NO_PROPOGATE   = BIT(4),
+	ENTITY_XFORM_FROM_PARENT    = BIT(5), //!< When parent changes his transformation.
+	ENTITY_XFORM_PHYSICS_STEP   = BIT(6),
+	ENTITY_XFORM_EDITOR         = BIT(7),
+	ENTITY_XFORM_TRACKVIEW      = BIT(8),
+	ENTITY_XFORM_TIMEDEMO       = BIT(9),
+	ENTITY_XFORM_NOT_REREGISTER = BIT(10), //!< Optimization flag, when set object will not be re-registered in 3D engine.
+	ENTITY_XFORM_NO_EVENT       = BIT(11), //!< Suppresses ENTITY_EVENT_XFORM event.
+	ENTITY_XFORM_IGNORE_PHYSICS = BIT(12), //!< When set physics ignore xform event handling.
+
+	ENTITY_XFORM_EVENT_COUNT    = 13,
+
+	ENTITY_XFORM_USER           = 0x1000000,
+};
+
+using EntityTransformationFlagsMask = CEnumFlags<EEntityXFormFlags>;
+using EntityTransformationFlagsType = uint32;
+
+//! Entity proxies that can be hosted by the entity.
+enum EEntityProxy
+{
+	ENTITY_PROXY_AUDIO,
+	ENTITY_PROXY_AREA,
+	ENTITY_PROXY_BOIDS,
+	ENTITY_PROXY_BOID_OBJECT,
+	ENTITY_PROXY_CAMERA,
+	ENTITY_PROXY_FLOWGRAPH,
+	ENTITY_PROXY_SUBSTITUTION,
+	ENTITY_PROXY_TRIGGER,
+	ENTITY_PROXY_ROPE,
+	ENTITY_PROXY_ENTITYNODE,
+	ENTITY_PROXY_CLIPVOLUME,
+	ENTITY_PROXY_DYNAMICRESPONSE,
+	ENTITY_PROXY_SCRIPT,
+
+	ENTITY_PROXY_USER,
+
+	//! Always the last entry of the enum.
+	ENTITY_PROXY_LAST
+};
+
+//! Flags the can be set on each of the entity object slots.
+enum EEntitySlotFlags : uint16
+{
+	ENTITY_SLOT_RENDER                      = BIT(0), //!< Draw this slot.
+	ENTITY_SLOT_RENDER_NEAREST              = BIT(1), //!< Draw this slot as nearest. [Rendered in camera space].
+	ENTITY_SLOT_RENDER_WITH_CUSTOM_CAMERA   = BIT(2), //!< Draw this slot using custom camera passed as a Public ShaderParameter to the entity.
+	ENTITY_SLOT_IGNORE_PHYSICS              = BIT(3), //!< This slot will ignore physics events sent to it.
+	ENTITY_SLOT_BREAK_AS_ENTITY             = BIT(4),
+	ENTITY_SLOT_RENDER_AFTER_POSTPROCESSING = BIT(5),
+	ENTITY_SLOT_BREAK_AS_ENTITY_MP          = BIT(6), //!< In MP this an entity that shouldn't fade or participate in network breakage.
+	ENTITY_SLOT_CAST_SHADOW                 = BIT(7),
+	ENTITY_SLOT_IGNORE_VISAREAS             = BIT(8),
+	ENTITY_SLOT_GI_MODE_BIT0                = BIT(9),
+	ENTITY_SLOT_GI_MODE_BIT1                = BIT(10),
+	ENTITY_SLOT_GI_MODE_BIT2                = BIT(11)
+};
+
+struct ISimpleEntityEventListener
+{
+	virtual void ProcessEvent(const SEntityEvent& event) = 0;
+
+protected:
+	virtual ~ISimpleEntityEventListener() {}
 };

@@ -3,18 +3,6 @@
 
 #include <Cry3DEngine/IRenderNode.h>
 
-static void ReflectType(Schematyc::CTypeDesc<SDecalProperties::EProjectionType>& desc)
-{
-	desc.SetGUID("{8556D9B6-F2D4-41DC-9C5C-897801C1D8CA}"_cry_guid);
-	desc.SetLabel("Decal Projection Type");
-	desc.SetDescription("Determines the method of projecting decals to objects");
-	desc.SetDefaultValue(SDecalProperties::ePlanar);
-	desc.AddConstant(SDecalProperties::ePlanar, "Planar", "Planar");
-	desc.AddConstant(SDecalProperties::eProjectOnStaticObjects, "StaticObjects", "Static Objects");
-	desc.AddConstant(SDecalProperties::eProjectOnTerrain, "Terrain", "Terrain");
-	desc.AddConstant(SDecalProperties::eProjectOnTerrainAndStaticObjects, "TerrainAndStaticObjects", "Terrain and Static Objects");
-}
-
 namespace Cry
 {
 namespace DefaultComponents
@@ -35,22 +23,6 @@ void CDecalComponent::Register(Schematyc::CEnvRegistrationScope& componentScope)
 	}
 }
 
-void CDecalComponent::ReflectType(Schematyc::CTypeDesc<CDecalComponent>& desc)
-{
-	desc.SetGUID(CDecalComponent::IID());
-	desc.SetEditorCategory("Effects");
-	desc.SetLabel("Decal");
-	desc.SetDescription("Exposes support for spawning decals");
-	desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach, IEntityComponent::EFlags::ClientOnly });
-
-	desc.AddMember(&CDecalComponent::m_bAutoSpawn, 'auto', "AutoSpawn", "Default Spawn", "Whether or not to automatically spawn the decal", true);
-	desc.AddMember(&CDecalComponent::m_materialFileName, 'matf', "Material", "Material", "The material we want to use on decals", "");
-	desc.AddMember(&CDecalComponent::m_bFollowEntityAfterSpawn, 'folo', "FollowEntity", "Follow Entity", "Whether or not the decal follows the entity", true);
-	desc.AddMember(&CDecalComponent::m_projectionType, 'proj', "ProjectionType", "Projection Type", "The method of projection we want to use", SDecalProperties::ePlanar);
-	desc.AddMember(&CDecalComponent::m_depth, 'dept', "Depth", "Projection Depth", "The depth at which we should project the decal", 1.f);
-	desc.AddMember(&CDecalComponent::m_sortPriority, 'sort', "SortPriority", "Sort Priority", "Sorting priority, used to resolve depth issues with other decals", 16);
-}
-
 void CDecalComponent::Initialize()
 {
 	if (m_bAutoSpawn)
@@ -63,7 +35,7 @@ void CDecalComponent::Initialize()
 	}
 }
 
-void CDecalComponent::ProcessEvent(SEntityEvent& event)
+void CDecalComponent::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{

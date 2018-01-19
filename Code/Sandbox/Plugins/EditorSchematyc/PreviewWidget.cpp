@@ -5,7 +5,6 @@
 
 #include <QBoxLayout>
 #include <QVBoxLayout>
-#include <QParentWndWidget.h>
 #include <QPushButton>
 #include <QSplitter>
 #include <QViewport.h>
@@ -137,6 +136,7 @@ void CPreviewWidget::SetClass(const IScriptClass* pScriptClass)
 
 	if (pScriptClass)
 	{
+		CRY_ASSERT_MESSAGE(pScriptClass->GetType() == Schematyc::EScriptElementType::Class, "Unsupported element type.");
 		if (pScriptClass->GetGUID() != m_classGUID)
 		{
 			releaseClass();

@@ -17,7 +17,7 @@ namespace UQS
 				Client::CDeferredEvaluatorFactory<CDeferredEvaluator_TestRaycast>::SCtorParams ctorParams;
 
 				ctorParams.szName = "std::TestRaycast";
-				ctorParams.guid = "e8d294e5-ab1f-40ce-abc1-9b6fc687c990"_uqs_guid;
+				ctorParams.guid = "e8d294e5-ab1f-40ce-abc1-9b6fc687c990"_cry_guid;
 				ctorParams.szDescription =
 					"Tests a raycast between 2 given positions.\n"
 					"Whether success or failure of the raycast counts as overall success or failure of the evaluator can be specified by a parameter.\n"
@@ -35,23 +35,23 @@ namespace UQS
 		//
 		//===================================================================================
 
-		CDeferredEvaluator_TestRaycast::CRaycastRegulator::CRaycastRegulator(int maxRequestsPerFrame)
-			: m_maxRequestsPerFrame(maxRequestsPerFrame)
-			, m_currentFrame(0)
-			, m_numRequestsInCurrentFrame(0)
+		CDeferredEvaluator_TestRaycast::CRaycastRegulator::CRaycastRegulator(int maxRequestsPerSecond)
+			: m_maxRequestsPerSecond(maxRequestsPerSecond)
+			, m_timeLastFiredRaycast(0)
 		{}
 
 		bool CDeferredEvaluator_TestRaycast::CRaycastRegulator::RequestRaycast()
 		{
-			const int currentFrame = gEnv->pRenderer->GetFrameID();
+			const float currentTime = gEnv->pTimer->GetAsyncCurTime();
+			bool bRaycastAllowed = false;
 
-			if (currentFrame != m_currentFrame)
+			if (!m_timeLastFiredRaycast || (currentTime - m_timeLastFiredRaycast) >= 1.0f / (float) m_maxRequestsPerSecond)
 			{
-				m_currentFrame = currentFrame;
-				m_numRequestsInCurrentFrame = 0;
+				bRaycastAllowed = true;
+				m_timeLastFiredRaycast = currentTime;
 			}
 
-			return (++m_numRequestsInCurrentFrame <= m_maxRequestsPerFrame);
+			return bRaycastAllowed;
 		}
 
 		//===================================================================================
@@ -60,7 +60,7 @@ namespace UQS
 		//
 		//===================================================================================
 
-		CDeferredEvaluator_TestRaycast::CRaycastRegulator CDeferredEvaluator_TestRaycast::s_regulator(12);  // allow up to 12 raycasts per frame
+		CDeferredEvaluator_TestRaycast::CRaycastRegulator CDeferredEvaluator_TestRaycast::s_regulator(360);  // allow up to 360 raycasts per second, which amounts to 12 raycasts per frame at 30 FPS
 
 		CDeferredEvaluator_TestRaycast::CDeferredEvaluator_TestRaycast(const SParams& params)
 			: m_params(params)

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -24,9 +24,8 @@
 
 // Do not run legacy pipeline in vulkan
 #if !CRY_RENDERER_VULKAN && !CRY_RENDERER_GNM
-	#define RENDERER_ENABLE_LEGACY_PIPELINE
+	//#define RENDERER_ENABLE_LEGACY_PIPELINE
 #endif
-
 
 #if (defined(CRY_USE_GNM) || defined(CRY_USE_GNM_RENDERER) || defined(CRY_USE_DX12) || defined(OPENGL) || defined(VULKAN)) || \
    !(defined(CRY_RENDERER_DIRECT3D) || defined(CRY_RENDERER_OPENGL) || defined(CRY_RENDERER_OPENGLES) || defined(CRY_RENDERER_GNM) || defined(CRY_RENDERER_VULKAN))
@@ -116,7 +115,7 @@
 	#define PROFILE 1
 #endif
 
-#define FUNCTION_PROFILER_RENDERER FUNCTION_PROFILER(iSystem, PROFILE_RENDERER)
+#define FUNCTION_PROFILER_RENDERER() CRY_PROFILE_FUNCTION(PROFILE_RENDERER)
 
 #define SCOPED_RENDERER_ALLOCATION_NAME_HINT(str)
 
@@ -915,31 +914,6 @@ const int32 g_nD3D10MaxSupportedSubres = (6 * 8 * 64);
 
 //=======================================================================
 
-#if CRY_COMPILER_MSVC && CRY_COMPILER_VERSION < 1800
-
-	#include <memory> // brings in TEMPLATE macros.
-	#define MAKE_UNIQUE(TEMPLATE_LIST, PADDING_LIST, LIST, COMMA, X1, X2, X3, X4) \
-	  template<class T COMMA LIST(_CLASS_TYPE)>                                   \
-	  inline std::unique_ptr<T> CryMakeUnique(LIST(_TYPE_REFREF_ARG))             \
-	  {                                                                           \
-	    return std::unique_ptr<T>(new T(LIST(_FORWARD_ARG)));                     \
-	  }
-_VARIADIC_EXPAND_0X(MAKE_UNIQUE, , , , )
-	#undef MAKE_UNIQUE
-
-#else
-
-	#include <memory>  // std::unique_ptr
-	#include <utility> // std::forward
-
-template<typename T, typename ... TArgs>
-inline std::unique_ptr<T> CryMakeUnique(TArgs&& ... args)
-{
-	return std::unique_ptr<T>(new T(std::forward<TArgs>(args) ...));
-}
-
-#endif
-
 #ifdef DEBUGALLOC
 
 	#include <crtdbg.h>
@@ -957,11 +931,10 @@ inline std::unique_ptr<T> CryMakeUnique(TArgs&& ... args)
 #include "Common/CryNameR.h"
 
 #if defined(CRY_PLATFORM_ORBIS)
-	#define MAX_TMU   32
+#define MAX_TMU   32
 #else
-	#define MAX_TMU   64
+#define MAX_TMU   64
 #endif
-#define MAX_STREAMS 16
 
 //! Include main interfaces.
 #include <CrySystem/File/ICryPak.h>
@@ -1175,16 +1148,19 @@ unsigned sizeOfMapS(Map& map)
 	#define EXCLUDE_RARELY_USED_R_STATS
 #endif
 
-#if !defined(_RELEASE) && false // Not supported anymore
-	#define CD3D9RENDERER_DEBUG_CONSISTENCY_CHECK
-#endif
-
 #if CRY_PLATFORM_DURANGO && (CRY_RENDERER_DIRECT3D >= 110) && (CRY_RENDERER_DIRECT3D < 120)
 	#define DEVRES_USE_PINNING 1
 #endif
 
 #define DEVRES_USE_STAGING_POOL 1
 #define DEVRES_TRACK_LATENCY 0
+
+#ifdef WIN32
+	#define ASSERT_LEGACY_PIPELINE CRY_ASSERT_MESSAGE(0,__func__);
+#else
+	#define ASSERT_LEGACY_PIPELINE assert(0);
+#endif
+
 
 #include <CryMath/Cry_Math.h>
 #include <CryMath/Cry_Geo.h>
@@ -1221,10 +1197,11 @@ unsigned sizeOfMapS(Map& map)
 
 // All handled render elements (except common ones included in "RendElement.h")
 #include "Common/RendElements/CRELensOptics.h"
-#include "Common/RendElements/CREDeferredShading.h"
 #include "Common/RendElements/CREMeshImpl.h"
 
 #include "Common/PostProcess/PostProcess.h"
+
+#include "GraphicsPipeline/StandardGraphicsPipeline.h"
 
 /*-----------------------------------------------------------------------------
    Vector transformations.
@@ -1427,42 +1404,18 @@ inline void _SetVar(const char* szVarName, int nVal)
 	}
 }
 
-// Get the sub-string starting at the last . in the string, or NULL if the string contains no dot
-// Note: The returned pointer refers to a location inside the provided string, no allocation is performed
-const char* fpGetExtension(const char* in);
-
-// Remove extension from string, including the .
-// If the string has no extension, the whole string will be copied into the buffer
-// Note: The out buffer must have space to store a copy of the in-string and a null-terminator
-void fpStripExtension(const char* in, char* out, size_t bytes);
-template<size_t bytes>
-void fpStripExtension(const char* in, char (&out)[bytes]) { fpStripExtension(in, out, bytes); }
-
-// Adds an extension to the path, if an extension is already present the function does nothing
-// The extension should include the .
-// Note: The path buffer must have enough unused space to store a copy of the extension string
-void fpAddExtension(char* path, const char* extension, size_t bytes);
-template<size_t bytes>
-void fpAddExtension(char (&path)[bytes], const char* extension) { fpAddExtension(path, extension, bytes); }
-
-// Converts DOS slashes to UNIX slashes
-// Note: The dst buffer must have space to store a copy of src and a null-terminator
-void fpConvertDOSToUnixName(char* dst, const char* src, size_t bytes);
-template<size_t bytes>
-void fpConvertDOSToUnixName(char (&dst)[bytes], const char* src) { fpConvertDOSToUnixName(dst, src, bytes); }
-
-// Converts UNIX slashes to DOS slashes
-// Note: the dst buffer must have space to store a copy of src and a null-terminator
-void fpConvertUnixToDosName(char* dst, const char* src, size_t bytes);
-template<size_t bytes>
-void fpConvertUnixToDosName(char (&dst)[bytes], const char* src) { fpConvertUnixToDosName(dst, src, bytes); }
-
-// Combines the path and name strings, inserting a UNIX slash as required, and stores the result into the dst buffer
-// path may be NULL, in which case name will be copied into the dst buffer, and the UNIX slash is NOT inserted
-// Note: the dst buffer must have space to store: a copy of name, a copy of path (if not null), a UNIX slash (if path doesn't end with one) and a null-terminator
-void fpUsePath(const char* name, const char* path, char* dst, size_t bytes);
-template<size_t bytes>
-void fpUsePath(const char* name, const char* path, char (&dst)[bytes]) { fpUsePath(name, path, dst, bytes); }
+inline D3DViewPort RenderViewportToD3D11Viewport(const SRenderViewport &vp)
+{
+	D3DViewPort viewport = { 
+		float(vp.x),
+		float(vp.y),
+		float(vp.width),
+		float(vp.height),
+		vp.zmin,
+		vp.zmax
+	};
+	return viewport;
+}
 
 //=========================================================================================
 //

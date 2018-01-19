@@ -38,7 +38,7 @@ protected:
 	virtual void   Initialize() override;
 	virtual void   OnShutDown() override {}
 	virtual uint64 GetEventMask() const override;
-	virtual void   ProcessEvent(SEntityEvent& event) override;
+	virtual void   ProcessEvent(const SEntityEvent& event) override;
 	// ~IEntityComponent
 
 public:
@@ -46,12 +46,6 @@ public:
 	CSwitchComponent() = default;
 
 	static void     ReflectType(Schematyc::CTypeDesc<CSwitchComponent>& desc);
-
-	static CryGUID& IID()
-	{
-		static CryGUID id = "EDCC5BA5-F4A7-486A-9BB7-3C2F1D7F9684"_cry_guid;
-		return id;
-	}
 
 	void Set(SSwitchWithStateSerializeHelper const& switchAndState);
 
@@ -64,21 +58,21 @@ protected:
 };
 
 //////////////////////////////////////////////////////////////////////////
-static void ReflectType(Schematyc::CTypeDesc<SSwitchWithStateSerializeHelper>& desc)
+inline void ReflectType(Schematyc::CTypeDesc<SSwitchWithStateSerializeHelper>& desc)
 {
 	desc.SetGUID("9DB56B33-57FE-4E97-BED2-F0BBD3012967"_cry_guid);
 }
 
 //////////////////////////////////////////////////////////////////////////
-void SSwitchWithStateSerializeHelper::Serialize(Serialization::IArchive& archive)
+inline void SSwitchWithStateSerializeHelper::Serialize(Serialization::IArchive& archive)
 {
 	archive(Serialization::AudioSwitch<string>(m_switchName), "switchName", "SwitchName");
 	archive(Serialization::AudioSwitchState<string>(m_switchStateName), "stateName", "StateName");
 
 	if (archive.isInput())
 	{
-		m_switchId = CryAudio::StringToId_RunTime(m_switchName.c_str());
-		m_switchStateId = CryAudio::StringToId_RunTime(m_switchStateName.c_str());
+		m_switchId = CryAudio::StringToId(m_switchName.c_str());
+		m_switchStateId = CryAudio::StringToId(m_switchStateName.c_str());
 	}
 }
 } // namespace DefaultComponents

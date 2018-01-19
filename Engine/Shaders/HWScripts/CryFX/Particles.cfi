@@ -7,7 +7,7 @@ DISSOLVE_NOISE_MAP
 
 struct OutputVS
 {
-	float4 HPosition  : POSITION;
+	float4 HPosition : SV_POSITION;
 
 	float4 baseTC    : TEXCOORDN;   // zw = orig tc
 
@@ -18,10 +18,10 @@ struct OutputVS
 	half4 alphaClip  : TEXCOORDN;
 
 #if (FEATURE_PARTICLES_TESSELLATION && !%_RT_NO_TESSELLATION) || %BUMP_MAP || USE_MATERIAL
-	half4 vWorldPos : TEXCOORDN;
+	half4 vWorldPos  : TEXCOORDN;
 #endif
 #if USE_MATERIAL
-	half4 vTangent  : TEXCOORDN;
+	half4 vTangent   : TEXCOORDN;
 #endif
 
 #if !%REFRACTION
@@ -38,10 +38,10 @@ struct OutputVS
 
 struct pixoutParticle
 {
-	half4 Color : COLOR0;
+	half4 Color        : SV_Target0;
 
 #if %DEPTH_FIXUP
-	half4 BlendFactors : COLOR1;
+	half4 BlendFactors : SV_Target1;
 #endif
 };
 
@@ -869,13 +869,19 @@ pixoutParticle ParticlePS(OutputVS IN)
 		particleParams.diffuseLighting, particleParams.emissiveLighting, particleParams.backLighting);
 
 #if %_RT_ENVIRONMENT_CUBEMAP
-	const uint envMapIndex = Fwd_TiledLightsShadeInfo[particleInstance.envCubemapIndex].resIndex;
-	const float4 envMapColor = Fwd_TiledLightsShadeInfo[particleInstance.envCubemapIndex].color;
-	float3 envDiffuseColor = Fwd_DiffuseCubeArray.SampleLevel(
-		TrilinearClampSamplerState,
-		float4(vNormal.xyz, envMapIndex), 0.0).rgb;
-	envDiffuseColor *= envMapColor.rgb * particleParams.diffuseLighting;
-	cDiffuseAcc.rgb += envDiffuseColor;
+	uint envMapIndex;
+	float4 envMapColor;
+	
+	if (particleInstance.envCubemapIndex < TILED_SHADING_MAX_NUM_LIGHTS)
+	{
+		envMapIndex = Fwd_TiledLightsShadeInfo[particleInstance.envCubemapIndex].resIndex;
+		envMapColor = Fwd_TiledLightsShadeInfo[particleInstance.envCubemapIndex].color;
+		float3 envDiffuseColor = Fwd_DiffuseCubeArray.SampleLevel(
+			TrilinearClampSamplerState,
+			float4(vNormal.xyz, envMapIndex), 0.0).rgb;
+		envDiffuseColor *= envMapColor.rgb * particleParams.diffuseLighting;
+		cDiffuseAcc.rgb += envDiffuseColor;
+	}
 #endif  
 
 	half4 cFinal = float4(cDiffuseAcc.rgb, cDiffuseMap.a);
@@ -898,15 +904,16 @@ pixoutParticle ParticlePS(OutputVS IN)
 			half fGloss = MatSpecColor.w;
 
 			#if %_RT_ENVIRONMENT_CUBEMAP
-				half fNdotE = saturate( dot(vView.xyz, vNormal.xyz));                                        // 1 alu
-				half3 vReflVec = (2.0h * fNdotE * vNormal.xyz) - vView.xyz;
-				// #PFX2_TODO : copy-pasted from ShadeLib.cfi. tileShading also uses the exact same thing. Make it consistent.
-				const float numCMapMips = 6.0;
-				const float fGlossinessLod = numCMapMips - fGloss * numCMapMips;
-				cSpecularAcc.rgb = Fwd_SpecCubeArray.SampleLevel(
-					TrilinearClampSamplerState,
-					float4(vNormal.xyz, envMapIndex), fGlossinessLod).rgb;
-				cSpecularAcc.rgb *= envMapColor.rgb * envMapColor.a;
+				if (particleInstance.envCubemapIndex < TILED_SHADING_MAX_NUM_LIGHTS)
+				{
+					half fNdotE = saturate( dot(vView.xyz, vNormal.xyz));
+					half3 vReflVec = (2.0h * fNdotE * vNormal.xyz) - vView.xyz;
+					// #PFX2_TODO : copy-pasted from ShadeLib.cfi. tileShading also uses the exact same thing. Make it consistent.
+					const float numCMapMips = 6.0;
+					const float fGlossinessLod = numCMapMips - fGloss * numCMapMips;
+					cSpecularAcc.rgb = Fwd_SpecCubeArray.SampleLevel(TrilinearClampSamplerState, float4(vNormal.xyz, envMapIndex), fGlossinessLod).rgb;
+					cSpecularAcc.rgb *= envMapColor.rgb * envMapColor.a;
+				}
 			#endif	
 			
 			// sun spec
@@ -952,7 +959,7 @@ pixoutParticle ParticlePS(OutputVS IN)
 	OUT.Color = cFinal;
 
 #if %DEPTH_FIXUP
-	const float fZ = tcScreen.w * PS_NearFarClipDist.w;
+	const float fZ = tcScreen.w * CV_NearFarClipDist.w;
 	OUT.Color.a = cFinal.a > DepthFixupThreshold ? -fZ : 1;
 	OUT.BlendFactors = cFinal.a;
 #endif
@@ -996,9 +1003,9 @@ struct OutputParticleVolumeFogGS
 
 struct pixoutParticleVolumeFogPS
 {
-	half4 Color : COLOR0;
-	half4 Color1 : COLOR1;
-	half4 Color2 : COLOR2;
+	half4 Color  : SV_Target0;
+	half4 Color1 : SV_Target1;
+	half4 Color2 : SV_Target2;
 };
 
 cbuffer CBPerPassVolFogInj : register(b5)
@@ -1248,11 +1255,6 @@ pixoutParticleVolumeFogPS ParticleVolumeFogPS(OutputParticleVolumeFogGS IN)
 // Needs to match the technique numbers in CRenderer::EF_GetParticleListAndBatchFlags function.
 
 technique ParticlesTessellated
-<
-	string Script =  
-		"TechniqueCustomRender=CustomRenderPass;"
-//    "TechniqueThickness=ThicknessPass;"
->
 {
 	pass p0
 	{
@@ -1269,11 +1271,6 @@ technique ParticlesTessellated
 }
 
 technique Particles
-<
-	string Script =  
-			"TechniqueCustomRender=CustomRenderPass;"
-//    "TechniqueThickness=ThicknessPass;"
->
 {
 	pass p0
 	{
@@ -1288,9 +1285,6 @@ technique Particles
 }
 
 technique ParticlesPulled
-<
-	string Script = "TechniqueCustomRender=CustomRenderPass;"
->
 {
 	pass p0
 	{
@@ -1305,9 +1299,6 @@ technique ParticlesPulled
 }
 
 technique ParticlesGpu
-<
-	string Script = "TechniqueCustomRender=CustomRenderPass;"
->
 {
 	pass p0
 	{
@@ -1338,6 +1329,4 @@ technique ParticlesVolumeFog
 		AlphaBlendEnable = true;
 	}
 }
-
-#include "ParticlesCustomPass.cfi"
 

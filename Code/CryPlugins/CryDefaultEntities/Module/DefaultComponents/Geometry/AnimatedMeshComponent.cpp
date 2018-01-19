@@ -39,24 +39,13 @@ void CAnimatedMeshComponent::Register(Schematyc::CEnvRegistrationScope& componen
 		pFunction->BindInput(1, 'layr', "Layer");
 		componentScope.Register(pFunction);
 	}
-}
-
-void CAnimatedMeshComponent::ReflectType(Schematyc::CTypeDesc<CAnimatedMeshComponent>& desc)
-{
-	desc.SetGUID(CAnimatedMeshComponent::IID());
-	desc.SetEditorCategory("Geometry");
-	desc.SetLabel("Animated Mesh");
-	desc.SetDescription("A component containing a simple mesh that can be animated");
-	desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach });
-
-	desc.AddMember(&CAnimatedMeshComponent::m_type, 'type', "Type", "Type", "Determines the behavior of the static mesh", EMeshType::RenderAndCollider);
-
-	desc.AddMember(&CAnimatedMeshComponent::m_filePath, 'file', "FilePath", "File", "Determines the animated mesh to load", "");
-	desc.AddMember(&CAnimatedMeshComponent::m_renderParameters, 'rend', "Render", "Rendering Settings", "Settings for the rendered representation of the component", SRenderParameters());
-
-	desc.AddMember(&CAnimatedMeshComponent::m_defaultAnimation, 'anim', "Animation", "Default Animation", "Specifies the animation we want to play by default", "");
-	desc.AddMember(&CAnimatedMeshComponent::m_bLoopDefaultAnimation, 'loop', "Loop", "Loop Default", "Whether or not to loop the default animation", false);
-	desc.AddMember(&CAnimatedMeshComponent::m_physics, 'phys', "Physics", "Physics", "Physical properties for the object, only used if a simple physics or character controller is applied to the entity.", SPhysicsParameters());
+	{
+		auto pFunction = SCHEMATYC_MAKE_ENV_FUNCTION(&CAnimatedMeshComponent::SetMeshType, "{2C8885E0-79F4-42A3-B67A-2F450DDBDFD0}"_cry_guid, "SetType");
+		pFunction->BindInput(1, 'type', "Type");
+		pFunction->SetDescription("Changes the type of the object");
+		pFunction->SetFlags({ Schematyc::EEnvFunctionFlags::Member });
+		componentScope.Register(pFunction);
+	}
 }
 
 void CAnimatedMeshComponent::Initialize()
@@ -89,13 +78,12 @@ void CAnimatedMeshComponent::ResetObject()
 
 	if (m_defaultAnimation.value.size() > 0)
 	{
+		m_animationParams.m_fPlaybackSpeed = m_defaultAnimationSpeed;
 		PlayAnimation(m_defaultAnimation, m_bLoopDefaultAnimation);
 	}
-
-	Physicalize();
 }
 
-void CAnimatedMeshComponent::ProcessEvent(SEntityEvent& event)
+void CAnimatedMeshComponent::ProcessEvent(const SEntityEvent& event)
 {
 	if (event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
 	{

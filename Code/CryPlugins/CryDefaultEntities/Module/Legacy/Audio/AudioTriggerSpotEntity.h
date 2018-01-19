@@ -21,14 +21,14 @@ class CAudioTriggerSpotEntity final
 	: public CDesignerEntityComponent<>
 	  , public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CAudioTriggerSpotEntity, "AudioTriggerSpot", 0x1009FA03153C459C, 0x883D33B33298813D);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CAudioTriggerSpotEntity, "AudioTriggerSpot", "1009fa03-153c-459c-883d-33b33298813d"_cry_guid);
 
 public:
 	CAudioTriggerSpotEntity();
 	virtual ~CAudioTriggerSpotEntity();
 
 	// CDesignerEntityComponent
-	virtual void                  ProcessEvent(SEntityEvent& event) override;
+	virtual void                  ProcessEvent(const SEntityEvent& event) override;
 	virtual uint64                GetEventMask() const override { return CDesignerEntityComponent::GetEventMask() | BIT64(ENTITY_EVENT_UPDATE) | BIT64(ENTITY_EVENT_TIMER); }
 
 	virtual IEntityPropertyGroup* GetPropertyGroup() final      { return this; }

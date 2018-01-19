@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -26,18 +26,16 @@ public:
 	CCamera*                       m_pCamera;
 	SSkyInfo*                      m_pSky;
 	SDetailDecalInfo*              m_pDetailDecalInfo;
-	CConstantBuffer*               m_pCB;
+	CConstantBufferPtr             m_pConstantBuffer;
 	uint16                         m_Id;
 	uint16                         m_IdGroup;
 
 	// @see EFlags
 	uint32            m_flags;
-	std::atomic<bool> m_bResourcesDirty;
 
 	/////////////////////////////////////////////////////
 
 	float        m_fMinMipFactorLoad;
-	volatile int m_nRefCounter;
 	int          m_nLastTexture;
 	int          m_nFrameLoad;
 	uint32       m_nUpdateFrameID;
@@ -50,9 +48,6 @@ public:
 	uint8 m_nMtlLayerNoDrawFlags;
 
 public:
-	//////////////////////////////////////////////////////////////////////////
-	static bool OnTextureInvalidated(void* pThis, uint32 flags) threadsafe;
-
 	//////////////////////////////////////////////////////////////////////////
 	void AddTextureMap(int Id)
 	{
@@ -157,12 +152,11 @@ public:
 		m_pDetailDecalInfo = NULL;
 		m_pCamera = NULL;
 		m_pSky = NULL;
-		m_pCB = NULL;
+		m_pConstantBuffer.reset();
 		m_nMtlLayerNoDrawFlags = 0;
 		m_flags = 0;
-		m_bResourcesDirty = false;
 		m_nUpdateFrameID = 0;
-		m_resources.Clear();
+		m_resources.ClearResources();
 	}
 	bool IsEmpty(int nTSlot) const
 	{
@@ -170,6 +164,7 @@ public:
 			return true;
 		return false;
 	}
+	bool                  HasChanges() const { return !!(m_flags & (eFlagRecreateResourceSet | EFlags_AnimatedSequence | EFlags_DynamicUpdates)) || m_resources.HasChanged() || !m_pCompiledResourceSet; }
 	bool                  HasDynamicTexModifiers() const;
 	bool                  HasDynamicUpdates() const { return !!(m_flags & EFlags_DynamicUpdates); }
 	bool                  HasAnimatedTextures() const { return !!(m_flags & EFlags_AnimatedSequence); }
@@ -189,8 +184,8 @@ public:
 
 	~CShaderResources();
 	void                      RT_Release();
-	virtual void              Release() final;
-	virtual void              AddRef() final { CryInterlockedIncrement(&m_nRefCounter); }
+	virtual void              Release() const final;
+	virtual void              AddRef() const final { SBaseShaderResources::AddRef(); }
 	virtual void              ConvertToInputResource(SInputShaderResources* pDst) final;
 	virtual CShaderResources* Clone() const final;
 	virtual void              SetShaderParams(SInputShaderResources* pDst, IShader* pSH) final;

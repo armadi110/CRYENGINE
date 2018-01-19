@@ -14,8 +14,10 @@ void CPlayerComponent::Initialize()
 	
 	// The character controller is responsible for maintaining player physics
 	m_pCharacterController = m_pEntity->GetOrCreateComponent<Cry::DefaultComponents::CCharacterControllerComponent>();
+	// Offset the default character controller up by one unit
+	m_pCharacterController->SetTransformMatrix(Matrix34::Create(Vec3(1.f), IDENTITY, Vec3(0, 0, 1.f)));
 
-		// Create the advanced animation component, responsible for updating Mannequin and animating the player
+	// Create the advanced animation component, responsible for updating Mannequin and animating the player
 	m_pAnimationComponent = m_pEntity->GetOrCreateComponent<Cry::DefaultComponents::CAdvancedAnimationComponent>();
 	
 	// Set the player geometry, this also triggers physics proxy creation
@@ -34,7 +36,6 @@ void CPlayerComponent::Initialize()
 	m_pAnimationComponent->LoadFromDisk();
 
 	// Acquire tag identifiers to avoid doing so each update
-	m_rotateTagId = m_pAnimationComponent->GetTagId("Rotate");
 	m_walkTagId = m_pAnimationComponent->GetTagId("Walk");
 	
 	// Get the input component, wraps access to action mapping so we can easily get callbacks when inputs are triggered
@@ -108,7 +109,7 @@ uint64 CPlayerComponent::GetEventMask() const
 	return BIT64(ENTITY_EVENT_RESET) | BIT64(ENTITY_EVENT_START_GAME) | BIT64(ENTITY_EVENT_UPDATE);
 }
 
-void CPlayerComponent::ProcessEvent(SEntityEvent& event)
+void CPlayerComponent::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{
@@ -215,7 +216,6 @@ void CPlayerComponent::UpdateAnimation(float frameTime)
 	ICharacterInstance *pCharacter = m_pAnimationComponent->GetCharacter();
 
 	// Update the Mannequin tags
-	m_pAnimationComponent->SetTagWithId(m_rotateTagId, m_pAnimationComponent->IsTurning());
 	m_pAnimationComponent->SetTagWithId(m_walkTagId, m_pCharacterController->IsWalking());
 
 	Vec3 dir = m_pCursorEntity->GetWorldPos() - m_pEntity->GetWorldPos();
@@ -318,7 +318,7 @@ void CPlayerComponent::Revive()
 void CPlayerComponent::SpawnAtSpawnPoint()
 {
 	// Spawn at first default spawner
-	auto *pEntityIterator = gEnv->pEntitySystem->GetEntityIterator();
+	IEntityItPtr pEntityIterator = gEnv->pEntitySystem->GetEntityIterator();
 	pEntityIterator->MoveFirst();
 
 	while (!pEntityIterator->IsEnd())

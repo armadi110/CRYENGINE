@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "Script/ScriptRegistry.h"
@@ -819,6 +819,8 @@ IScriptElement* CScriptRegistry::RestoreUndo(const XmlNodeRef& input, IScriptEle
 			inputBlock.rootElement.instance->SetScript(pSharedScript.get());
 
 			ProcessInputBlocks(inputBlocks, *m_pRoot, EScriptEventId::FileReload);
+			CCore::GetInstance().GetCompiler().CompileDependencies(pSharedScript->GetRoot()->GetGUID());
+
 			return pSharedScript->GetRoot();
 		}
 	}

@@ -1,8 +1,9 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "AudioImpl.h"
 #include "AudioImplCVars.h"
+#include <Logger.h>
 #include <CryAudio/IAudioSystem.h>
 #include <CryCore/Platform/platform_impl.inl>
 #include <CrySystem/IEngineModule.h>
@@ -15,7 +16,6 @@ namespace Impl
 namespace PortAudio
 {
 // Define global objects.
-CLogger g_implLogger;
 CCVars g_cvars;
 
 //////////////////////////////////////////////////////////////////////////
@@ -26,7 +26,7 @@ class CEngineModule_CryAudioImplPortAudio : public IImplModule
 	CRYINTERFACE_ADD(IImplModule)
 	CRYINTERFACE_END()
 
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_CryAudioImplPortAudio, "EngineModule_AudioImpl", 0xaa6a039a0ce5bbab, 0x33e0aad69f3136f4);
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_CryAudioImplPortAudio, "EngineModule_AudioImpl", "c0c05842-ff77-4a61-96de-43a684515dc8"_cry_guid);
 
 	CEngineModule_CryAudioImplPortAudio();
 
@@ -44,11 +44,11 @@ class CEngineModule_CryAudioImplPortAudio : public IImplModule
 
 		if (m_bSuccess)
 		{
-			g_implLogger.Log(ELogType::Always, "CryAudioImplPortAudio loaded");
+			Cry::Audio::Log(ELogType::Always, "CryAudioImplPortAudio loaded");
 		}
 		else
 		{
-			g_implLogger.Log(ELogType::Error, "CryAudioImplPortAudio failed to load");
+			Cry::Audio::Log(ELogType::Error, "CryAudioImplPortAudio failed to load");
 		}
 
 		return m_bSuccess;

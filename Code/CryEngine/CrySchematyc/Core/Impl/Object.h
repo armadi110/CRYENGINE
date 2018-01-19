@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -135,6 +135,7 @@ public:
 	// IObject
 	virtual ObjectId             GetId() const override;
 	virtual const IRuntimeClass& GetClass() const override;
+	virtual const char*          GetScriptFile() const override;
 	virtual void*                GetCustomData() const override;
 	virtual ESimulationMode      GetSimulationMode() const override;
 

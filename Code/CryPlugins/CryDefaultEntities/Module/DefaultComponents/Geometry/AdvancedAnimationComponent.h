@@ -2,10 +2,12 @@
 
 #include "BaseMeshComponent.h"
 
-#include <CryGame/IGameFramework.h>
+#include <bitset>
+
 #include <ICryMannequin.h>
 #include <CrySchematyc/Utils/SharedString.h>
 #include <CryCore/Containers/CryArray.h>
+#include <CryGame/IGameFramework.h>
 
 #include <Animation/PoseAligner/PoseAligner.h>
 
@@ -48,7 +50,7 @@ protected:
 	// IEntityComponent
 	virtual void   Initialize() override;
 
-	virtual void   ProcessEvent(SEntityEvent& event) override;
+	virtual void   ProcessEvent(const SEntityEvent& event) override;
 	virtual uint64 GetEventMask() const override;
 	// ~IEntityComponent
 
@@ -71,12 +73,25 @@ public:
 	CAdvancedAnimationComponent() = default;
 	virtual ~CAdvancedAnimationComponent();
 
-	static void ReflectType(Schematyc::CTypeDesc<CAdvancedAnimationComponent>& desc);
-
-	static CryGUID& IID()
+	static void ReflectType(Schematyc::CTypeDesc<CAdvancedAnimationComponent>& desc)
 	{
-		static CryGUID id = "{3CD5DDC5-EE15-437F-A997-79C2391537FE}"_cry_guid;
-		return id;
+		desc.SetGUID("{3CD5DDC5-EE15-437F-A997-79C2391537FE}"_cry_guid);
+		desc.SetEditorCategory("Geometry");
+		desc.SetLabel("Advanced Animations");
+		desc.SetDescription("Exposes playback of more advanced animations going through the Mannequin systems");
+		desc.SetIcon("icons:General/Mannequin.ico");
+		desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach });
+
+		desc.AddMember(&CAdvancedAnimationComponent::m_type, 'type', "Type", "Type", "Determines the behavior of the static mesh", EMeshType::RenderAndCollider);
+		desc.AddMember(&CAdvancedAnimationComponent::m_characterFile, 'file', "Character", "Character", "Determines the character to load", "");
+		desc.AddMember(&CAdvancedAnimationComponent::m_renderParameters, 'rend', "Render", "Rendering Settings", "Settings for the rendered representation of the component", SRenderParameters());
+
+		desc.AddMember(&CAdvancedAnimationComponent::m_databasePath, 'dbpa', "DatabasePath", "Animation Database", "Path to the Mannequin .adb file", "");
+		desc.AddMember(&CAdvancedAnimationComponent::m_defaultScopeSettings, 'defs', "DefaultScope", "Default Scope Context Name", "Default Mannequin scope settings", CAdvancedAnimationComponent::SDefaultScopeSettings());
+		desc.AddMember(&CAdvancedAnimationComponent::m_bAnimationDrivenMotion, 'andr', "AnimDriven", "Animation Driven Motion", "Whether or not to use root motion in the animations", true);
+		desc.AddMember(&CAdvancedAnimationComponent::m_bGroundAlignment, 'grou', "GroundAlign", "Use Ground Alignment", "Enables adjustment of leg positions to align to the ground surface", false);
+
+		desc.AddMember(&CAdvancedAnimationComponent::m_physics, 'phys', "Physics", "Physics", "Physical properties for the object, only used if a simple physics or character controller is applied to the entity.", SPhysicsParameters());
 	}
 
 	virtual void ActivateContext(const Schematyc::CSharedString& contextName)
@@ -106,18 +121,31 @@ public:
 			return;
 		}
 
-		TagID fragmentId = m_pAnimationContext->controllerDef.m_fragmentIDs.Find(fragmentName.c_str());
-		if (fragmentId == TAG_ID_INVALID)
+		FragmentID fragmentId = m_pAnimationContext->controllerDef.m_fragmentIDs.Find(fragmentName.c_str());
+		if (fragmentId == FRAGMENT_ID_INVALID)
 		{
 			CryWarning(VALIDATOR_MODULE_GAME, VALIDATOR_ERROR, "Failed to find Mannequin fragment %s in controller definition %s", fragmentName.c_str(), m_pAnimationContext->controllerDef.m_filename.c_str());
 			return;
 		}
 
-		int priority = 0;
-		m_fragments.emplace_back(new TAction<SAnimationContext>(priority, fragmentId, TAG_STATE_EMPTY, 0));
+		return QueueFragmentWithId(fragmentId);
+	}
 
-		// Queue the idle fragment to start playing immediately on next update
-		m_pActionController->Queue(*m_fragments.back().get());
+	virtual void QueueFragmentWithId(const FragmentID& fragmentId)
+	{
+		if (m_pAnimationContext == nullptr)
+		{
+			return;
+		}
+
+		if (m_pActiveAction)
+		{
+			m_pActiveAction->Stop();
+		}
+
+		const int priority = 0;
+		m_pActiveAction = new TAction<SAnimationContext>(priority, fragmentId);
+		m_pActionController->Queue(*m_pActiveAction);
 	}
 
 	// TODO: Expose resource selector for tags
@@ -132,12 +160,18 @@ public:
 		if (m_pCachedCharacter != nullptr)
 		{
 			m_pCachedCharacter->GetISkeletonAnim()->SetDesiredMotionParam(motionParam, value, 0.f);
+			m_overriddenMotionParams.set(motionParam);
 		}
 	}
 
-	TagID GetTagId(const char* szTagName)
+	TagID GetTagId(const char* szTagName) const
 	{
 		return m_pControllerDefinition->m_tags.Find(szTagName);
+	}
+
+	FragmentID GetFragmentId(const char* szFragmentName) const
+	{
+		return m_pControllerDefinition->m_fragmentIDs.Find(szFragmentName);
 	}
 
 	virtual void SetTagWithId(TagID id, bool bSet)
@@ -206,6 +240,8 @@ public:
 	// Resets the character and Mannequin
 	virtual void ResetCharacter()
 	{
+		m_pActiveAction = nullptr;
+
 		// Release previous controller and context
 		SAFE_RELEASE(m_pActionController);
 		m_pAnimationContext.reset();
@@ -240,8 +276,6 @@ public:
 
 			m_pEntity->UpdateComponentEventMask(this);
 		}
-
-		Physicalize();
 	}
 
 	// Enable / disable motion on entity being applied from animation on the root node
@@ -259,8 +293,8 @@ public:
 	}
 	bool         IsAnimationDrivenMotionEnabled() const { return m_bAnimationDrivenMotion; }
 
-	virtual void SetCharacterFile(const char* szPath);
-	const char*  SetCharacterFile() const                  { return m_characterFile.value.c_str(); }
+	virtual void SetCharacterFile(const char* szPath, bool applyImmediately = true);
+	const char*  GetCharacterFile() const                  { return m_characterFile.value.c_str(); }
 	virtual void SetMannequinAnimationDatabaseFile(const char* szPath);
 	const char*  GetMannequinAnimationDatabaseFile() const { return m_databasePath.value.c_str(); }
 
@@ -277,6 +311,9 @@ public:
 
 	virtual bool IsTurning() const { return fabsf(m_turnAngle) > 0; }
 
+	// Helper to allow exposing derived function to Schematyc
+	virtual void SetMeshType(EMeshType type) { SetType(type); }
+
 protected:
 	bool                                      m_bAnimationDrivenMotion = true;
 
@@ -290,7 +327,8 @@ protected:
 	std::unique_ptr<SAnimationContext> m_pAnimationContext;
 	const IAnimationDatabase*          m_pDatabase = nullptr;
 
-	DynArray<_smart_ptr<IAction>>      m_fragments;
+	_smart_ptr<IAction>                m_pActiveAction;
+	std::bitset<eMotionParamID_COUNT>  m_overriddenMotionParams;
 
 	const SControllerDef*              m_pControllerDefinition = nullptr;
 	_smart_ptr<ICharacterInstance>     m_pCachedCharacter = nullptr;

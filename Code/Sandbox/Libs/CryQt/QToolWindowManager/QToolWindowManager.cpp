@@ -68,11 +68,15 @@ QToolWindowManager::~QToolWindowManager()
 	suspendLayoutNotifications();
 	while(!m_areas.isEmpty())
 	{
-		delete m_areas.first();
+		auto a = m_areas.first();
+		a->setParent(nullptr);
+		delete a;
 	}
 	while(!m_wrappers.isEmpty())
 	{
-		delete m_wrappers.first();
+		auto w = m_wrappers.first();
+		w->setParent(nullptr);
+		delete w;
 	}
 	delete m_dragHandler;
 }
@@ -492,7 +496,7 @@ QWidget* QToolWindowManager::splitArea(QWidget* area, QToolWindowAreaReference r
 	// HACK: For some reason, contents aren't always properly notified when parent changes.
 	// This can issues, as contents can still be referencing deleted wrappers.
 	// Manually send all contents a parent changed event.
-	QList<QWidget*> contentsWidgets = insertWidget->findChildren<QWidget*>();
+	QList<QWidget*> contentsWidgets = residingWidget->findChildren<QWidget*>();
 	foreach(QWidget* w, contentsWidgets)
 		qApp->sendEvent(w, new QEvent(QEvent::ParentChange));
 
@@ -889,7 +893,8 @@ void QToolWindowManager::simplifyLayout(bool clearMain /* = false */)
 	foreach(IToolWindowWrapper* wrapper, wrappersToRemove)
 	{
 		m_wrappers.removeOne(wrapper);
-		wrapper->getWidget()->deleteLater();
+		wrapper->hide();
+		wrapper->deferDeletion();
 	}
 
 	//Update area visuals
@@ -1080,6 +1085,14 @@ IToolWindowWrapper* QToolWindowManager::restoreWrapperState(const QVariantMap &d
 
 	if (data.contains("geometry"))
 	{
+		// Adjust position of frameless non-maximized windows since Qt will otherwise adjust for a non-existant frame (as of Qt 5.6)
+		if (wrapper->getWidget()->windowFlags().testFlag(Qt::FramelessWindowHint) && !wrapper->getWidget()->windowState().testFlag(Qt::WindowMaximized))
+		{
+			QWidget* w = wrapper->getWidget();
+			QRect r = w->geometry();
+			r.translate(QPoint(w->x() - r.x(), w->y() - r.y()));
+			w->setGeometry(r);
+		}
 		// If geometry was not saved, do not show.
 		wrapper->getWidget()->show();
 	}
@@ -1185,6 +1198,27 @@ QSplitter *QToolWindowManager::restoreSplitterState(const QVariantMap &data, int
 		break;
 	}
 	return splitter;
+}
+
+void QToolWindowManager::resizeSplitter(QWidget* widget, QList<int> sizes)
+{
+	QSplitter* s = qobject_cast<QSplitter*>(widget);
+	if (!s)
+	{
+		s = findClosestParent<QSplitter*>(widget);
+	}
+	if (!s)
+	{
+		qWarning("Could not find a matching splitter!");
+		return;
+	}
+
+	int scaleFactor = s->orientation() == Qt::Horizontal ? s->width() : s->height();
+	for (auto it = sizes.begin(); it != sizes.end(); it++)
+	{
+		*it *= scaleFactor;
+	}
+	s->setSizes(sizes);
 }
 
 QString QToolWindowManager::textForPosition(QToolWindowAreaReference reference)
@@ -1337,7 +1371,7 @@ void QToolWindowManager::SwapAreaType(IToolWindowArea* oldArea, QTWMWrapperAreaT
 	QSplitter* parentSplitter = nullptr;
 	IToolWindowWrapper* targetWrapper = findClosestParent<IToolWindowWrapper*>(oldArea->getWidget());
 	parentSplitter = qobject_cast<QSplitter*>(oldArea->parentWidget());
-	IToolWindowArea* newArea = m_factory->createArea(this, nullptr, areaType);
+	IToolWindowArea* newArea = createArea(areaType);
 
 	if (!parentSplitter && !targetWrapper)
 	{

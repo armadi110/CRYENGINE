@@ -73,7 +73,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnAwake()
+		protected override void OnAwake()
 		{
 			OnSourceChanged += () =>
 			{
@@ -85,17 +85,30 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnUpdate()
+		protected override void OnRender()
 		{
-			if (_source != null)
+			if (_source != null && _texture != null)
 			{
 				if (!IgnoreClamping)
-					_texture.ClampRect = ((Owner as UIElement).RectTransform).ClampRect;
+				{
+					var rect = Owner.GetComponent<RectTransform>();
+					if(rect != null)
+					{
+						_texture.ClampRect = rect.ClampRect;	
+					}
+				}
 				else
-					_texture.ClampRect = null;
+				{
+					_texture.ClampRect = new Rect();
+				}
 				if (Color.A > 0.05f)
 				{
-					_texture.Angle = (Owner as UIElement).RectTransform.Angle;
+					var rect = Owner.GetComponent<RectTransform>();
+					if(rect != null)
+					{
+						_texture.Angle = rect.Angle;
+					}
+
 					_texture.Color = _color;
 					_texture.TargetCanvas = ParentCanvas;
 
@@ -114,7 +127,11 @@ namespace CryEngine.UI.Components
 			if (_source == null)
 				return new Rect();
 
-			var rt = (Owner as UIElement).RectTransform;
+			var rt = Owner.GetComponent<RectTransform>();
+			if(rt == null)
+			{
+				return new Rect();
+			}
 			var tl = rt.TopLeft;
 			if(KeepRatio)
 			{

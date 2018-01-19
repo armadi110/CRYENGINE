@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -46,8 +46,6 @@ public:
 #if defined(SUPPORT_DEVICE_INFO_USER_DISPLAY_OVERRIDES)
 	static float CV_r_overrideRefreshRate;
 	static int   CV_r_overrideScanlineOrder;
-	static int   CV_r_overrideDXGIOutput;
-	static int   CV_r_overrideDXGIOutputFS;
 #endif
 #if CRY_PLATFORM_WINDOWS
 	static int CV_r_FullscreenPreemption;
@@ -73,7 +71,6 @@ public:
 	static int   CV_r_minimizeLatency;
 	static int   CV_r_texatlassize;
 	static int   CV_r_DeferredShadingSortLights;
-	static int   CV_r_DeferredShadingAmbientSClear;
 	static int   CV_r_batchtype;
 #if CRY_PLATFORM_WINDOWS || CRY_PLATFORM_LINUX || CRY_PLATFORM_ANDROID || CRY_PLATFORM_APPLE || CRY_RENDERER_GNM
 	//HACK: make sure we can only use it for dx11
@@ -110,9 +107,7 @@ public:
 	static int   CV_r_dyntexatlasdyntexsrcsize;
 	static int   CV_r_texminanisotropy;
 	static int   CV_r_texmaxanisotropy;
-	static int   CV_r_texturesskiplowermips;
 	static int   CV_r_rendertargetpoolsize;
-	static int   CV_r_texturesstreamingsync;
 	static int   CV_r_watercausticsdeferred;
 	static int   CV_r_WaterUpdateThread;
 	static int   CV_r_ConditionalRendering;
@@ -134,6 +129,7 @@ public:
 	static int CV_r_shadersasyncactivation;
 	static int CV_r_shadersasyncmaxthreads;
 	static int CV_r_shaderscachedeterministic;
+	static int CV_r_shaderscacheinmemory;
 	static int CV_r_shaderssubmitrequestline;
 	static int CV_r_shaderslogcachemisses;
 	static int CV_r_shadersImport;
@@ -141,10 +137,7 @@ public:
 	static int CV_r_meshpoolsize;
 	static int CV_r_meshinstancepoolsize;
 	static int CV_r_multigpu;
-	static int CV_r_msaa;
-	static int CV_r_msaa_samples;
-	static int CV_r_msaa_quality;
-	static int CV_r_msaa_debug;
+
 	static int CV_r_nodrawnear;
 	static int CV_r_DrawNearShadows;
 	static int CV_r_scissor;
@@ -208,13 +201,13 @@ public:
 	DeclareStaticConstIntCVar(CV_r_statsMinDrawcalls, 0);
 	DeclareStaticConstIntCVar(CV_r_profiler, 0);
 	static float CV_r_profilerTargetFPS;
+	static float CV_r_profilerSmoothingWeight;
 	DeclareStaticConstIntCVar(CV_r_ShadowPoolMaxFrames, 30);
 	DeclareStaticConstIntCVar(CV_r_log, 0);
 	DeclareStaticConstIntCVar(CV_r_logTexStreaming, 0);
 	DeclareStaticConstIntCVar(CV_r_logShaders, 0);
 	static int CV_r_logVBuffers;
 	DeclareStaticConstIntCVar(CV_r_logVidMem, 0);
-	DeclareStaticConstIntCVar(CV_r_predicatedtiling, 0);
 	DeclareStaticConstIntCVar(CV_r_useESRAM, 1);
 	DeclareStaticConstIntCVar(CV_r_multithreaded, MULTITHREADED_DEFAULT_VAL);
 	DeclareStaticConstIntCVar(CV_r_multithreadedDrawing, -1);
@@ -224,7 +217,6 @@ public:
 	DeclareStaticConstIntCVar(CV_r_deferredDecalsDebug, 0);
 	DeclareStaticConstIntCVar(CV_r_DeferredShadingLBuffersFmt, 1);
 	DeclareStaticConstIntCVar(CV_r_DeferredShadingScissor, 1);
-	DeclareStaticConstIntCVar(CV_r_DeferredShadingDebug, 0);
 	DeclareStaticConstIntCVar(CV_r_DeferredShadingDebugGBuffer, 0);
 	DeclareStaticConstIntCVar(CV_r_DeferredShadingEnvProbes, 1);
 	DeclareStaticConstIntCVar(CV_r_DeferredShadingAmbient, 1);
@@ -338,7 +330,6 @@ public:
 	DeclareStaticConstIntCVar(CV_r_reloadshaders, 0);
 	DeclareStaticConstIntCVar(CV_r_detailtextures, 1);
 	DeclareStaticConstIntCVar(CV_r_texbindmode, 0);
-	DeclareStaticConstIntCVar(CV_r_nodrawshaders, 0);
 	DeclareStaticConstIntCVar(CV_r_shadersdebug, 0);
 	DeclareStaticConstIntCVar(CV_r_shadersignoreincludeschanging, 0);
 	DeclareStaticConstIntCVar(CV_r_shaderslazyunload, 0);
@@ -359,7 +350,6 @@ public:
 	DeclareStaticConstIntCVar(CV_r_TransparentPasses, 1);
 	DeclareStaticConstIntCVar(CV_r_SkipAlphaTested, 0);
 	DeclareStaticConstIntCVar(CV_r_TranspDepthFixup, 1);
-	DeclareStaticConstIntCVar(CV_r_SoftAlphaTest, 1);
 	DeclareStaticConstIntCVar(CV_r_usehwskinning, 1);
 	DeclareStaticConstIntCVar(CV_r_usemateriallayers, 2);
 	DeclareStaticConstIntCVar(CV_r_ParticlesSoftIsec, 1);
@@ -416,10 +406,8 @@ public:
 	static float CV_r_ZPrepassMaxDist;
 	static float CV_r_FlaresChromaShift;
 	static int   CV_r_FlaresIrisShaftMaxPolyNum;
+	static int   CV_r_FlaresEnableColorGrading;
 	static float CV_r_FlaresTessellationRatio;
-
-	static float CV_r_msaa_threshold_normal;
-	static float CV_r_msaa_threshold_depth;
 
 	static float CV_r_drawnearfov;
 	static float CV_r_measureoverdrawscale;
@@ -626,9 +614,7 @@ public:
 
 #if defined(CRY_PLATFORM_WINDOWS)
 	static int CV_d3d11_preventDriverThreading;
-	ICVar*     CV_r_FullscreenWindow;
 	ICVar*     CV_r_FullscreenNativeRes;
-	bool       m_fullscreenWindow;
 #endif
 
 	static int CV_r_VolumetricClouds;
@@ -652,7 +638,7 @@ public:
 	//////////////////////////////////////////////////////////////////////////
 	ICVar* m_CVWidth;
 	ICVar* m_CVHeight;
-	ICVar* m_CVFullScreen;
+	ICVar* m_CVWindowType;
 	ICVar* m_CVColorBits;
 	ICVar* m_CVDisplayInfo;
 	//////////////////////////////////////////////////////////////////////////

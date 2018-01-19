@@ -13,12 +13,56 @@ namespace CryEngine.Animations
 	[Flags]
 	public enum ResumeFlags
 	{
+		/// <summary>
+		/// Restart the animations when resuming.
+		/// </summary>
 		RestartAnimations              = 1,
+		/// <summary>
+		/// Preserves the progress for looping animations when restarting.
+		/// </summary>
 		RestoreLoopingAnimationTime    = 2,
+		/// <summary>
+		/// Preserves the progress for non-looping animations when restarting.
+		/// </summary>
 		RestoreNonLoopingAnimationTime = 4,
+		/// <summary>
+		/// Restarts the animations and preserves the progress for all animations.
+		/// </summary>
 		Default                        = RestartAnimations | RestoreLoopingAnimationTime | RestoreNonLoopingAnimationTime
 	}
-	
+
+	/// <summary>
+	/// Flags to set various options on the <see cref="ActionController"/>.
+	/// </summary>
+	[Flags]
+	public enum ActionControllerFlags
+	{
+		/// <summary>
+		/// Flag indicating that the <see cref="ActionController"/> is paused.
+		/// </summary>
+		PausedUpdate = EActionControllerFlags.AC_PausedUpdate,
+		/// <summary>
+		/// Flag indicating that the <see cref="ActionController"/> should draw debud information.
+		/// </summary>
+		DebugDraw = EActionControllerFlags.AC_DebugDraw,
+		/// <summary>
+		/// Flag indicating that the <see cref="ActionController"/> will dump it's state on update. Disables itself after dumping the state.
+		/// </summary>
+		DumpState = EActionControllerFlags.AC_DumpState,
+		/// <summary>
+		/// Flag indicating that the <see cref="ActionController"/> is currently being updated.
+		/// </summary>
+		IsInUpdate = EActionControllerFlags.AC_IsInUpdate,
+		/// <summary>
+		/// Flag indicating to not blend transitions in blend queries.
+		/// </summary>
+		NoTransitions = EActionControllerFlags.AC_NoTransitions
+	}
+
+	/// <summary>
+	/// The root object controlling mannequin for a character. It is configured using a controller definition (defining the fragmentIDs, scopes, scope contexts, etc). 
+	/// It schedules actions onto scopes and holds the global tagstate.
+	/// </summary>
 	public sealed class ActionController
 	{
 		/// <summary>
@@ -258,6 +302,16 @@ namespace CryEngine.Animations
 		public void Resume(ResumeFlags resumeFlags = ResumeFlags.Default)
 		{
 			NativeHandle.Resume((uint)resumeFlags);
+		}
+
+		/// <summary>
+		/// Used to set various options on the <see cref="ActionController"/>.
+		/// </summary>
+		/// <param name="flag">The option that needs to be set. Multiple flags can be combined.</param>
+		/// <param name="enable">If set to <c>true</c> enables the flag, otherwise the flag is disabled.</param>
+		public void SetFlag(ActionControllerFlags flag, bool enable)
+		{
+			NativeHandle.SetFlag((EActionControllerFlags)flag, enable);
 		}
 
 		/// <summary>

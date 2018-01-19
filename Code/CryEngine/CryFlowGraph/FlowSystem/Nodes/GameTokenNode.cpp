@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -19,7 +19,7 @@ IGameToken* GetGameToken(const char* callingNodeName, IFlowNode::SActivationInfo
 
 	IGameTokenSystem* pGTS = GetIGameTokenSystem();
 	IGameToken* pToken = pGTS->FindToken(tokenName.c_str());
-	if (!pToken)
+	if (!pToken && pActInfo->pGraph != nullptr)
 	{
 		// try graph token instead:
 		const char* name = pActInfo->pGraph->GetGlobalNameForGraphToken(tokenName.c_str());
@@ -36,7 +36,7 @@ IGameToken* GetGameToken(const char* callingNodeName, IFlowNode::SActivationInfo
 		CryWarning(VALIDATOR_MODULE_FLOWGRAPH, VALIDATOR_ERROR,
 			"[FG] Cannot find GameToken: '%s' Node: %s Graph: %s",
 			tokenName.c_str(),
-			callingNodeName, pActInfo->pGraph->GetDebugName()
+			callingNodeName, pActInfo->pGraph != nullptr ? pActInfo->pGraph->GetDebugName() : "Unknown!"
 		);
 	}
 

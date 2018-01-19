@@ -27,7 +27,7 @@ void SerializeParameterAudioTrigger(string& parameter, IArchive& ar)
 }
 
 void SerializeParameterString(string& parameter, IArchive& ar) { ar(parameter, "parameter", "^"); }
-void SerializeParameterEffect(string& parameter, IArchive& ar) { ar(Serialization::ParticleName(parameter), "parameter", "^"); }
+void SerializeParameterEffect(string& parameter, IArchive& ar) { ar(Serialization::ParticlePickerLegacy(parameter), "parameter", "^"); }
 void SerializeParameterNone(string& parameter, IArchive& ar)   { ar(parameter, "parameter", 0); }
 
 void SerializeParameterAnimFXEvent(string& parameter, IArchive& ar)
@@ -188,7 +188,7 @@ public:
 	CRYINTERFACE_BEGIN()
 	CRYINTERFACE_ADD(IAnimEventPlayer)
 	CRYINTERFACE_END()
-	CRYGENERATE_CLASS(AnimEventPlayer_AudioTranslationLayer, "AnimEventPlayer_AudioTranslationLayer", 0xa9fefa2dfe04dec4, 0xa6169d6e3ac635b0)
+	CRYGENERATE_CLASS_GUID(AnimEventPlayer_AudioTranslationLayer, "AnimEventPlayer_AudioTranslationLayer", "a9fefa2d-fe04-dec4-a616-9d6e3ac635b0"_cry_guid)
 
 	AnimEventPlayer_AudioTranslationLayer();
 	virtual ~AnimEventPlayer_AudioTranslationLayer();
@@ -257,11 +257,11 @@ public:
 		if (!m_audioEnabled)
 			return;
 
-		if (m_pIListener != nullptr)
+		if (m_pIAudioListener != nullptr)
 		{
 			Matrix34 cameraWithOffset = cameraMatrix;
 			cameraWithOffset.SetTranslation(cameraMatrix.GetTranslation());
-			m_pIListener->SetTransformation(cameraWithOffset);
+			m_pIAudioListener->SetTransformation(cameraWithOffset);
 		}
 
 		if (m_pIAudioObject != nullptr)
@@ -273,15 +273,14 @@ public:
 
 	void EnableAudio(bool enableAudio) override
 	{
-		if (enableAudio && !m_pIListener)
+		if (enableAudio && m_pIAudioListener == nullptr)
 		{
-			if (!m_pIListener)
-				m_pIListener = gEnv->pAudioSystem->CreateListener();
+			m_pIAudioListener = gEnv->pAudioSystem->CreateListener();
 		}
-		else if (m_pIListener != nullptr)
+		else if (m_pIAudioListener != nullptr)
 		{
-			gEnv->pAudioSystem->ReleaseListener(m_pIListener);
-			m_pIListener = nullptr;
+			gEnv->pAudioSystem->ReleaseListener(m_pIAudioListener);
+			m_pIAudioListener = nullptr;
 		}
 
 		m_audioEnabled = enableAudio;
@@ -329,20 +328,20 @@ public:
 
 	void SetRTPC(const char* name, float value)
 	{
-		CryAudio::ControlId const parameterId = CryAudio::StringToId_RunTime(name);
+		CryAudio::ControlId const parameterId = CryAudio::StringToId(name);
 		m_pIAudioObject->SetParameter(parameterId, value);
 	}
 
 	void SetSwitch(const char* name, const char* state)
 	{
-		CryAudio::ControlId const switchId = CryAudio::StringToId_RunTime(name);
-		CryAudio::SwitchStateId const stateId = CryAudio::StringToId_RunTime(state);
+		CryAudio::ControlId const switchId = CryAudio::StringToId(name);
+		CryAudio::SwitchStateId const stateId = CryAudio::StringToId(state);
 		m_pIAudioObject->SetSwitchState(switchId, stateId);
 	}
 
 	void PlayTrigger(const char* trigger, Vec3 const& pos)
 	{
-		CryAudio::ControlId const triggerId = CryAudio::StringToId_RunTime(trigger);
+		CryAudio::ControlId const triggerId = CryAudio::StringToId(trigger);
 		m_pIAudioObject->SetTransformation(pos);
 		m_pIAudioObject->ExecuteTrigger(triggerId);
 	}
@@ -364,7 +363,7 @@ private:
 
 	bool                          m_audioEnabled;
 	CryAudio::IObject*            m_pIAudioObject;
-	CryAudio::IListener*          m_pIListener;
+	CryAudio::IListener*          m_pIAudioListener;
 	string                        m_parameter;
 	string                        m_boneToAttachTo;
 
@@ -373,7 +372,8 @@ private:
 
 AnimEventPlayer_AudioTranslationLayer::AnimEventPlayer_AudioTranslationLayer()
 	: m_audioEnabled(false)
-	, m_pIAudioObject()
+	, m_pIAudioObject(nullptr)
+	, m_pIAudioListener(nullptr)
 {
 }
 
@@ -385,10 +385,10 @@ AnimEventPlayer_AudioTranslationLayer::~AnimEventPlayer_AudioTranslationLayer()
 		m_pIAudioObject = nullptr;
 	}
 
-	if (m_pIListener != nullptr)
+	if (m_pIAudioListener != nullptr)
 	{
-		gEnv->pAudioSystem->ReleaseListener(m_pIListener);
-		m_pIListener = nullptr;
+		gEnv->pAudioSystem->ReleaseListener(m_pIAudioListener);
+		m_pIAudioListener = nullptr;
 	}
 }
 
@@ -414,7 +414,7 @@ public:
 	CRYINTERFACE_BEGIN()
 	CRYINTERFACE_ADD(IAnimEventPlayer)
 	CRYINTERFACE_END()
-	CRYGENERATE_CLASS(AnimEventPlayerMaterialEffects, "AnimEventPlayer_MaterialEffects", 0xa9fffa2dae34d6c4, 0xa6969d6e3ac732b0)
+	CRYGENERATE_CLASS_GUID(AnimEventPlayerMaterialEffects, "AnimEventPlayer_MaterialEffects", "a9fffa2d-ae34-d6c4-a696-9d6e3ac732b0"_cry_guid)
 
 	AnimEventPlayerMaterialEffects();
 	virtual ~AnimEventPlayerMaterialEffects() {}
@@ -587,8 +587,7 @@ class AnimEventPlayerAnimFXEvents : public IAnimEventPlayer
 
 				Serialization::StringListValue eventListChoice(soundFXLibsList, index);
 
-				ar.doc("These are the defined anim fx libs coming from the game.dll");
-				ar(eventListChoice, "animFxLib", "^Animation FX Lib");
+				ar(eventListChoice, "animFxLib", "^");
 
 				if (ISurfaceTypeEnumerator* pSurfaceTypeEnum = gEnv->p3DEngine->GetMaterialManager()->GetSurfaceTypeManager()->GetEnumerator())
 				{
@@ -619,7 +618,7 @@ public:
 	CRYINTERFACE_BEGIN()
 	CRYINTERFACE_ADD(IAnimEventPlayer)
 	CRYINTERFACE_END()
-	CRYGENERATE_CLASS(AnimEventPlayerAnimFXEvents, "AnimEventPlayer_AnimFXEvents", 0x9688f29304f3400c, 0x886c2d31c5199481)
+	CRYGENERATE_CLASS_GUID(AnimEventPlayerAnimFXEvents, "AnimEventPlayer_AnimFXEvents", "9688f293-04f3-400c-886c-2d31c5199481"_cry_guid)
 
 	AnimEventPlayerAnimFXEvents();
 	virtual ~AnimEventPlayerAnimFXEvents() {}
@@ -639,7 +638,8 @@ public:
 
 	void Serialize(Serialization::IArchive& ar) override
 	{
-		ar(m_animFxSources, "animFxSources", "Anim FX libs");
+		ar(m_animFxSources, "animFxSources", gEnv->pMaterialEffects->GetAnimFXEvents() ? "Libraries" : "!Libraries");
+		ar.doc("AnimFX libraries provided by the game project.");
 	}
 
 	const char* SerializeCustomParameter(const char* parameterValue, Serialization::IArchive& ar, int customTypeIndex) override
@@ -773,7 +773,7 @@ public:
 	CRYINTERFACE_BEGIN()
 	CRYINTERFACE_ADD(IAnimEventPlayer)
 	CRYINTERFACE_END()
-	CRYGENERATE_CLASS(AnimEventPlayer_Particles, "AnimEventPlayer_Particles", 0xa9fef72df304dec4, 0xa9162a6e4ac635b0)
+	CRYGENERATE_CLASS_GUID(AnimEventPlayer_Particles, "AnimEventPlayer_Particles", "a9fef72d-f304-dec4-a916-2a6e4ac635b0"_cry_guid)
 
 	AnimEventPlayer_Particles();
 	virtual ~AnimEventPlayer_Particles() {}

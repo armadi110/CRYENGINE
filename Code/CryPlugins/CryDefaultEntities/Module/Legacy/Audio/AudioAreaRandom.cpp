@@ -27,7 +27,7 @@ CAudioAreaRandomRegistrator g_audioAreaRandomRegistrator;
 
 CRYREGISTER_CLASS(CAudioAreaRandom);
 
-void CAudioAreaRandom::ProcessEvent(SEntityEvent& event)
+void CAudioAreaRandom::ProcessEvent(const SEntityEvent& event)
 {
 	if (gEnv->IsDedicated())
 		return;
@@ -150,9 +150,9 @@ void CAudioAreaRandom::OnResetState()
 	auto& audioEntityComponent = *(entity.GetOrCreateComponent<IEntityAudioComponent>());
 
 	// Get properties
-	m_playTriggerId = CryAudio::StringToId_RunTime(m_playTriggerName.c_str());
-	m_stopTriggerId = CryAudio::StringToId_RunTime(m_stopTriggerName.c_str());
-	m_parameterId = CryAudio::StringToId_RunTime(m_parameterName.c_str());
+	m_playTriggerId = CryAudio::StringToId(m_playTriggerName.c_str());
+	m_stopTriggerId = CryAudio::StringToId(m_stopTriggerName.c_str());
+	m_parameterId = CryAudio::StringToId(m_parameterName.c_str());
 
 	// Update values
 	audioEntityComponent.SetFadeDistance(m_parameterDistance);

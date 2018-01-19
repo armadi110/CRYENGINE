@@ -1,8 +1,7 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
-#include "Common.h"
 #include <ATLEntityData.h>
 #include <IAudioImpl.h>
 #include <PoolObject.h>
@@ -40,16 +39,14 @@ public:
 	virtual ERequestStatus SetObstructionOcclusion(float const obstruction, float const occlusion) override;
 	virtual ERequestStatus ExecuteTrigger(ITrigger const* const pITrigger, IEvent* const pIEvent) override;
 	virtual ERequestStatus StopAllTriggers() override;
-	virtual ERequestStatus PlayFile(IStandaloneFile* const pIStandaloneFile) override { return ERequestStatus::Success; }
-	virtual ERequestStatus StopFile(IStandaloneFile* const pIStandaloneFile) override { return ERequestStatus::Success; }
+	virtual ERequestStatus PlayFile(IStandaloneFile* const pIStandaloneFile) override { return ERequestStatus::Failure; }
+	virtual ERequestStatus StopFile(IStandaloneFile* const pIStandaloneFile) override { return ERequestStatus::Failure; }
 	virtual ERequestStatus SetName(char const* const szName) override;
 	// ~CryAudio::Impl::IObject
 
-	AkGameObjectID const  m_id;
-	bool                  m_bNeedsToUpdateEnvironments;
-	EnvironmentImplMap    m_environemntImplAmounts;
-
-	static AkGameObjectID s_dummyGameObjectId;
+	AkGameObjectID const m_id;
+	bool                 m_bNeedsToUpdateEnvironments;
+	EnvironmentImplMap   m_environmentImplAmounts;
 
 private:
 
@@ -60,7 +57,7 @@ class CListener final : public IListener
 {
 public:
 
-	explicit CListener(AkUniqueID const id)
+	explicit CListener(AkGameObjectID const id)
 		: m_id(id)
 	{}
 
@@ -73,7 +70,7 @@ public:
 	virtual ERequestStatus Set3DAttributes(SObject3DAttributes const& attributes) override;
 	// ~CryAudio::Impl::IListener
 
-	AkUniqueID const m_id;
+	AkGameObjectID const m_id;
 };
 
 class CTrigger final : public ITrigger

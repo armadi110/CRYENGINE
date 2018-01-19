@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 //
 ////////////////////////////////////////////////////////////////////////////
@@ -13,6 +13,7 @@ struct IMannequinWriter
 {
 	virtual ~IMannequinWriter() {}
 	virtual void SaveFile(const char* szFilename, XmlNodeRef xmlNode, EFileEntryType fileEntryType) = 0;
+	virtual void WriteModifiedFiles() = 0;
 };
 
 struct IMannequinEditorListener

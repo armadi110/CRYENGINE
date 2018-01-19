@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioListenerManager.h"
@@ -33,9 +33,19 @@ void CAudioListenerManager::Init(Impl::IImpl* const pIImpl)
 	{
 		for (auto const pListener : m_activeListeners)
 		{
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+			pListener->m_pImplData = m_pIImpl->ConstructListener(pListener->m_name.c_str());
+#else
 			pListener->m_pImplData = m_pIImpl->ConstructListener();
+#endif  // INCLUDE_AUDIO_PRODUCTION_CODE
+
 			pListener->HandleSetTransformation(pListener->Get3DAttributes().transformation);
 		}
+	}
+	else
+	{
+		// Create a default listener for early functionality.
+		CreateListener("DefaultListener");
 	}
 }
 
@@ -54,22 +64,37 @@ void CAudioListenerManager::Release()
 //////////////////////////////////////////////////////////////////////////
 void CAudioListenerManager::Update(float const deltaTime)
 {
-	for (auto const pListener : m_activeListeners)
+	if (deltaTime > 0.0f)
 	{
-		pListener->Update();
+		for (auto const pListener : m_activeListeners)
+		{
+			pListener->Update(deltaTime);
+		}
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
-CATLListener* CAudioListenerManager::CreateListener()
+CATLListener* CAudioListenerManager::CreateListener(char const* const szName /*= nullptr*/)
 {
 	if (!m_activeListeners.empty())
 	{
 		// Currently only one listener supported!
-		return m_activeListeners.front();
+		CATLListener* const pListener = m_activeListeners.front();
+
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+		// Update name, TODO: needs reconstruction with the middleware in order to update it as well.
+		pListener->m_name = szName;
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
+
+		return pListener;
 	}
 
-	CATLListener* const pListener = new CATLListener(m_pIImpl->ConstructListener());
+	CATLListener* const pListener = new CATLListener(m_pIImpl->ConstructListener(szName));
+
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+	pListener->m_name = szName;
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
+
 	m_activeListeners.push_back(pListener);
 	return pListener;
 }
@@ -111,4 +136,18 @@ Impl::SObject3DAttributes const& CAudioListenerManager::GetActiveListenerAttribu
 
 	return Impl::SObject3DAttributes::GetEmptyObject();
 }
-} // namespace CryAudio
+
+#if defined(INCLUDE_AUDIO_PRODUCTION_CODE)
+//////////////////////////////////////////////////////////////////////////
+char const* CAudioListenerManager::GetActiveListenerName() const
+{
+	for (auto const pListener : m_activeListeners)
+	{
+		// Only one listener supported currently!
+		return pListener->m_name.c_str();
+	}
+
+	return nullptr;
+}
+#endif // INCLUDE_AUDIO_PRODUCTION_CODE
+}      // namespace CryAudio

@@ -32,35 +32,14 @@ namespace Cry
 			}
 		}
 
-
-		void CPlaneConstraintComponent::ReflectType(Schematyc::CTypeDesc<CPlaneConstraintComponent>& desc)
-		{
-			desc.SetGUID(CPlaneConstraintComponent::IID());
-			desc.SetEditorCategory("Physics Constraints");
-			desc.SetLabel("Plane Constraint");
-			desc.SetDescription("Constrains the physical object to a plan");
-			//desc.SetIcon("icons:ObjectTypes/object.ico");
-			desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach });
-
-			desc.AddMember(&CPlaneConstraintComponent::m_bActive, 'actv', "Active", "Active", "Whether or not the constraint should be added on component reset", true);
-			desc.AddMember(&CPlaneConstraintComponent::m_axis, 'axis', "Axis", "Axis", "Axis around which the physical entity is constrained", Vec3(0.f, 0.f, 1.f));
-
-			desc.AddMember(&CPlaneConstraintComponent::m_limitMin, 'lmin', "LimitMinX", "Minimum Limit X", nullptr, 0.f);
-			desc.AddMember(&CPlaneConstraintComponent::m_limitMax, 'lmax', "LimitMaxX", "Maximum Limit X", nullptr, 1.f);
-			desc.AddMember(&CPlaneConstraintComponent::m_limitMinY, 'lmiy', "LimitMinY", "Minimum Limit Y", nullptr, 0.f);
-			desc.AddMember(&CPlaneConstraintComponent::m_limitMaxY, 'lmay', "LimitMaxY", "Minimum Limit Y", nullptr, 1.f);
-	
-			desc.AddMember(&CPlaneConstraintComponent::m_damping, 'damp', "Damping", "Damping", nullptr, 0.f);
-		}
-
-		CPlaneConstraintComponent::~CPlaneConstraintComponent()
-		{
-			Remove();
-		}
-
 		void CPlaneConstraintComponent::Initialize()
 		{
 			Reset();
+		}
+
+		void CPlaneConstraintComponent::OnShutDown()
+		{
+			Remove();
 		}
 
 		void CPlaneConstraintComponent::Reset()
@@ -75,7 +54,7 @@ namespace Cry
 			}
 		}
 
-		void CPlaneConstraintComponent::ProcessEvent(SEntityEvent& event)
+		void CPlaneConstraintComponent::ProcessEvent(const SEntityEvent& event)
 		{
 			if (event.event == ENTITY_EVENT_START_GAME)
 			{

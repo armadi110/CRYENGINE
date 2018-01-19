@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "SpeakerManager.h"
@@ -70,11 +70,11 @@ void CSpeakerManager::Init()
 
 	if (m_pDrsDialogDialogRunningEntityParameterName)
 	{
-		m_audioParameterIdLocal = CryAudio::StringToId_RunTime(m_pDrsDialogDialogRunningEntityParameterName->GetString());
+		m_audioParameterIdLocal = CryAudio::StringToId(m_pDrsDialogDialogRunningEntityParameterName->GetString());
 	}
 	if (m_pDrsDialogDialogRunningGlobalParameterName)
 	{
-		m_audioParameterIdGlobal = CryAudio::StringToId_RunTime(m_pDrsDialogDialogRunningGlobalParameterName->GetString());
+		m_audioParameterIdGlobal = CryAudio::StringToId(m_pDrsDialogDialogRunningGlobalParameterName->GetString());
 	}
 }
 
@@ -346,7 +346,7 @@ DRS::ISpeakerManager::IListener::eLineEvent CSpeakerManager::StartSpeaking(DRS::
 				{
 					//soft interruption: we execute the stop trigger on the old line. That trigger should cause the old line to end after a while. And only then, do we start the playback of the next line
 					pLine = (pLineSet) ? pLineSet->PickLine() : nullptr;
-					CryAudio::SRequestUserData const userData(CryAudio::ERequestFlags::DoneCallbackOnExternalThread, this, (void* const)(pLine), (void* const)(activateSpeaker.pActor));
+					CryAudio::SRequestUserData const userData(CryAudio::ERequestFlags::DoneCallbackOnExternalThread | CryAudio::ERequestFlags::CallbackOnExternalOrCallingThread, this, (void* const)(pLine), (void* const)(activateSpeaker.pActor));
 					if (!pEntityAudioProxy->ExecuteTrigger(activateSpeaker.stopTriggerID, activateSpeaker.speechAuxObjectId, userData))
 					{
 						//failed to start the stop trigger, therefore we fallback to hard-interruption by stopping the start trigger
@@ -715,13 +715,13 @@ void CSpeakerManager::ExecuteStartSpeaking(SSpeakInfo* pSpeakerInfoToUse)
 		pSpeakerInfoToUse->text = pSpeakerInfoToUse->pPickedLine->GetText();
 		if (!pSpeakerInfoToUse->pPickedLine->GetStartAudioTrigger().empty())
 		{
-			pSpeakerInfoToUse->startTriggerID = CryAudio::StringToId_RunTime(pSpeakerInfoToUse->pPickedLine->GetStartAudioTrigger().c_str());
+			pSpeakerInfoToUse->startTriggerID = CryAudio::StringToId(pSpeakerInfoToUse->pPickedLine->GetStartAudioTrigger().c_str());
 		}
 
 		pSpeakerInfoToUse->standaloneFile = pSpeakerInfoToUse->pPickedLine->GetStandaloneFile();
 		if (!pSpeakerInfoToUse->pPickedLine->GetEndAudioTrigger().empty())
 		{
-			pSpeakerInfoToUse->stopTriggerID = CryAudio::StringToId_RunTime(pSpeakerInfoToUse->pPickedLine->GetEndAudioTrigger().c_str());
+			pSpeakerInfoToUse->stopTriggerID = CryAudio::StringToId(pSpeakerInfoToUse->pPickedLine->GetEndAudioTrigger().c_str());
 		}
 	}
 	else
@@ -764,7 +764,7 @@ void CSpeakerManager::ExecuteStartSpeaking(SSpeakInfo* pSpeakerInfoToUse)
 				pSpeakerInfoToUse->speechAuxObjectId = CryAudio::DefaultAuxObjectId;
 		}
 
-		CryAudio::SRequestUserData const userData(CryAudio::ERequestFlags::DoneCallbackOnExternalThread, this, (void* const)(pSpeakerInfoToUse->pPickedLine), (void* const)(pSpeakerInfoToUse->pActor));
+		CryAudio::SRequestUserData const userData(CryAudio::ERequestFlags::DoneCallbackOnExternalThread | CryAudio::ERequestFlags::CallbackOnExternalOrCallingThread, this, (void* const)(pSpeakerInfoToUse->pPickedLine), (void* const)(pSpeakerInfoToUse->pActor));
 
 		bool bAudioPlaybackStarted = true;
 

@@ -39,8 +39,12 @@ void CMonoObject::ReleaseGCHandle()
 
 std::shared_ptr<CMonoString> CMonoObject::ToString() const
 {
-	MonoInternals::MonoObject* pException = nullptr;
+	if (MonoInternals::mono_object_get_class(m_pObject) == MonoInternals::mono_get_string_class())
+	{
+		return CMonoDomain::CreateString(reinterpret_cast<MonoInternals::MonoString*>(m_pObject));
+	}
 
+	MonoInternals::MonoObject* pException = nullptr;
 	MonoInternals::MonoString* pStr = MonoInternals::mono_object_to_string(m_pObject, &pException);
 	if (pException != nullptr)
 	{
@@ -80,20 +84,51 @@ CMonoClass* CMonoObject::GetClass()
 		MonoInternals::MonoImage* pImage = MonoInternals::mono_class_get_image(pClass);
 		MonoInternals::MonoAssembly* pAssembly = MonoInternals::mono_image_get_assembly(pImage);
 
-		CMonoLibrary* pLibrary = GetMonoRuntime()->GetActiveDomain()->GetLibraryFromMonoAssembly(pAssembly);
-
-		m_pClass = pLibrary->GetClassFromMonoClass(pClass);
+		CMonoLibrary& library = GetMonoRuntime()->GetActiveDomain()->GetLibraryFromMonoAssembly(pAssembly);
+		m_pClass = library.GetClassFromMonoClass(pClass);
 	}
 
 	return m_pClass.get();
 }
 
-void CMonoObject::CopyFrom(CMonoObject& source)
+void CMonoObject::CopyFrom(const CMonoObject& source)
 {
-	MonoInternals::mono_gc_wbarrier_object_copy(m_pObject, source.GetManagedObject());
+	CopyFrom(source.GetManagedObject());
+}
+
+void CMonoObject::CopyFrom(MonoInternals::MonoObject* pSource)
+{
+	if (GetClass()->IsValueType())
+	{
+		MonoInternals::mono_gc_wbarrier_object_copy(m_pObject, pSource);
+	}
+	else
+	{
+		MonoInternals::mono_gc_wbarrier_generic_store(&m_pObject, pSource);
+	}
+}
+
+std::shared_ptr<CMonoObject> CMonoObject::Clone()
+{
+	std::shared_ptr<CMonoObject> pNewObject = GetClass()->CreateUninitializedInstance();
+	pNewObject->CopyFrom(*this);
+	return pNewObject;
 }
 
 void* CMonoObject::UnboxObject()
 {
 	return mono_object_unbox(m_pObject);
+}
+
+bool CMonoObject::ReferenceEquals(const CMonoObject& other) const
+{
+	return ReferenceEquals(other.GetManagedObject());
+}
+
+bool CMonoObject::ReferenceEquals(MonoInternals::MonoObject* pOtherObject) const
+{
+	MonoInternals::MonoException* pException = nullptr;
+	MonoInternals::MonoBoolean isEqual = const_cast<CMonoObject*>(this)->GetClass()->GetAssembly()->GetDomain()->GetReferenceEqualsMethod()(m_pObject, pOtherObject, &pException);
+
+	return isEqual != 0 && pException == nullptr;
 }

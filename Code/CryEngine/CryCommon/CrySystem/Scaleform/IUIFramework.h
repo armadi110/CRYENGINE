@@ -1,7 +1,6 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 #pragma once
 
-#include <CryGame/IGameFramework.h>
 #include <CrySystem/Scaleform/IFlashPlayer.h>
 
 struct IUILayout;
@@ -9,6 +8,7 @@ struct SUILayoutEvent;
 struct IUILayoutListener;
 struct IUIObject;
 struct IInworldUI;
+struct IGameFramework;
 
 #define DEFAULT_LAYOUT_ID 0
 #define INVALID_LAYOUT_ID 0xFFFFFFFF
@@ -38,7 +38,7 @@ namespace UIFramework
 {
 struct IUIFramework : public ICryUnknown
 {
-	CRYINTERFACE_DECLARE(IUIFramework, 0x89F04B15741A40DE, 0x94AD79A8AC3B7419)
+	CRYINTERFACE_DECLARE_GUID(IUIFramework, "89f04b15-741a-40de-94ad-79a8ac3b7419"_cry_guid)
 
 	virtual IUILayout*     GetLayout(const char* layoutName, const uint32 layoutId = DEFAULT_LAYOUT_ID) = 0;
 	virtual IUILayoutBase* GetLayoutBase(const char* layoutName, const uint32 layoutId = DEFAULT_LAYOUT_ID) = 0;

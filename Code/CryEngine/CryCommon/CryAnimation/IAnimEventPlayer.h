@@ -1,4 +1,6 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
+
+//! \cond INTERNAL
 
 #pragma once
 
@@ -30,7 +32,7 @@ struct SCustomAnimEventType
 //! Allows to preview different kinds of animevents within Character Tool.
 struct IAnimEventPlayer : public ICryUnknown
 {
-	CRYINTERFACE_DECLARE(IAnimEventPlayer, 0x2e2f7475542447f3, 0xb6729edb4a3af495);
+	CRYINTERFACE_DECLARE_GUID(IAnimEventPlayer, "2e2f7475-5424-47f3-b672-9edb4a3af495"_cry_guid);
 
 	//! Can be used to customize parameter type for editing.
 	virtual bool Play(ICharacterInstance* character, const AnimEventInstance& animEvent) = 0;
@@ -56,9 +58,10 @@ inline bool Serialize(Serialization::IArchive& ar, IAnimEventPlayerPtr& pointer,
 	Serialization::CryExtensionPointer<IAnimEventPlayer, IAnimEventPlayer> serializer(pointer);
 	return ar(serializer, name, label);
 }
+//! \endcond
 
 // Game-specific anim event player, will be automatically found by the character tool
 struct IAnimEventPlayerGame : public IAnimEventPlayer
 {
-	CRYINTERFACE_DECLARE(IAnimEventPlayerGame, 0x3218AD9C82374C5F, 0x8B6487BDEDAF1C4A);
+	CRYINTERFACE_DECLARE_GUID(IAnimEventPlayerGame, "3218ad9c-8237-4c5f-8b64-87bdedaf1c4a"_cry_guid);
 };

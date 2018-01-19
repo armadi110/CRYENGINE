@@ -147,7 +147,7 @@ static void ReflectType(Schematyc::CTypeDesc<SRenderParameters>& desc)
 	desc.AddMember(&SRenderParameters::m_bIgnoreVisAreas, 'visa', "IgnoreVisArea", "Ignore Visareas", "Whether this component will ignore vis areas", false);
 	desc.AddMember(&SRenderParameters::m_viewDistanceRatio, 'view', "ViewDistRatio", "View Distance", "View distance from 0 to 100, 100 being always visible", 100);
 	desc.AddMember(&SRenderParameters::m_lodDistance, 'lodd', "LODDistance", "LOD Distance", "Level of Detail distance from 0 to 100, 100 being always best LOD", 100);
-	desc.AddMember(&SRenderParameters::m_giMode, 'gimo', "GIMode", "Global Illumination", "Type of SVOGI to use", EMeshGIMode::Disabled);
+	desc.AddMember(&SRenderParameters::m_giMode, 'gimo', "GIMode", "GI and Usage Mode", "The way object is used by GI and by some other systems", EMeshGIMode::Disabled);
 }
 
 // Base implementation for our physics mesh components
@@ -156,11 +156,11 @@ class CBaseMeshComponent
 {
 protected:
 	// IEntityComponent
-	virtual void ProcessEvent(SEntityEvent& event) override
+	virtual void ProcessEvent(const SEntityEvent& event) override
 	{
-		if (event.event == ENTITY_EVENT_PHYSICAL_TYPE_CHANGED)
+		if (event.event == ENTITY_EVENT_PHYSICAL_TYPE_CHANGED || event.event == ENTITY_EVENT_SLOT_CHANGED)
 		{
-			Physicalize();
+			ApplyBaseMeshProperties();
 		}
 		else
 		{
@@ -183,14 +183,14 @@ protected:
 
 				m_pEntity->UpdateComponentEventMask(this);
 
-				Physicalize();
+				ApplyBaseMeshProperties();
 			}
 		}
 	}
 
 	virtual uint64 GetEventMask() const override
 	{
-		uint64 bitFlags = BIT64(ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED);
+		uint64 bitFlags = BIT64(ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED) | BIT64(ENTITY_EVENT_SLOT_CHANGED);
 
 		if (((uint32)m_type & (uint32)EMeshType::Collider) != 0)
 		{
@@ -201,7 +201,7 @@ protected:
 	}
 	// ~IEntityComponent
 
-	void Physicalize()
+	void ApplyBaseMeshProperties()
 	{
 		if (GetEntitySlotId() != EmptySlotId)
 		{
@@ -271,8 +271,13 @@ protected:
 	}
 
 public:
-	virtual void        SetType(EMeshType type) { m_type = type; }
-	EMeshType           GetType() const { return m_type; }
+	virtual void SetType(EMeshType type)
+	{
+		m_type = type;
+
+		ApplyBaseMeshProperties();
+	}
+	EMeshType GetType() const { return m_type; }
 
 	virtual SPhysicsParameters&       GetPhysicsParameters()       { return m_physics; }
 	const SPhysicsParameters&         GetPhysicsParameters() const { return m_physics; }

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -8,12 +8,10 @@
 #include <CryCore/StlUtils.h>
 #include <CryCore/Project/ProjectDefines.h>
 #include <CrySystem/ISystem.h>
-#include <AudioLogger.h>
 #include <fmod_studio.hpp>
 
 #if !defined(_RELEASE)
 	#define INCLUDE_FMOD_IMPL_PRODUCTION_CODE
-	#define ENABLE_AUDIO_LOGGING
 #endif // _RELEASE
 
 #if CRY_PLATFORM_DURANGO
@@ -28,8 +26,6 @@ namespace Impl
 {
 namespace Fmod
 {
-extern CLogger g_implLogger;
-
 #if defined(PROVIDE_FMOD_IMPL_SECONDARY_POOL)
 typedef NCryPoolAlloc::CThreadSafe<NCryPoolAlloc::CBestFit<NCryPoolAlloc::CReferenced<NCryPoolAlloc::CMemoryDynamic, 4* 1024, true>, NCryPoolAlloc::CListItemReference>> MemoryPoolReferenced;
 

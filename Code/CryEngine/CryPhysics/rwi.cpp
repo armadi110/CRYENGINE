@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -476,7 +476,7 @@ int CPhysicalWorld::RayWorldIntersection(const IPhysicalWorld::SRWIParams &rp, c
 	Vec3 dir = rp.dir;
 	int objtypes = rp.objtypes;
 
-	FUNCTION_PROFILER( GetISystem(),PROFILE_PHYSICS );
+	CRY_PROFILE_FUNCTION(PROFILE_PHYSICS );
 
 	IF (rp.dir.len2()<=0, 0)
 		return 0;

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CrySystem/ISystem.h>                      // ISystem
@@ -230,7 +230,7 @@ void CTestSystemLegacy::BeforeRender()
 
 		IEntitySystem* pEntitySystem = gEnv->pEntitySystem;
 		IEntityClass* pPrecacheCameraClass = pEntitySystem->GetClassRegistry()->FindClass("PrecacheCamera");
-		static IEntityIt* pEntityIter = 0;
+		static IEntityItPtr pEntityIter = 0;
 
 		if (m_iRenderPause != 0)
 			--m_iRenderPause;
@@ -261,7 +261,6 @@ void CTestSystemLegacy::BeforeRender()
 		if (!pEntity)
 		{
 			m_sParameter = "";                                          // stop processing
-			SAFE_RELEASE(pEntityIter);
 			m_iRenderPause = 0;
 			return;
 		}

@@ -32,32 +32,14 @@ namespace Cry
 			}
 		}
 
-		void CLineConstraintComponent::ReflectType(Schematyc::CTypeDesc<CLineConstraintComponent>& desc)
-		{
-			desc.SetGUID(CLineConstraintComponent::IID());
-			desc.SetEditorCategory("Physics Constraints");
-			desc.SetLabel("Line Constraint");
-			desc.SetDescription("Constrains the physical object to a line");
-			//desc.SetIcon("icons:ObjectTypes/object.ico");
-			desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach });
-
-			desc.AddMember(&CLineConstraintComponent::m_bActive, 'actv', "Active", "Active", "Whether or not the constraint should be added on component reset", true);
-			desc.AddMember(&CLineConstraintComponent::m_bLockRotation, 'loro', "LockRot", "Lock Rotation", nullptr, true);
-			desc.AddMember(&CLineConstraintComponent::m_axis, 'axis', "Axis", "Axis", "Axis around which the physical entity is constrained", Vec3(0.f, 0.f, 1.f));
-
-			desc.AddMember(&CLineConstraintComponent::m_limitMin, 'lmin', "LimitMin", "Minimum Limit", nullptr, 0.f);
-			desc.AddMember(&CLineConstraintComponent::m_limitMax, 'lmax', "LimitMax", "Maximum Limit", nullptr, 1.f);
-			desc.AddMember(&CLineConstraintComponent::m_damping, 'damp', "Damping", "Damping", nullptr, 0.f);
-		}
-
-		CLineConstraintComponent::~CLineConstraintComponent()
-		{
-			Remove();
-		}
-
 		void CLineConstraintComponent::Initialize()
 		{
 			Reset();
+		}
+
+		void CLineConstraintComponent::OnShutDown()
+		{
+			Remove();
 		}
 
 		void CLineConstraintComponent::Reset()
@@ -72,7 +54,7 @@ namespace Cry
 			}
 		}
 
-		void CLineConstraintComponent::ProcessEvent(SEntityEvent& event)
+		void CLineConstraintComponent::ProcessEvent(const SEntityEvent& event)
 		{
 			if (event.event == ENTITY_EVENT_START_GAME)
 			{

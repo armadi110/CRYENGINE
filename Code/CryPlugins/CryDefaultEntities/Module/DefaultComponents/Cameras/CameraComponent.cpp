@@ -1,12 +1,12 @@
 #include "StdAfx.h"
 #include "CameraComponent.h"
 
+#include <array>
+
 namespace Cry
 {
 	namespace DefaultComponents
 	{
-		CCameraComponent* CCameraComponent::s_pActiveCamera = nullptr;
-
 		void CCameraComponent::Register(Schematyc::CEnvRegistrationScope& componentScope)
 		{
 			// Functions
@@ -23,124 +23,45 @@ namespace Cry
 				pFunction->BindOutput(0, 'iact', "IsActive");
 				componentScope.Register(pFunction);
 			}
-			{
-				auto pFunction = SCHEMATYC_MAKE_ENV_FUNCTION(&CCameraComponent::OverrideAudioListenerTransform, "{46FA7961-95AF-4BF3-B7E8-A67ECE233EE3}"_cry_guid, "OverrideAudioListenerTransform");
-				pFunction->SetDescription("Overrides the transformation of this camera's audio listener. Using this function will set Automatic Audio Listener to false, meaning that the audio listener will stay at the overridden position until this function is called again.");
-				pFunction->SetFlags(Schematyc::EEnvFunctionFlags::Construction);
-				pFunction->BindInput(1, 'tran', "Transform");
-				componentScope.Register(pFunction);
-			}
 		}
 
-		void CCameraComponent::ReflectType(Schematyc::CTypeDesc<CCameraComponent>& desc)
+#ifndef RELEASE
+		void CCameraComponent::Render(const IEntity& entity, const IEntityComponent& component, SEntityPreviewContext &context) const
 		{
-			desc.SetGUID(CCameraComponent::IID());
-			desc.SetEditorCategory("Cameras");
-			desc.SetLabel("Camera");
-			desc.SetDescription("Represents a camera that can be activated to render to screen");
-			desc.SetIcon("icons:General/Camera.ico");
-			desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach, IEntityComponent::EFlags::ClientOnly });
-			
-			desc.AddMember(&CCameraComponent::m_bActivateOnCreate, 'actv', "Active", "Active", "Whether or not this camera should be activated on component creation", true);
-			desc.AddMember(&CCameraComponent::m_nearPlane, 'near', "NearPlane", "Near Plane", nullptr, 0.25f);
-			desc.AddMember(&CCameraComponent::m_fieldOfView, 'fov', "FieldOfView", "Field of View", nullptr, 75.0_degrees);
-
-			desc.AddMember(&CCameraComponent::m_bAutomaticAudioListenerPosition, 'audi', "AutoAudioListenerPos", "Automatic Audio Listener", "If true, automatically moves the audio listener with the entity.", true);
-		}
-
-		CCameraComponent::~CCameraComponent()
-		{
-			if (s_pActiveCamera == this)
+			if (context.bSelected)
 			{
-				s_pActiveCamera = nullptr;
+				Matrix34 slotTransform = GetWorldTransformMatrix();
 
-				if (IHmdDevice* pDevice = gEnv->pSystem->GetHmdManager()->GetHmdDevice())
+				// Don't use actual far plane as it's usually huge for cameras
+				float distance = 10.f;
+				float size = distance * tan(m_fieldOfView.ToRadians());
+
+				std::array<Vec3, 4> points =
+				{ 
+					{
+						Vec3(size, distance, size),
+						Vec3(-size, distance, size),
+						Vec3(-size, distance, -size),
+						Vec3(size, distance, -size)
+					}
+				};
+
+				gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(slotTransform.GetTranslation(), context.debugDrawInfo.color, slotTransform.TransformPoint(points[0]), context.debugDrawInfo.color);
+				gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(slotTransform.GetTranslation(), context.debugDrawInfo.color, slotTransform.TransformPoint(points[1]), context.debugDrawInfo.color);
+				gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(slotTransform.GetTranslation(), context.debugDrawInfo.color, slotTransform.TransformPoint(points[2]), context.debugDrawInfo.color);
+				gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(slotTransform.GetTranslation(), context.debugDrawInfo.color, slotTransform.TransformPoint(points[3]), context.debugDrawInfo.color);
+
+				Vec3 p1 = slotTransform.TransformPoint(points[0]);
+				Vec3 p2;
+				for (int i = 0; i < points.size(); i++)
 				{
-					pDevice->SetAsynCameraCallback(nullptr);
-				}
-			}
-
-			if (m_pAudioListener != nullptr)
-			{
-				gEnv->pEntitySystem->RemoveEntityEventListener(m_pAudioListener->GetId(), ENTITY_EVENT_DONE, this);
-				gEnv->pEntitySystem->RemoveEntity(m_pAudioListener->GetId(), true);
-				m_pAudioListener = nullptr;
-			}
-		}
-
-		void CCameraComponent::Initialize()
-		{
-			if (m_bActivateOnCreate)
-			{
-				Activate();
-			}
-		}
-
-		void CCameraComponent::ProcessEvent(SEntityEvent& event)
-		{
-			if (event.event == ENTITY_EVENT_UPDATE)
-			{
-				const CCamera& systemCamera = gEnv->pSystem->GetViewCamera();
-
-				const float farPlane = gEnv->p3DEngine->GetMaxViewDistance();
-
-				m_camera.SetFrustum(systemCamera.GetViewSurfaceX(), systemCamera.GetViewSurfaceZ(), m_fieldOfView.ToRadians(), m_nearPlane, farPlane, systemCamera.GetPixelAspectRatio());
-				m_camera.SetMatrix(GetWorldTransformMatrix());
-
-				gEnv->pSystem->SetViewCamera(m_camera);
-
-				if (m_bAutomaticAudioListenerPosition)
-				{
-					// Make sure we update the audio listener position
-					m_pAudioListener->SetWorldTM(m_camera.GetMatrix());
-				}
-			}
-			else if (event.event == ENTITY_EVENT_START_GAME || event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
-			{
-				if (m_bActivateOnCreate && !IsActive())
-				{
-					Activate();
+					int j = (i + 1) % points.size();
+					p2 = slotTransform.TransformPoint(points[j]);
+					gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(p1, context.debugDrawInfo.color, p2, context.debugDrawInfo.color);
+					p1 = p2;
 				}
 			}
 		}
-
-		uint64 CCameraComponent::GetEventMask() const
-		{
-			uint64 bitFlags = IsActive() ? BIT64(ENTITY_EVENT_UPDATE) : 0;
-			bitFlags |= BIT64(ENTITY_EVENT_START_GAME) | BIT64(ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED);
-
-			return bitFlags;
-		}
-
-		bool CCameraComponent::OnAsyncCameraCallback(const HmdTrackingState& sensorState, IHmdDevice::AsyncCameraContext& context)
-		{
-			context.outputCameraMatrix = GetWorldTransformMatrix();
-
-			Matrix33 orientation = Matrix33(context.outputCameraMatrix);
-			Vec3 position = context.outputCameraMatrix.GetTranslation();
-
-			context.outputCameraMatrix.AddTranslation(orientation * sensorState.pose.position);
-			context.outputCameraMatrix.SetRotation33(orientation * Matrix33(sensorState.pose.orientation));
-
-			return true;
-		}
-
-		void CCameraComponent::OnEntityEvent(IEntity* pEntity, SEntityEvent& event)
-		{
-			switch (event.event)
-			{
-			case ENTITY_EVENT_DONE:
-			{
-				// In case something destroys our listener entity before we had the chance to remove it.
-				if ((m_pAudioListener != nullptr) && (pEntity->GetId() == m_pAudioListener->GetId()))
-				{
-					gEnv->pEntitySystem->RemoveEntityEventListener(m_pAudioListener->GetId(), ENTITY_EVENT_DONE, this);
-					m_pAudioListener = nullptr;
-				}
-
-				break;
-			}
-			}
-		}
+#endif
 	}
 }

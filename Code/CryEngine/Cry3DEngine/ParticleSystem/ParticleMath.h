@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -114,5 +114,13 @@ void RotateAxes(Vec3* v0, Vec3* v1, const float angle);
 Vec3 PolarCoordToVec3(float azimuth, float altitude);
 
 }
+
+// Cry_Math_SSE extension
+template<> struct SIMD_traits<UCol>
+{
+	using scalar_t  = UCol;
+	using vector4_t = pfx2::UColv;
+};
+
 
 #include "ParticleMathImpl.h"

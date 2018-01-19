@@ -16,7 +16,7 @@ class CDefaultLightEntity final
 	: public CDesignerEntityComponent<>
 	, public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CDefaultLightEntity, "LightEntity", 0x61BFE88AAB1C4DFB, 0xBBD263D328C3D037);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CDefaultLightEntity, "LightEntity", "61bfe88a-ab1c-4dfb-bbd2-63d328c3d037"_cry_guid);
 
 	CDefaultLightEntity();
 	virtual ~CDefaultLightEntity() {}
@@ -56,8 +56,10 @@ public:
 	virtual void SerializeProperties(Serialization::IArchive& archive) override
 	{
 		archive(m_bActive, "Active", "Active");
-		archive(m_light.m_fRadius, "Radius", "Radius");
+		archive(m_light.m_fClipRadius, "Radius", "Radius");
 		archive(m_light.m_fAttenuationBulbSize, "AttenuationBulbSize", "AttenuationBulbSize");
+		if (archive.isInput())
+			m_light.ComputeEffectiveRadius();
 
 		if (archive.openBlock("Color", "Color"))
 		{
@@ -72,6 +74,7 @@ public:
 			archive(m_bIgnoreVisAreas, "IgnoreVisAreas", "IgnoreVisAreas");
 			archive(m_bAffectsThisAreaOnly, "AffectsThisAreaOnly", "AffectsThisAreaOnly");
 			archive(m_bAmbient, "Ambient", "Ambient");
+			archive(m_bLinkToSkyColor, "LinkToSkyColor", "LinkToSkyColor");
 			archive(m_bFake, "FakeLight", "FakeLight");
 			archive(m_bAffectVolumetricFog, "AffectVolumetricFog", "AffectVolumetricFog");
 			archive(m_bAffectVolumetricFogOnly, "AffectVolumetricFogOnly", "AffectVolumetricFogOnly");
@@ -137,13 +140,14 @@ protected:
 	int m_lightSlot;
 
 	// Light parameters, updated in the OnResetState function
-	CDLight m_light;
+	SRenderLight m_light;
 
 	bool m_bActive = true;
 
 	bool m_bIgnoreVisAreas = false;
 	bool m_bAffectsThisAreaOnly = true;
 	bool m_bAmbient = false;
+	bool m_bLinkToSkyColor = false;
 	bool m_bFake = false;
 	bool m_bAffectVolumetricFog = true;
 	bool m_bAffectVolumetricFogOnly = false;

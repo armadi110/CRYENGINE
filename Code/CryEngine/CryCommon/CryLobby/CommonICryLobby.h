@@ -1,5 +1,7 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 #pragma once
+
+#include <CrySystem/ICryPlugin.h>
 
 typedef uint32 CryLobbyTaskID;
 const CryLobbyTaskID CryLobbyInvalidTaskID = 0xffffffff;
@@ -111,6 +113,8 @@ struct ICryReward;
 struct ICryOnlineStorage;
 struct IHostMigrationEventListener;
 struct ICryLobbyService;
+struct ICryMatchMakingPrivate;
+struct ICryMatchMakingConsoleCommands;
 
 #if USE_STEAM
 	#define USE_LOBBYIDADDR 1
@@ -162,14 +166,11 @@ struct SCryLobbyParameters
 	uint16 m_connectPort;       //!< Connect port the lobby service will use for connections.
 };
 
-struct ILobbyEngineModule : public Cry::IDefaultModule
-{
-	CRYINTERFACE_DECLARE(ILobbyEngineModule, 0x3ED8EF8853324BDF, 0xA5CB5A3AD5016279);
-};
-
-struct ICryLobby
+struct ICryLobby : public Cry::IEnginePlugin
 {
 public:
+	CRYINTERFACE_DECLARE_GUID(ICryLobby, "{3ED8EF88-5332-4BDF-A5CB-5A3AD5016279"_cry_guid);
+
 	// <interfuscator:shuffle>
 	virtual ~ICryLobby() {}
 

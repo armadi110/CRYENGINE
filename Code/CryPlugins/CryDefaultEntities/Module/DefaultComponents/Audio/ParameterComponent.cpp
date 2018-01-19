@@ -25,11 +25,11 @@ void CParameterComponent::Register(Schematyc::CEnvRegistrationScope& componentSc
 //////////////////////////////////////////////////////////////////////////
 void CParameterComponent::ReflectType(Schematyc::CTypeDesc<CParameterComponent>& desc)
 {
-	desc.SetGUID(CParameterComponent::IID());
+	desc.SetGUID("634927FC-AE0E-4B6E-9846-99BF8CBE56E2"_cry_guid);
 	desc.SetEditorCategory("Audio");
 	desc.SetLabel("Parameter");
 	desc.SetDescription("Allows for setting a parameter on all audio audio objects created by the component this component is attached to.");
-	desc.SetIcon("icons:Audio/parameter.ico");
+	desc.SetIcon("icons:Audio/component_parameter.ico");
 	desc.SetComponentFlags({ IEntityComponent::EFlags::Attach, IEntityComponent::EFlags::ClientOnly, IEntityComponent::EFlags::HideFromInspector });
 
 	desc.AddMember(&CParameterComponent::m_parameter, 'para', "parameter", "Parameter", "The parameter which value is applied to all audio objects.", SParameterSerializeHelper());
@@ -58,7 +58,7 @@ uint64 CParameterComponent::GetEventMask() const
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CParameterComponent::ProcessEvent(SEntityEvent& event)
+void CParameterComponent::ProcessEvent(const SEntityEvent& event)
 {
 #if defined(INCLUDE_DEFAULT_PLUGINS_PRODUCTION_CODE)
 	if (m_pIEntityAudioComponent != nullptr)
@@ -74,11 +74,11 @@ void CParameterComponent::ProcessEvent(SEntityEvent& event)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CParameterComponent::Set(SParameterSerializeHelper const& parameter, float const value)
+void CParameterComponent::Set(float const value)
 {
-	if (m_pIEntityAudioComponent != nullptr && parameter.m_id != CryAudio::InvalidControlId)
+	if (m_pIEntityAudioComponent != nullptr && m_parameter.m_id != CryAudio::InvalidControlId)
 	{
-		m_pIEntityAudioComponent->SetParameter(parameter.m_id, value, CryAudio::InvalidAuxObjectId);
+		m_pIEntityAudioComponent->SetParameter(m_parameter.m_id, value, CryAudio::InvalidAuxObjectId);
 	}
 }
 } // namespace DefaultComponents

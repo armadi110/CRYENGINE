@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -214,11 +214,11 @@ public:
 	{
 		UpdateBufferContent(m_hostData.Get(), m_size);
 	};
-	void UpdateBufferContent(void* pData, size_t nSize)
+	void UpdateBufferContent(const void* pData, size_t nSize)
 	{
 		m_buffer.UpdateBufferContent(pData, sizeof(T) * nSize);
 	};
-	void UpdateBufferContentAligned(void* pData, size_t nSize)
+	void UpdateBufferContentAligned(const void* pData, size_t nSize)
 	{
 		m_buffer.UpdateBufferContent(pData, Align(sizeof(T) * nSize, CRY_PLATFORM_ALIGNMENT));
 	};

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include <CryCore/Platform/platform_impl.inl>
@@ -18,7 +18,7 @@ class CEngineModule_CryDynamicResponseSystem : public DRS::IDynamicResponseSyste
 		CRYINTERFACE_ADD(DRS::IDynamicResponseSystemEngineModule)
 	CRYINTERFACE_END()
 
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_CryDynamicResponseSystem, "EngineModule_CryDynamicResponseSystem", 0xd1ed34dda44c4c17, 0x959a46df79af5db3)
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_CryDynamicResponseSystem, "EngineModule_CryDynamicResponseSystem", "d1ed34dd-a44c-4c17-959a-46df79af5db3"_cry_guid)
 
 	virtual ~CEngineModule_CryDynamicResponseSystem() override
 	{

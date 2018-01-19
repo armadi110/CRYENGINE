@@ -36,7 +36,7 @@ protected:
 	virtual void   Initialize() override;
 	virtual void   OnShutDown() override;
 	virtual uint64 GetEventMask() const override;
-	virtual void   ProcessEvent(SEntityEvent& event) override;
+	virtual void   ProcessEvent(const SEntityEvent& event) override;
 	// ~IEntityComponent
 
 public:
@@ -45,15 +45,11 @@ public:
 
 	static void     ReflectType(Schematyc::CTypeDesc<CTriggerComponent>& desc);
 
-	static CryGUID& IID()
-	{
-		static CryGUID id = "672F0641-004E-4300-B4F7-764B70CC4DA0"_cry_guid;
-		return id;
-	}
-
 	void SetAutoPlay(bool const bEnable);
 	void Play();
 	void Stop();
+	void DetermineActivityRadius();
+	void GetActivityRadius(float& radius);
 
 	struct SFinishedSignal
 	{
@@ -66,6 +62,7 @@ protected:
 	IEntityAudioComponent* m_pIEntityAudioComponent = nullptr;
 	bool                   m_bAutoPlay = true;
 	uint32                 m_numActiveTriggerInstances = 0;
+	float                  m_activityRadius = 0.0f;
 
 	// Properties exposed to UI
 	STriggerSerializeHelper m_playTrigger;
@@ -80,19 +77,19 @@ protected:
 };
 
 //////////////////////////////////////////////////////////////////////////
-static void ReflectType(Schematyc::CTypeDesc<STriggerSerializeHelper>& desc)
+inline void ReflectType(Schematyc::CTypeDesc<STriggerSerializeHelper>& desc)
 {
 	desc.SetGUID("C5DE4974-ECAB-4D6F-A93D-02C1F5C55C31"_cry_guid);
 }
 
 //////////////////////////////////////////////////////////////////////////
-void STriggerSerializeHelper::Serialize(Serialization::IArchive& archive)
+inline void STriggerSerializeHelper::Serialize(Serialization::IArchive& archive)
 {
 	archive(Serialization::AudioTrigger<string>(m_name), "triggerName", "^");
 
 	if (archive.isInput())
 	{
-		m_id = CryAudio::StringToId_RunTime(m_name.c_str());
+		m_id = CryAudio::StringToId(m_name.c_str());
 	}
 }
 } // namespace DefaultComponents

@@ -358,7 +358,7 @@ namespace UQS
 			: CSchematycUqsComponentEnvFunctionBase(sourceFileInfo)
 			, m_itemConvertersFromSchematycToUqs(itemConverters, CItemConverterLookup::ELookupMethod::UseToTypeAsKey)
 		{
-			static const uint64 partialGUID = (uint64)0x1337babe1337babe;
+			static const uint64 partialGUID = (uint64)0xcccd009ce746a061;
 
 			SetName(stack_string().Format("AddParam [%s]", envDataType.GetName()));
 			SetGUID(CryGUID::Construct(envDataType.GetGUID().hipart, partialGUID));
@@ -420,7 +420,7 @@ namespace UQS
 			: CSchematycUqsComponentEnvFunctionBase(sourceFileInfo)
 			, m_itemConvertersFromUqsToSchematyc(itemConverters, CItemConverterLookup::ELookupMethod::UseFromTypeAsKey)
 		{
-			static const uint64 partialGUID = (uint64)0xb19b00b5b19b00b5;
+			static const uint64 partialGUID = (uint64)0x5783cfdf2a2b9394;
 
 			SetName(stack_string().Format("GetResult [%s]", envDataType.GetName()));
 			SetGUID(CryGUID::Construct(envDataType.GetGUID().hipart, partialGUID));
@@ -970,7 +970,7 @@ namespace UQS
 				const int32 resultCount = (int32)pair.second.pQueryResultSet->GetResultCount();
 				const SQueryFinishedSignal signal(queryID, resultCount);
 				if (GetEntity()->GetSchematycObject())
-					GetEntity()->GetSchematycObject()->ProcessSignal(signal);
+					GetEntity()->GetSchematycObject()->ProcessSignal(signal, GetGUID());
 			}
 
 			// fire signals for all queries that finished with an exception
@@ -980,7 +980,7 @@ namespace UQS
 				const Schematyc::CSharedString exceptionMessage(pair.second.c_str());
 				const SQueryExceptionSignal signal(queryID, exceptionMessage);
 				if (GetEntity()->GetSchematycObject())
-					GetEntity()->GetSchematycObject()->ProcessSignal(signal);
+					GetEntity()->GetSchematycObject()->ProcessSignal(signal, GetGUID());
 			}
 
 			m_succeededQueries.clear();

@@ -1,8 +1,9 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioImpl.h"
 #include "AudioImplCVars.h"
+#include <Logger.h>
 #include <CryAudio/IAudioSystem.h>
 #include <CryCore/Platform/platform_impl.inl>
 #include <CrySystem/IEngineModule.h>
@@ -20,7 +21,6 @@ namespace Impl
 namespace Wwise
 {
 // Define global objects.
-CLogger g_implLogger;
 CCVars g_cvars;
 
 #if defined(PROVIDE_WWISE_IMPL_SECONDARY_POOL)
@@ -35,7 +35,7 @@ class CEngineModule_CryAudioImplWwise : public CryAudio::IImplModule
 	CRYINTERFACE_ADD(CryAudio::IImplModule)
 	CRYINTERFACE_END()
 
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_CryAudioImplWwise, "EngineModule_AudioImpl", 0xb4971e5dd02442c5, 0xb34a9ac0b4abfffd)
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_CryAudioImplWwise, "EngineModule_AudioImpl", "b4971e5d-d024-42c5-b34a-9ac0b4abfffd"_cry_guid)
 
 	CEngineModule_CryAudioImplWwise();
 
@@ -69,11 +69,11 @@ class CEngineModule_CryAudioImplWwise : public CryAudio::IImplModule
 
 		if (m_bSuccess)
 		{
-			g_implLogger.Log(ELogType::Always, "CryAudioImplWwise loaded");
+			Cry::Audio::Log(ELogType::Always, "CryAudioImplWwise loaded");
 		}
 		else
 		{
-			g_implLogger.Log(ELogType::Error, "CryAudioImplWwise failed to load");
+			Cry::Audio::Log(ELogType::Error, "CryAudioImplWwise failed to load");
 		}
 
 		return m_bSuccess;

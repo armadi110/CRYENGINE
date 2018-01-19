@@ -67,23 +67,25 @@ void CSmartObject::Display(DisplayContext& dc)
 	}
 	else if (!(dc.flags & DISPLAY_2D))
 	{
-		float color[4];
-		color[0] = dc.GetColor().r * (1.0f / 255.0f);
-		color[1] = dc.GetColor().g * (1.0f / 255.0f);
-		color[2] = dc.GetColor().b * (1.0f / 255.0f);
-		color[3] = dc.GetColor().a * (1.0f / 255.0f);
-
-		SRenderingPassInfo passInfo = SRenderingPassInfo::CreateGeneralPassRenderingInfo(GetIEditor()->GetSystem()->GetViewCamera());
-
-		Matrix34 tempTm = wtm;
-		SRendParams rp;
-		rp.pMatrix = &tempTm;
-		rp.AmbientColor = ColorF(color[0], color[1], color[2], 1);
-		rp.fAlpha = color[3];
-		rp.dwFObjFlags |= FOB_TRANS_MASK;
-		//rp.nShaderTemplate = EFT_HELPER;
 		if (m_pStatObj)
+		{
+			float color[4];
+			color[0] = dc.GetColor().r * (1.0f / 255.0f);
+			color[1] = dc.GetColor().g * (1.0f / 255.0f);
+			color[2] = dc.GetColor().b * (1.0f / 255.0f);
+			color[3] = dc.GetColor().a * (1.0f / 255.0f);
+
+			Matrix34 tempTm = wtm;
+			SRendParams rp;
+			rp.pMatrix = &tempTm;
+			rp.AmbientColor = ColorF(color[0], color[1], color[2], 1);
+			rp.fAlpha = color[3];
+			rp.dwFObjFlags |= FOB_TRANS_MASK;
+			//rp.nShaderTemplate = EFT_HELPER;
+
+			SRenderingPassInfo passInfo = SRenderingPassInfo::CreateGeneralPassRenderingInfo(GetIEditor()->GetSystem()->GetViewCamera(), SRenderingPassInfo::DEFAULT_FLAGS, true, dc.GetDisplayContextHandle());
 			m_pStatObj->Render(rp, passInfo);
+		}
 	}
 
 	dc.SetColor(GetColor());
@@ -114,27 +116,20 @@ bool CSmartObject::HitTest(HitContext& hc)
 {
 	if (GetIStatObj())
 	{
-		float hitEpsilon = hc.view->GetScreenScaleFactor(GetWorldPos()) * 0.01f;
-		float hitDist;
+		Matrix34 invertedWorldTransform = GetWorldTM().GetInverted();
 
-		float fScale = GetScale().x;
-		AABB boxScaled;
-		GetLocalBounds(boxScaled);
-		boxScaled.min *= fScale;
-		boxScaled.max *= fScale;
+		Vec3 raySrc = invertedWorldTransform.TransformPoint(hc.raySrc);
+		Vec3 rayDir = invertedWorldTransform.TransformVector(hc.rayDir).GetNormalized();
 
-		Matrix34 invertWTM = GetWorldTM();
-		invertWTM.Invert();
+		SRayHitInfo hitInfo;
+		hitInfo.inReferencePoint = raySrc;
+		hitInfo.inRay = Ray(raySrc, rayDir);
 
-		Vec3 xformedRaySrc = invertWTM.TransformPoint(hc.raySrc);
-		Vec3 xformedRayDir = invertWTM.TransformVector(hc.rayDir);
-		xformedRayDir.Normalize();
-
-		Vec3 intPnt;
-		// Check intersection with bbox edges.
-		if (Intersect::Ray_AABBEdge(xformedRaySrc, xformedRayDir, boxScaled, hitEpsilon, hitDist, intPnt))
+		if (GetIStatObj()->RayIntersection(hitInfo))
 		{
-			hc.dist = xformedRaySrc.GetDistance(intPnt);
+			// World space distance.
+			Vec3 worldHitPos = GetWorldTM().TransformPoint(hitInfo.vHitPos);
+			hc.dist = hc.raySrc.GetDistance(worldHitPos);
 			hc.object = this;
 			return true;
 		}
@@ -283,29 +278,6 @@ void CSmartObject::GetScriptProperties(XmlNodeRef xmlEntityNode)
 		m_pLuaProperties->AddOnSetCallback(functor(*this, &CSmartObject::OnPropertyChange));
 	}
 }
-
-/*
-//////////////////////////////////////////////////////////////////////////
-void CSmartObject::BeginEditParams(int flags)
-{
-	if (m_pLuaProperties)
-	{
-		m_pLuaProperties->AddOnSetCallback(functor(*this, &CSmartObject::OnPropertyChange));
-	}
-	__super::BeginEditParams(flags);
-}
-
-//////////////////////////////////////////////////////////////////////////
-void CSmartObject::EndEditParams()
-{
-	if (m_pLuaProperties)
-	{
-		m_pLuaProperties->RemoveOnSetCallback(functor(*this, &CSmartObject::OnPropertyChange));
-	}
-	__super::EndEditParams();
-
-	Reload(true);
-}*/
 
 void CSmartObject::OnEvent(ObjectEvent eventID)
 {

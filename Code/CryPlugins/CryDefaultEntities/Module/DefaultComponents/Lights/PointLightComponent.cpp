@@ -2,7 +2,6 @@
 #include "PointLightComponent.h"
 
 #include <CrySystem/IProjectManager.h>
-#include <CryGame/IGameFramework.h>
 #include <ILevelSystem.h>
 #include <Cry3DEngine/IRenderNode.h>
 
@@ -12,24 +11,14 @@ namespace Cry
 	{
 		void CPointLightComponent::Register(Schematyc::CEnvRegistrationScope& componentScope)
 		{
-		}
-
-		void CPointLightComponent::ReflectType(Schematyc::CTypeDesc<CPointLightComponent>& desc)
-		{
-			desc.SetGUID(CPointLightComponent::IID());
-			desc.SetEditorCategory("Lights");
-			desc.SetLabel("Point Light");
-			desc.SetDescription("Emits light from its origin into all directions");
-			desc.SetIcon("icons:ObjectTypes/light.ico");
-			desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach, IEntityComponent::EFlags::ClientOnly });
-
-			desc.AddMember(&CPointLightComponent::m_bActive, 'actv', "Active", "Active", "Determines whether the light is enabled", true);
-			desc.AddMember(&CPointLightComponent::m_radius, 'radi', "Radius", "Radius", "Determines whether the range of the point light", 10.f);
-
-			desc.AddMember(&CPointLightComponent::m_color, 'colo', "Color", "Color", "Color emission information", CPointLightComponent::SColor());
-			desc.AddMember(&CPointLightComponent::m_shadows, 'shad', "Shadows", "Shadows", "Shadow casting settings", CPointLightComponent::SShadows());
-			desc.AddMember(&CPointLightComponent::m_options, 'opt', "Options", "Options", "Specific Light Options", CPointLightComponent::SOptions());
-			desc.AddMember(&CPointLightComponent::m_animations, 'anim', "Animations", "Animations", "Light style / animation properties", CPointLightComponent::SAnimations());
+			// Functions
+			{
+				auto pFunction = SCHEMATYC_MAKE_ENV_FUNCTION(&CPointLightComponent::Enable, "{415ECD3F-880C-4647-92CB-2A8F2321709D}"_cry_guid, "Enable");
+				pFunction->SetDescription("Enables or disables the light component");
+				pFunction->SetFlags({ Schematyc::EEnvFunctionFlags::Member, Schematyc::EEnvFunctionFlags::Construction });
+				pFunction->BindInput(1, 'ena', "Enable");
+				componentScope.Register(pFunction);
+			}
 		}
 
 		void CPointLightComponent::Initialize()
@@ -41,15 +30,13 @@ namespace Cry
 				return;
 			}
 
-			CDLight light;
+			SRenderLight light;
 
 			light.m_nLightStyle = m_animations.m_style;
 			light.SetAnimSpeed(m_animations.m_speed);
 
 			light.SetPosition(ZERO);
 			light.m_Flags = DLF_DEFERRED_LIGHT | DLF_POINT;
-
-			light.m_fRadius = m_radius;
 
 			light.SetLightColor(m_color.m_color * m_color.m_diffuseMultiplier);
 			light.SetSpecularMult(m_color.m_specularMultiplier);
@@ -68,6 +55,9 @@ namespace Cry
 			if (m_options.m_bAffectsVolumetricFog)
 				light.m_Flags |= DLF_VOLUMETRIC_FOG;
 
+			if (m_options.m_bLinkToSkyColor)
+				light.m_Flags |= DLF_LINK_TO_SKY_COLOR;
+
 			if (m_options.m_bAmbient)
 				light.m_Flags |= DLF_AMBIENT;
 
@@ -84,19 +74,26 @@ namespace Cry
 			else
 				light.m_Flags &= ~DLF_CASTSHADOW_MAPS;
 
-			light.m_fAttenuationBulbSize = m_options.m_attenuationBulbSize;
+			light.SetRadius(m_radius, m_options.m_attenuationBulbSize);
 
 			light.m_fFogRadialLobe = m_options.m_fogRadialLobe;
 
 			// Load the light source into the entity
-			m_pEntity->LoadLight(GetOrMakeEntitySlotId(), &light);
+			const int slot = m_pEntity->LoadLight(GetOrMakeEntitySlotId(), &light);
 
 			uint32 slotFlags = m_pEntity->GetSlotFlags(GetEntitySlotId());
 			UpdateGIModeEntitySlotFlags((uint8)m_options.m_giMode, slotFlags);
 			m_pEntity->SetSlotFlags(GetEntitySlotId(), slotFlags);
+
+			if (IRenderNode* pRenderNode = m_pEntity->GetSlotRenderNode(slot))
+			{
+				int viewDistance = static_cast<int>((m_viewDistance / 100.0f) * 255.0f);
+				pRenderNode->SetViewDistRatio(viewDistance);
+			}
+
 		}
 
-		void CPointLightComponent::ProcessEvent(SEntityEvent& event)
+		void CPointLightComponent::ProcessEvent(const SEntityEvent& event)
 		{
 			if (event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
 			{
@@ -116,21 +113,26 @@ namespace Cry
 			{
 				Matrix34 slotTransform = GetWorldTransformMatrix();
 
+				Vec3 pos = slotTransform.GetTranslation();
+
+				SRenderLight light;
+				light.SetLightColor(m_color.m_color * m_color.m_diffuseMultiplier);
+				light.SetRadius(m_radius, m_options.m_attenuationBulbSize);
+				float radius = light.m_fRadius;
+
 				Vec3 p0, p1;
 				float step = 10.0f / 180 * gf_PI;
 				float angle;
 
-				Vec3 pos = slotTransform.GetTranslation();
-
 				// Z Axis
 				p0 = pos;
 				p1 = pos;
-				p0.x += m_radius * sin(0.0f);
-				p0.y += m_radius * cos(0.0f);
+				p0.x += radius * sin(0.0f);
+				p0.y += radius * cos(0.0f);
 				for (angle = step; angle < 360.0f / 180 * gf_PI + step; angle += step)
 				{
-					p1.x = pos.x + m_radius * sin(angle);
-					p1.y = pos.y + m_radius * cos(angle);
+					p1.x = pos.x + radius * sin(angle);
+					p1.y = pos.y + radius * cos(angle);
 					p1.z = pos.z;
 					gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(p0, context.debugDrawInfo.color, p1, context.debugDrawInfo.color);
 					p0 = p1;
@@ -139,13 +141,13 @@ namespace Cry
 				// X Axis
 				p0 = pos;
 				p1 = pos;
-				p0.y += m_radius * sin(0.0f);
-				p0.z += m_radius * cos(0.0f);
+				p0.y += radius * sin(0.0f);
+				p0.z += radius * cos(0.0f);
 				for (angle = step; angle < 360.0f / 180 * gf_PI + step; angle += step)
 				{
 					p1.x = pos.x;
-					p1.y = pos.y + m_radius * sin(angle);
-					p1.z = pos.z + m_radius * cos(angle);
+					p1.y = pos.y + radius * sin(angle);
+					p1.z = pos.z + radius * cos(angle);
 					gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(p0, context.debugDrawInfo.color, p1, context.debugDrawInfo.color);
 					p0 = p1;
 				}
@@ -153,13 +155,13 @@ namespace Cry
 				// Y Axis
 				p0 = pos;
 				p1 = pos;
-				p0.x += m_radius * sin(0.0f);
-				p0.z += m_radius * cos(0.0f);
+				p0.x += radius * sin(0.0f);
+				p0.z += radius * cos(0.0f);
 				for (angle = step; angle < 360.0f / 180 * gf_PI + step; angle += step)
 				{
-					p1.x = pos.x + m_radius * sin(angle);
+					p1.x = pos.x + radius * sin(angle);
 					p1.y = pos.y;
-					p1.z = pos.z + m_radius * cos(angle);
+					p1.z = pos.z + radius * cos(angle);
 					gEnv->pRenderer->GetIRenderAuxGeom()->DrawLine(p0, context.debugDrawInfo.color, p1, context.debugDrawInfo.color);
 					p0 = p1;
 				}

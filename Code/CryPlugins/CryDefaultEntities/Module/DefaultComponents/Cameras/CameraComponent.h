@@ -6,110 +6,174 @@
 
 #include <CrySystem/VR/IHMDDevice.h>
 #include <CrySystem/VR/IHMDManager.h>
+#include "../Audio/ListenerComponent.h"
+#include <CrySystem/ICryPluginManager.h>
 
-class CPlugin_CryDefaultEntities;
+#include "../../IDefaultComponentsPlugin.h"
+#include "ICameraManager.h"
 
 namespace Cry
 {
 	namespace DefaultComponents
 	{
+		enum class ECameraType
+		{
+			Default = 0,
+			Omnidirectional
+		};
+
+		static void ReflectType(Schematyc::CTypeDesc<ECameraType>& desc)
+		{
+			desc.SetGUID("{E4DC6A37-2FAE-4DFF-AB21-3C4308A266D6}"_cry_guid);
+			desc.SetLabel("Camera Type");
+			desc.SetDefaultValue(ECameraType::Default);
+			desc.AddConstant(ECameraType::Default, "Default", "Default");
+			desc.AddConstant(ECameraType::Omnidirectional, "Omnidirectional", "Omnidirectional");
+		}
+
 		class CCameraComponent
-			: public IEntityComponent
+			: public ICameraComponent
 			, public IHmdDevice::IAsyncCameraCallback
-			, public IEntityEventListener
+#ifndef RELEASE
+			, public IEntityComponentPreviewer
+#endif
 		{
 		protected:
 			friend CPlugin_CryDefaultEntities;
 			static void Register(Schematyc::CEnvRegistrationScope& componentScope);
 
 			// IEntityComponent
-			virtual void Initialize() final;
+			virtual void Initialize() override
+			{
+				m_pCameraManager->AddCamera(this);
 
-			virtual void ProcessEvent(SEntityEvent& event) final;
-			virtual uint64 GetEventMask() const final;
+				m_pAudioListener = m_pEntity->GetOrCreateComponent<Cry::Audio::DefaultComponents::CListenerComponent>();
+				CRY_ASSERT(m_pAudioListener != nullptr);
+				m_pAudioListener->SetComponentFlags(m_pAudioListener->GetComponentFlags() | IEntityComponent::EFlags::UserAdded);
+
+				if (m_bActivateOnCreate)
+				{
+					Activate();
+				}
+			}
+
+		virtual void ProcessEvent(const SEntityEvent& event) override
+		{
+			if (event.event == ENTITY_EVENT_UPDATE)
+			{
+				const CCamera& systemCamera = gEnv->pSystem->GetViewCamera();
+
+				m_camera.SetFrustum(systemCamera.GetViewSurfaceX(), systemCamera.GetViewSurfaceZ(), m_fieldOfView.ToRadians(), m_nearPlane, m_farPlane, systemCamera.GetPixelAspectRatio());
+				m_camera.SetMatrix(GetWorldTransformMatrix());
+
+				gEnv->pSystem->SetViewCamera(m_camera);
+			}
+				else if (event.event == ENTITY_EVENT_START_GAME || event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
+				{
+					if (m_bActivateOnCreate && !IsActive())
+					{
+						Activate();
+					}
+				}
+			}
+
+			virtual uint64 GetEventMask() const override
+			{
+				uint64 bitFlags = IsActive() ? BIT64(ENTITY_EVENT_UPDATE) : 0;
+				bitFlags |= BIT64(ENTITY_EVENT_START_GAME) | BIT64(ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED);
+
+				return bitFlags;
+			}
+
+#ifndef RELEASE
+			virtual IEntityComponentPreviewer* GetPreviewer() final { return this; }
+#endif
+
+			virtual void OnShutDown() final
+			{
+				m_pCameraManager->RemoveCamera(this);
+
+				if (IHmdDevice* pDevice = gEnv->pSystem->GetHmdManager()->GetHmdDevice())
+				{
+					pDevice->SetAsyncCameraCallback(nullptr);
+				}
+			}
 			// ~IEntityComponent
 
+#ifndef RELEASE
+			// IEntityComponentPreviewer
+			virtual void SerializeProperties(Serialization::IArchive& archive) final {}
+			virtual void Render(const IEntity& entity, const IEntityComponent& component, SEntityPreviewContext &context) const final;
+			// ~IEntityComponentPreviewer
+#endif
+
 			// IAsyncCameraCallback
-			virtual bool OnAsyncCameraCallback(const HmdTrackingState& state, IHmdDevice::AsyncCameraContext& context) final;
+			virtual bool OnAsyncCameraCallback(const HmdTrackingState& sensorState, IHmdDevice::AsyncCameraContext& context) override
+			{
+				context.outputCameraMatrix = GetWorldTransformMatrix();
+
+				Matrix33 orientation = Matrix33(context.outputCameraMatrix);
+				Vec3 position = context.outputCameraMatrix.GetTranslation();
+
+				context.outputCameraMatrix.AddTranslation(orientation * sensorState.pose.position);
+				context.outputCameraMatrix.SetRotation33(orientation * Matrix33(sensorState.pose.orientation));
+
+				return true;
+			}
 			// ~IAsyncCameraCallback
 
-			// IEntityEventListener
-			virtual void OnEntityEvent(IEntity* pEntity, SEntityEvent& event) final;
-			// ~IEntityEventListener
+			// ICameraComponent
+			virtual void DisableAudioListener() final
+			{
+				m_pAudioListener->SetActive(false);
+			}
+			// ~ICameraComponent
 
 		public:
-			virtual ~CCameraComponent();
-
-			static void ReflectType(Schematyc::CTypeDesc<CCameraComponent>& desc);
-
-			static CryGUID& IID()
+			CCameraComponent()
 			{
-				static CryGUID id = "{A4CB0508-5F07-46B4-B6D4-AB76BFD550F4}"_cry_guid;
-				return id;
+				m_pCameraManager = gEnv->pSystem->GetIPluginManager()->QueryPlugin<IPlugin_CryDefaultEntities>()->GetICameraManager();
+			}
+
+			virtual ~CCameraComponent() = default;
+
+			static void ReflectType(Schematyc::CTypeDesc<CCameraComponent>& desc)
+			{
+				desc.SetGUID("{A4CB0508-5F07-46B4-B6D4-AB76BFD550F4}"_cry_guid);
+				desc.SetEditorCategory("Cameras");
+				desc.SetLabel("Camera");
+				desc.SetDescription("Represents a camera that can be activated to render to screen");
+				desc.SetIcon("icons:General/Camera.ico");
+				desc.SetComponentFlags({ IEntityComponent::EFlags::Transform, IEntityComponent::EFlags::Socket, IEntityComponent::EFlags::Attach, IEntityComponent::EFlags::ClientOnly });
+
+				desc.AddMember(&CCameraComponent::m_type, 'type', "Type", "Type", "Method of rendering to use for the camera", ECameraType::Default);
+				desc.AddMember(&CCameraComponent::m_bActivateOnCreate, 'actv', "Active", "Active", "Whether or not this camera should be activated on component creation", true);
+				desc.AddMember(&CCameraComponent::m_nearPlane, 'near', "NearPlane", "Near Plane", nullptr, 0.25f);
+				desc.AddMember(&CCameraComponent::m_farPlane, 'far', "FarPlane", "Far Plane", nullptr, 1024.f);
+				desc.AddMember(&CCameraComponent::m_fieldOfView, 'fov', "FieldOfView", "Field of View", nullptr, 75.0_degrees);
 			}
 
 			virtual void Activate()
 			{
-				if (s_pActiveCamera != nullptr)
-				{
-					gEnv->pEntitySystem->GetAreaManager()->ExitAllAreas(s_pActiveCamera->m_pAudioListener->GetId());
-					s_pActiveCamera->m_pAudioListener->SetFlagsExtended(s_pActiveCamera->m_pAudioListener->GetFlagsExtended() & ~ENTITY_FLAG_EXTENDED_AUDIO_LISTENER);
-
-					m_pEntity->UpdateComponentEventMask(s_pActiveCamera);
-				}
-
-				s_pActiveCamera = this;
 				m_pEntity->UpdateComponentEventMask(this);
 
 				if (IHmdDevice* pDevice = gEnv->pSystem->GetHmdManager()->GetHmdDevice())
 				{
-					pDevice->SetAsynCameraCallback(this);
+					pDevice->SetAsyncCameraCallback(this);
 				}
-
-				if (m_pAudioListener == nullptr)
+				
+				if (m_pAudioListener)
 				{
-					// Spawn the audio listener
-					SEntitySpawnParams entitySpawnParams;
-					entitySpawnParams.sName = "AudioListener";
-					entitySpawnParams.pClass = gEnv->pEntitySystem->GetClassRegistry()->GetDefaultClass();
-
-					// We don't want the audio listener to serialize as the entity gets completely removed and recreated during save/load!
-					// NOTE: If we set ENTITY_FLAG_NO_SAVE *after* we spawn the entity, it will make it to m_dynamicEntities in GameSerialize.cpp
-					// (via CGameSerialize::OnSpawn) and GameSerialize will attempt to serialize it despite the flag with current (5.2.2) implementation
-					entitySpawnParams.nFlags = ENTITY_FLAG_TRIGGER_AREAS | ENTITY_FLAG_NO_SAVE;
-					entitySpawnParams.nFlagsExtended = ENTITY_FLAG_EXTENDED_AUDIO_LISTENER;
-
-					m_pAudioListener = gEnv->pEntitySystem->SpawnEntity(entitySpawnParams);
-					if (m_pAudioListener != nullptr)
-					{
-						gEnv->pEntitySystem->AddEntityEventListener(m_pAudioListener->GetId(), ENTITY_EVENT_DONE, this);
-						CryFixedStringT<64> sTemp;
-						sTemp.Format("AudioListener(%d)", static_cast<int>(m_pAudioListener->GetId()));
-						m_pAudioListener->SetName(sTemp.c_str());
-
-						IEntityAudioComponent* pIEntityAudioComponent = m_pAudioListener->GetOrCreateComponent<IEntityAudioComponent>();
-						CRY_ASSERT(pIEntityAudioComponent);
-					}
-					else
-					{
-						CryWarning(VALIDATOR_MODULE_GAME, VALIDATOR_ERROR, "<Audio>: Audio listener creation failed in CCameraComponent::CreateAudioListener!");
-					}
+					m_pAudioListener->SetActive(true);
 				}
-				else
-				{
-					m_pAudioListener->SetFlagsExtended(m_pAudioListener->GetFlagsExtended() | ENTITY_FLAG_EXTENDED_AUDIO_LISTENER);
-					m_pAudioListener->InvalidateTM(ENTITY_XFORM_POS);
-				}
+
+				m_pCameraManager->SwitchCameraToActive(this);
 			}
 
-			virtual void OverrideAudioListenerTransform(const CryTransform::CTransform& transform)
+			bool IsActive() const
 			{
-				m_pAudioListener->SetWorldTM(transform.ToMatrix34());
-
-				m_bAutomaticAudioListenerPosition = false;
+				return m_pCameraManager->IsThisCameraActive(this);
 			}
-
-			bool IsActive() const { return s_pActiveCamera == this; }
 
 			virtual void EnableAutomaticActivation(bool bActivate) { m_bActivateOnCreate = bActivate; }
 			bool IsAutomaticallyActivated() const { return m_bActivateOnCreate; }
@@ -117,26 +181,28 @@ namespace Cry
 			virtual void SetNearPlane(float nearPlane) { m_nearPlane = nearPlane; }
 			float GetNearPlane() const { return m_nearPlane; }
 
+			virtual void SetFarPlane(float farPlane) { m_farPlane = farPlane; }
+			float GetFarPlane() const { return m_farPlane; }
+
 			virtual void SetFieldOfView(CryTransform::CAngle angle) { m_fieldOfView = angle; }
 			CryTransform::CAngle GetFieldOfView() const { return m_fieldOfView; }
 
-			virtual void EnableAutomaticAudioListener(bool bEnable) { m_bAutomaticAudioListenerPosition = bEnable; }
-			bool HasAutomaticAudioListener() const { return m_bAutomaticAudioListenerPosition; }
+			ECameraType GetType() const { return m_type; }
 
 			virtual CCamera& GetCamera() { return m_camera; }
 			const CCamera& GetCamera() const { return m_camera; }
 
 		protected:
+			ECameraType m_type = ECameraType::Default;
 			bool m_bActivateOnCreate = true;
 			Schematyc::Range<0, 32768> m_nearPlane = 0.25f;
+			Schematyc::Range<0, 32768> m_farPlane = 1024;
 			CryTransform::CClampedAngle<20, 360> m_fieldOfView = 75.0_degrees;
 
-			bool m_bAutomaticAudioListenerPosition = true;
+			ICameraManager* m_pCameraManager = nullptr;
 
 			CCamera m_camera;
-			IEntity* m_pAudioListener = nullptr;
-
-			static CCameraComponent* s_pActiveCamera;
+			Cry::Audio::DefaultComponents::CListenerComponent* m_pAudioListener = nullptr;
 		};
 	}
 }

@@ -10,7 +10,7 @@ class CAudioAreaRandom final
 	: public CDesignerEntityComponent<>
 	  , public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CAudioAreaRandom, "AudioAreaRandom", 0x8952D4D63E2347D5, 0x86EC4724BF34789F);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CAudioAreaRandom, "AudioAreaRandom", "8952d4d6-3e23-47d5-86ec-4724bf34789f"_cry_guid);
 
 public:
 	CAudioAreaRandom() = default;
@@ -18,7 +18,7 @@ public:
 
 	// CNativeEntityBase
 	virtual uint64                GetEventMask() const override { return CDesignerEntityComponent::GetEventMask() | BIT64(ENTITY_EVENT_ENTERNEARAREA) | BIT64(ENTITY_EVENT_MOVENEARAREA) | BIT64(ENTITY_EVENT_ENTERAREA) | BIT64(ENTITY_EVENT_MOVEINSIDEAREA) | BIT64(ENTITY_EVENT_LEAVEAREA) | BIT64(ENTITY_EVENT_LEAVENEARAREA); }
-	virtual void                  ProcessEvent(SEntityEvent& event) override;
+	virtual void                  ProcessEvent(const SEntityEvent& event) override;
 
 	virtual IEntityPropertyGroup* GetPropertyGroup() final { return this; }
 
@@ -26,7 +26,7 @@ public:
 	// ~CNativeEntityBase
 
 	// IEntityPropertyGroup
-	virtual const char* GetLabel() const override { return "AudioAreaAmbience Properties"; }
+	virtual const char* GetLabel() const override { return "AudioAreaRandom Properties"; }
 
 	virtual void        SerializeProperties(Serialization::IArchive& archive) override;
 	// ~IEntityPropertyGroup

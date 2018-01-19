@@ -1,10 +1,11 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 
 #include <CryEntitySystem/IEntitySystem.h>
 #include "EntitySystem.h"
 #include "EntityUnitTests.h"
+#include "EntityClassRegistry.h"
 
 #include "Schematyc/EntitySchematycActions.h"
 #include "Schematyc/EntitySchematycUtilFunctions.h"
@@ -22,7 +23,8 @@
 #include  <CrySchematyc/Env/EnvPackage.h>
 #include <CryCore/StaticInstanceList.h>
 
-CEntitySystem* g_pIEntitySystem = NULL;
+CEntitySystem* g_pIEntitySystem = nullptr;
+constexpr CryGUID SchematyEntityComponentsPackageGUID = "A37D36D5-2AB1-4B48-9353-3DEC93A4236A"_cry_guid;
 
 struct CSystemEventListener_Entity : public ISystemEventListener
 {
@@ -31,8 +33,14 @@ public:
 	{
 		switch (event)
 		{
+		case ESYSTEM_EVENT_GAME_POST_INIT:
+			{
+				static_cast<CEntityClassRegistry*>(g_pIEntitySystem->GetClassRegistry())->OnGameFrameworkInitialized();
+			}
+			break;
 		case ESYSTEM_EVENT_REGISTER_SCHEMATYC_ENV:
 			{
+
 				auto entitySchematycRegistration = [](Schematyc::IEnvRegistrar& registrar)
 				{
 					Schematyc::CEntityTimerAction::Register(registrar);
@@ -47,20 +55,27 @@ public:
 				};
 
 				gEnv->pSchematyc->GetEnvRegistry().RegisterPackage(
-					stl::make_unique<Schematyc::CEnvPackage>(
-						"A37D36D5-2AB1-4B48-9353-3DEC93A4236A"_cry_guid,
-						"EntityComponents",
-						"Crytek GmbH",
-						"CRYENGINE Default Entity Components",
-						entitySchematycRegistration
-						)
-				);
+				  stl::make_unique<Schematyc::CEnvPackage>(
+				    SchematyEntityComponentsPackageGUID,
+				    "EntityComponents",
+				    "Crytek GmbH",
+				    "CRYENGINE Default Entity Components",
+				    entitySchematycRegistration
+				    )
+				  );
 			}
 			break;
+		case ESYSTEM_EVENT_FULL_SHUTDOWN:
+		case ESYSTEM_EVENT_FAST_SHUTDOWN:
+			{
+				// Deregister the Schematyc packages which were registered in the entity system.
+				if (gEnv->pSchematyc)
+				{
+					gEnv->pSchematyc->GetEnvRegistry().DeregisterPackage(SchematyEntityComponentsPackageGUID);
 
-		case ESYSTEM_EVENT_LEVEL_LOAD_START:
-			if (g_pIEntitySystem)
-				g_pIEntitySystem->OnLevelLoadStart();
+					g_pIEntitySystem->GetClassRegistry()->UnregisterSchematycEntityClass();
+				}
+			}
 			break;
 		case ESYSTEM_EVENT_LEVEL_LOAD_END:
 			{
@@ -71,12 +86,8 @@ public:
 						// activate the default layers
 						g_pIEntitySystem->EnableDefaultLayers();
 					}
-					{
-						LOADING_TIME_PROFILE_SECTION_NAMED("ENTITY_EVENT_LEVEL_LOADED");
-						SEntityEvent loadingCompleteEvent(ENTITY_EVENT_LEVEL_LOADED);
-						g_pIEntitySystem->SendEventToAll(loadingCompleteEvent);
-					}
-					g_pIEntitySystem->OnLevelLoadEnd();
+
+					g_pIEntitySystem->OnLevelLoaded();
 				}
 			}
 			break;
@@ -99,12 +110,12 @@ class CEngineModule_EntitySystem : public IEntitySystemEngineModule
 	CRYINTERFACE_ADD(IEntitySystemEngineModule)
 	CRYINTERFACE_END()
 
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_EntitySystem, "EngineModule_CryEntitySystem", 0x885655072f014c03, 0x820c5a1a9b4d623b)
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_EntitySystem, "EngineModule_CryEntitySystem", "88565507-2f01-4c03-820c-5a1a9b4d623b"_cry_guid)
 
 	virtual ~CEngineModule_EntitySystem()
 	{
 		GetISystem()->GetISystemEventDispatcher()->RemoveListener(&g_system_event_listener_entity);
-		SAFE_RELEASE(gEnv->pEntitySystem);
+		SAFE_RELEASE(g_pIEntitySystem);
 	}
 
 	//////////////////////////////////////////////////////////////////////////
@@ -124,7 +135,7 @@ class CEngineModule_EntitySystem : public IEntitySystemEngineModule
 			return false;
 		}
 
-		pSystem->GetISystemEventDispatcher()->RegisterListener(&g_system_event_listener_entity, "CSystemEventListner_Entity");
+		pSystem->GetISystemEventDispatcher()->RegisterListener(&g_system_event_listener_entity, "CSystemEventListener_Entity");
 
 		env.pEntitySystem = pEntitySystem;
 		return true;

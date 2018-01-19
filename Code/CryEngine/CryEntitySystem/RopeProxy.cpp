@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "RopeProxy.h"
@@ -34,7 +34,7 @@ void CEntityComponentRope::Initialize()
 {
 	m_pRopeRenderNode = (IRopeRenderNode*)gEnv->p3DEngine->CreateRenderNode(eERType_Rope);
 	int nSlot = GetOrMakeEntitySlotId();
-	GetEntity()->SetSlotRenderNode(nSlot,m_pRopeRenderNode);
+	GetEntity()->SetSlotRenderNode(nSlot, m_pRopeRenderNode);
 	m_nSegmentsOrg = -1;
 }
 
@@ -44,7 +44,7 @@ void CEntityComponentRope::Update(SEntityUpdateContext& ctx)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CEntityComponentRope::ProcessEvent(SEntityEvent& event)
+void CEntityComponentRope::ProcessEvent(const SEntityEvent& event)
 {
 	switch (event.event)
 	{
@@ -268,13 +268,13 @@ void CEntityComponentRope::LegacySerializeXML(XmlNodeRef& entityNode, XmlNodeRef
 				IRopeRenderNode::SRopeAudioParams audioParams;
 				char const* szTemp = nullptr;
 				xmlNodeAudio->getAttr("StartTrigger", &szTemp);
-				audioParams.startTrigger = CryAudio::StringToId_RunTime(szTemp);
+				audioParams.startTrigger = CryAudio::StringToId(szTemp);
 
 				xmlNodeAudio->getAttr("StopTrigger", &szTemp);
-				audioParams.stopTrigger = CryAudio::StringToId_RunTime(szTemp);
+				audioParams.stopTrigger = CryAudio::StringToId(szTemp);
 
 				xmlNodeAudio->getAttr("AngleParameter", &szTemp);
-				audioParams.angleParameter = CryAudio::StringToId_RunTime(szTemp);
+				audioParams.angleParameter = CryAudio::StringToId(szTemp);
 
 				std::underlying_type<CryAudio::EOcclusionType>::type tempOcclusionType;
 				xmlNodeAudio->getAttr("OcclusionType", tempOcclusionType);

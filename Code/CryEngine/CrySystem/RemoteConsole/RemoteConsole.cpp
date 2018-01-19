@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   RemoteConsole.cpp
@@ -277,44 +277,31 @@ void SRemoteServer::StartServer()
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SRemoteServer::StopServer()
 {
-	SignalStopWork();
-	if (m_socket != CRY_INVALID_SOCKET && m_socket != CRY_SOCKET_ERROR)
+	if (m_bAcceptClients)
 	{
-		CrySock::closesocket(m_socket);
-	}
-	m_socket = CRY_SOCKET_ERROR;
-	m_lock.Lock();
-	for (TClients::iterator it = m_clients.begin(); it != m_clients.end(); ++it)
-		it->pClient->StopClient();
-	m_lock.Unlock();
-	m_stopEvent.Wait();
-	m_stopEvent.Set();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-void SRemoteServer::ClientDone(SRemoteClient* pClient)
-{
-	m_lock.Lock();
-	for (TClients::iterator it = m_clients.begin(); it != m_clients.end(); ++it)
-	{
-		if (it->pClient.get() == pClient)
-		{
-			it->pClient->SignalStopWork();
-			gEnv->pThreadManager->JoinThread(it->pClient.get(), eJM_Join);
-			m_clients.erase(it);
-			break;
-		}
+		SignalStopWork();
+		gEnv->pThreadManager->JoinThread(this, eJM_Join);
 	}
 
-	if (m_clients.empty())
-		m_stopEvent.Set();
-	m_lock.Unlock();
+	for (TClients::iterator it = m_clients.begin(); it != m_clients.end(); ++it)
+	{
+		it->pClient->SignalStopWork();
+		gEnv->pThreadManager->JoinThread(it->pClient.get(), eJM_Join);
+	}
+	m_clients.clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SRemoteServer::SignalStopWork()
 {
 	m_bAcceptClients = false;
+
+	// Close socket here as server thread might be blocking on ::accept
+	if (m_socket != CRY_INVALID_SOCKET && m_socket != CRY_SOCKET_ERROR)
+	{
+		CrySock::closesocket(m_socket);
+	}
+	m_socket = CRY_SOCKET_ERROR;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -343,10 +330,30 @@ void SRemoteServer::ThreadEntry()
 	local.sin_addr.s_addr = htonl(INADDR_ANY);
 	local.sin_family = AF_INET;
 
-	bool bindOk = false;
-	for (uint32 i = 0; i < MAX_BIND_ATTEMPTS; ++i)
+	int port = DEFAULT_PORT;
+	int maxAttempts = MAX_BIND_ATTEMPTS;
+
+	// Get the port from the commandline if provided.
+	const ICmdLineArg* pRemoteConsolePortArg = gEnv->pSystem->GetICmdLine()->FindArg(ECmdLineArgType::eCLAT_Pre, "remoteConsolePort");
+	if (pRemoteConsolePortArg != nullptr)
 	{
-		local.sin_port = htons(DEFAULT_PORT + i);
+		// If a valid port is retrieved, only one bind attempt will be made.
+		// Otherwise, use the default values.
+		port = pRemoteConsolePortArg->GetIValue();
+		if (port <= 0)
+		{
+			port = DEFAULT_PORT;
+		}
+		else
+		{
+			maxAttempts = 1;
+		}
+	}
+
+	bool bindOk = false;
+	for (uint32 i = 0; i < maxAttempts; ++i)
+	{
+		local.sin_port = htons(port + i);
 		const int result = CrySock::bind(m_socket, (CRYSOCKADDR*)&local, sizeof(local));
 		if (CrySock::TranslateSocketError(result) == CrySock::eCSE_NO_ERROR)
 		{
@@ -355,9 +362,9 @@ void SRemoteServer::ThreadEntry()
 		}
 	}
 
-	if (bindOk == false)
+	if (!bindOk)
 	{
-		CryLog("Remote console FAILED. bind() => CRY_SOCKET_ERROR. Faild ports from %d to %d", DEFAULT_PORT, DEFAULT_PORT + MAX_BIND_ATTEMPTS - 1);
+		CryLog("Remote console FAILED. bind() => CRY_SOCKET_ERROR. Faild ports from %d to %d", port, port + maxAttempts - 1);
 		return;
 	}
 
@@ -384,17 +391,11 @@ void SRemoteServer::ThreadEntry()
 		}
 
 		m_lock.Lock();
-		m_stopEvent.Reset();
 		std::unique_ptr<SRemoteClient> pClient(new SRemoteClient(this));
 		pClient->StartClient(sClient);
 		m_clients.emplace_back(std::move(pClient));
 		m_lock.Unlock();
 	}
-	if (m_socket != CRY_INVALID_SOCKET && m_socket != CRY_SOCKET_ERROR)
-	{
-		CrySock::closesocket(m_socket);
-	}
-	//WSACleanup();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -475,17 +476,9 @@ void SRemoteClient::StartClient(CRYSOCKET socket)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-void SRemoteClient::StopClient()
-{
-	SignalStopWork();
-	CrySock::closesocket(m_socket);
-	m_socket = CRY_SOCKET_ERROR;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////
 void SRemoteClient::SignalStopWork()
 {
-	m_pServer->ClientDone(this);
+	m_bRun = false;		
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -500,7 +493,7 @@ void SRemoteClient::ThreadEntry()
 
 	bool ok = true;
 	bool autoCompleteDoneSent = false;
-	while (ok)
+	while (ok && m_bRun)
 	{
 		// read data
 		SRemoteEventFactory::GetInst()->WriteToBuffer(&reqEvt, szBuff, size);
@@ -537,6 +530,9 @@ void SRemoteClient::ThreadEntry()
 			ok &= pEvt && pEvt->GetType() == eCET_Noop;
 		}
 	}
+
+	CrySock::closesocket(m_socket);
+	m_socket = CRY_SOCKET_ERROR;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
