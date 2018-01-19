@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -30,6 +30,7 @@ typedef IMovieSystem* (* PFNCREATEMOVIESYSTEM)(struct ISystem*);
 typedef std::vector<IAnimSequence*> AnimSequences;
 typedef std::vector<string>         TrackEvents;
 
+//! \cond INTERNAL
 //! Node-Types.
 //! You need to register new types in Movie.cpp/RegisterNodeTypes for serialization.
 //! \note Enums are serialized by string now, there is no need for specific IDs anymore for new parameters. Values are for backward compatibility.
@@ -969,10 +970,11 @@ struct IMovieListener
 
 struct IMovieEngineModule : public Cry::IDefaultModule
 {
-	CRYINTERFACE_DECLARE(IMovieEngineModule, 0x271A9F977E6D4CFA, 0xB3AE2A5C3227D302);
+	CRYINTERFACE_DECLARE_GUID(IMovieEngineModule, "271a9f97-7e6d-4cfa-b3ae-2a5c3227d302"_cry_guid);
 };
+//! \endcond
 
-//! Movie System interface.
+//! Movie System (TrackView) interface.
 //! Main entrance point to engine movie capability.
 //! Enumerate available movies, update all movies, create animation nodes and tracks.
 struct IMovieSystem
@@ -1183,6 +1185,7 @@ struct IMovieSystem
 	// </interfuscator:shuffle>
 };
 
+//! \cond INTERNAL
 inline void SAnimContext::Serialize(XmlNodeRef& xmlNode, bool bLoading)
 {
 	if (bLoading)
@@ -1237,17 +1240,17 @@ inline void SSequenceAudioTrigger::Serialize(XmlNodeRef xmlNode, bool bLoading)
 		if (xmlNode->getAttr("onStopAudioTrigger"))
 		{
 			m_onStopTriggerName = xmlNode->getAttr("onStopAudioTrigger");
-			m_onStopTrigger = CryAudio::StringToId_RunTime(m_onStopTriggerName.c_str());
+			m_onStopTrigger = CryAudio::StringToId(m_onStopTriggerName.c_str());
 		}
 		if (xmlNode->getAttr("onPauseAudioTrigger"))
 		{
 			m_onPauseTriggerName = xmlNode->getAttr("onPauseAudioTrigger");
-			m_onPauseTrigger = CryAudio::StringToId_RunTime(m_onPauseTriggerName.c_str());
+			m_onPauseTrigger = CryAudio::StringToId(m_onPauseTriggerName.c_str());
 		}
 		if (xmlNode->getAttr("onResumeAudioTrigger"))
 		{
 			m_onResumeTriggerName = xmlNode->getAttr("onResumeAudioTrigger");
-			m_onResumeTrigger = CryAudio::StringToId_RunTime(m_onResumeTriggerName.c_str());
+			m_onResumeTrigger = CryAudio::StringToId(m_onResumeTriggerName.c_str());
 		}
 
 	}
@@ -1276,21 +1279,21 @@ inline void SSequenceAudioTrigger::Serialize(Serialization::IArchive& ar)
 		ar(Serialization::AudioTrigger<string>(stopTriggerName), "onStopAudioTrigger", "onStop");
 		if (!stopTriggerName.empty())
 		{
-			m_onStopTrigger = CryAudio::StringToId_RunTime(stopTriggerName.c_str());
+			m_onStopTrigger = CryAudio::StringToId(stopTriggerName.c_str());
 		}
 
 		string pauseTriggerName;
 		ar(Serialization::AudioTrigger<string>(pauseTriggerName), "onPauseAudioTrigger", "onPause");
 		if (!pauseTriggerName.empty())
 		{
-			m_onPauseTrigger = CryAudio::StringToId_RunTime(pauseTriggerName.c_str());
+			m_onPauseTrigger = CryAudio::StringToId(pauseTriggerName.c_str());
 		}
 
 		string resumeTriggerName;
 		ar(Serialization::AudioTrigger<string>(resumeTriggerName), "onResumeAudioTrigger", "onResume");
 		if (!resumeTriggerName.empty())
 		{
-			m_onResumeTrigger = CryAudio::StringToId_RunTime(resumeTriggerName.c_str());
+			m_onResumeTrigger = CryAudio::StringToId(resumeTriggerName.c_str());
 		}
 	}
 	else
@@ -1305,3 +1308,5 @@ void CAnimParamType::Serialize(XmlNodeRef& xmlNode, bool bLoading, const uint ve
 {
 	gEnv->pMovieSystem->SerializeParamType(*this, xmlNode, bLoading, version);
 }
+
+//! \endcond

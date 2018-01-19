@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     18/12/2014 by Filipe amim
@@ -8,11 +8,8 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
-#include "ParticleSystem/ParticleFeature.h"
-#include "ParticleSystem/ParticleEmitter.h"
+#include "ParticleSystem/ParticleSystem.h"
 #include "FeatureCollision.h"
-
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -25,7 +22,7 @@ SERIALIZATION_DECLARE_ENUM(ESecondGenMode,
                            )
 
 
-typedef THeapArray<CParticleComponentRuntime::SInstance> TInstanceArray;
+typedef THeapArray<SInstance> TInstanceArray;
 
 class CFeatureSecondGenBase : public CParticleFeature
 {
@@ -34,7 +31,7 @@ public:
 		: m_probability(1.0f)
 		, m_mode(ESecondGenMode::All) {}
 
-	void ResolveDependency(CParticleComponent* pComponent) override
+	bool ResolveDependency(CParticleComponent* pComponent) override
 	{
 		CRY_PFX2_ASSERT(pComponent);
 
@@ -45,14 +42,14 @@ public:
 		{
 			if (auto pSubComp = pEffect->FindComponentByName(componentName))
 			{
-				const bool isUnique = std::find(m_components.begin(), m_components.end(), pSubComp) == m_components.end();
-				if (isUnique)
+				if (!stl::find(m_components, pSubComp))
 				{
-					if (pSubComp->SetParentComponent(pComponent, IsDelayed()))
-						m_components.push_back(pSubComp);
+					pSubComp->SetParentComponent(pComponent, IsDelayed());
+					m_components.push_back(pSubComp);
 				}
 			}
 		}
+		return true;
 	}
 
 	void Serialize(Serialization::IArchive& ar) override
@@ -104,7 +101,9 @@ protected:
 		const uint numEntries = m_components.size();
 		for (uint i = 0; i < numEntries; ++i)
 		{
-			IParticleComponentRuntime* pChildComponentRuntime = context.m_runtime.GetEmitter()->GetRuntimeFor(m_components[i]);
+			CParticleComponentRuntime* pChildComponentRuntime = context.m_runtime.GetEmitter()->GetRuntimeFor(m_components[i]);
+			if (!pChildComponentRuntime)
+				continue;
 			SChaosKey chaosKey = context.m_spawnRng;
 
 			for (const auto& trigger : triggers)
@@ -146,10 +145,10 @@ private:
 		}
 	}
 
-	std::vector<string> m_componentNames;
-	TComponents         m_components;
-	SUnitFloat          m_probability;
-	ESecondGenMode      m_mode;
+	std::vector<string>              m_componentNames;
+	std::vector<CParticleComponent*> m_components;
+	SUnitFloat                       m_probability;
+	ESecondGenMode                   m_mode;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -163,7 +162,7 @@ public:
 	{
 		CFeatureSecondGenBase::AddToComponent(pComponent, pParams);
 		if (GetNumConnectors() != 0)
-			pComponent->AddToUpdateList(EUL_InitUpdate, this);
+			pComponent->InitParticles.add(this);
 	}
 
 	virtual void InitParticles(const SUpdateContext& context) override
@@ -199,7 +198,7 @@ public:
 	{
 		CFeatureSecondGenBase::AddToComponent(pComponent, pParams);
 		if (GetNumConnectors() != 0)
-			pComponent->AddToUpdateList(EUL_KillUpdate, this);
+			pComponent->KillParticles.add(this);
 	}
 
 	void KillParticles(const SUpdateContext& context, TConstArray<TParticleId> particleIds) override
@@ -239,10 +238,10 @@ public:
 	{
 		CFeatureSecondGenBase::AddToComponent(pComponent, pParams);
 		if (GetNumConnectors() != 0)
-			pComponent->AddToUpdateList(EUL_Update, this);
+			pComponent->UpdateParticles.add(this);
 	}
 
-	virtual void Update(const SUpdateContext& context) override
+	virtual void UpdateParticles(const SUpdateContext& context) override
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 

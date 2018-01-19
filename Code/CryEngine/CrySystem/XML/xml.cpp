@@ -1,13 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
-
-// -------------------------------------------------------------------------
-//  File name:   xml.cpp
-//  Created:     21/04/2006 by Timur.
-//  Description:
-// -------------------------------------------------------------------------
-//  History:
-//
-////////////////////////////////////////////////////////////////////////////
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include <StdAfx.h>
 
@@ -24,7 +15,6 @@
 #include <stdio.h>
 #include <CrySystem/File/ICryPak.h>
 #include "XMLBinaryReader.h"
-#include "CryExtension/CryGUIDHelper.h"
 
 #define FLOAT_FMT  "%.8g"
 #define DOUBLE_FMT "%.17g"
@@ -370,7 +360,7 @@ void CXmlNode::setAttr(const char* key, const Quat& value)
 
 void CXmlNode::setAttr(const char* key, const CryGUID& value)
 {
-	setAttr(key, CryGUIDHelper::Print(value));
+	setAttr(key, value.ToString());
 }
 
 bool CXmlNode::getAttr(const char* key, CryGUID& value) const
@@ -379,23 +369,11 @@ bool CXmlNode::getAttr(const char* key, CryGUID& value) const
 	if (svalue)
 	{
 		const char* guidStr = getAttr(key);
-		value = CryGUIDHelper::FromString(svalue);
-		if (!value.IsNull() && (value.hipart >> 32) == 0)
-		{
-#ifndef RELEASE
-			string guidString = svalue;
-			CRY_ASSERT_MESSAGE(std::all_of(guidString.begin(), guidString.end(), ::isdigit), "Must never reach this point with a non-numeric string!");
-#endif
-
-			value = CryGUID::Null();
-			// If bad GUID, use old 64bit guid system.
-			value.hipart = static_cast<uint64>(std::stoull(svalue,0,16));
-		}
+		value = CryGUID::FromString(svalue);
 		return true;
 	}
 	return false;
 }
-
 
 //////////////////////////////////////////////////////////////////////////
 bool CXmlNode::getAttr(const char* key, int& value) const
@@ -447,32 +425,53 @@ bool CXmlNode::getAttr(const char* key, uint64& value, bool useHexFormat) const
 	return false;
 }
 
+//////////////////////////////////////////////////////////////////////////
 bool CXmlNode::getAttr(const char* key, bool& value) const
 {
-	const char* svalue = GetValue(key);
-	if (svalue)
+	bool isSuccess = false;
+	char const* const szValue = GetValue(key);
+
+	if (szValue != nullptr && szValue[0] != '\0')
 	{
-		if (*svalue != 0)
+		if (std::isalpha(*szValue) != 0)
 		{
-			if (std::isalpha(*svalue))
+			if (g_pXmlStrCmp(szValue, "false") == 0)
 			{
-				if (0 == strcmp(svalue,"true"))
-					value = true;
-				else
-					value = false;
+				value = false;
+				isSuccess = true;
+			}
+			else if (g_pXmlStrCmp(szValue, "true") == 0)
+			{
+				value = true;
+				isSuccess = true;
 			}
 			else
 			{
-				value = atoi(svalue) != 0;
+				CryWarning(VALIDATOR_MODULE_SYSTEM, VALIDATOR_WARNING, "Encountered invalid value during CXmlNode::getAttr! Value: %s Tag: %s", szValue, m_tag);
 			}
 		}
 		else
 		{
-			value = false;
+			int const number = std::atoi(szValue);
+
+			if (number == 0)
+			{
+				value = false;
+				isSuccess = true;
+			}
+			else if (number == 1)
+			{
+				value = true;
+				isSuccess = true;
+			}
+			else
+			{
+				CryWarning(VALIDATOR_MODULE_SYSTEM, VALIDATOR_WARNING, "Encountered invalid value during CXmlNode::getAttr! Value: %s Tag: %s", szValue, m_tag);
+			}
 		}
-		return true;
 	}
-	return false;
+
+	return isSuccess;
 }
 
 bool CXmlNode::getAttr(const char* key, float& value) const
@@ -1079,8 +1078,7 @@ void CXmlNode::AddToXmlString(XmlString& xml, int level, FILE* pFile, IPlatformO
 	xml += ">\n";
 }
 
-#if !CRY_PLATFORM_APPLE && !CRY_PLATFORM_LINUX && !HAS_STPCPY
-ILINE static char* stpcpy(char* dst, const char* src)
+inline static char* cry_stpcpy(char* dst, const char* src)
 {
 	while (src[0])
 	{
@@ -1091,7 +1089,6 @@ ILINE static char* stpcpy(char* dst, const char* src)
 	dst[0] = 0;
 	return dst;
 }
-#endif
 
 char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* pFile, IPlatformOS::ISaveWriterPtr pSaveWriter, size_t chunkSize) const
 {
@@ -1107,7 +1104,7 @@ char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* p
 	if (!m_pAttributes || m_pAttributes->empty())
 	{
 		*(xml++) = '<';
-		xml = stpcpy(xml, m_tag);
+		xml = cry_stpcpy(xml, m_tag);
 		if (*m_content == 0 && !bHasChildren)
 		{
 			*(xml++) = '/';
@@ -1120,13 +1117,13 @@ char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* p
 	else
 	{
 		*(xml++) = '<';
-		xml = stpcpy(xml, m_tag);
+		xml = cry_stpcpy(xml, m_tag);
 		*(xml++) = ' ';
 
 		// Put attributes.
 		for (XmlAttributes::const_iterator it = m_pAttributes->begin(); it != m_pAttributes->end(); )
 		{
-			xml = stpcpy(xml, it->key);
+			xml = cry_stpcpy(xml, it->key);
 			*(xml++) = '=';
 			*(xml++) = '\"';
 #ifndef _RELEASE
@@ -1135,7 +1132,7 @@ char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* p
 				__debugbreak();
 			}
 #endif
-			xml = stpcpy(xml, it->value);
+			xml = cry_stpcpy(xml, it->value);
 			++it;
 			*(xml++) = '\"';
 			if (it != m_pAttributes->end())
@@ -1160,13 +1157,13 @@ char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* p
 		__debugbreak();
 	}
 #endif
-	xml = stpcpy(xml, m_content);
+	xml = cry_stpcpy(xml, m_content);
 
 	if (!bHasChildren)
 	{
 		*(xml++) = '<';
 		*(xml++) = '/';
-		xml = stpcpy(xml, m_tag);
+		xml = cry_stpcpy(xml, m_tag);
 		*(xml++) = '>';
 		*(xml++) = '\n';
 		return xml;
@@ -1188,7 +1185,7 @@ char* CXmlNode::AddToXmlStringUnsafe(char* xml, int level, char* endPtr, FILE* p
 	}
 	*(xml++) = '<';
 	*(xml++) = '/';
-	xml = stpcpy(xml, m_tag);
+	xml = cry_stpcpy(xml, m_tag);
 	*(xml++) = '>';
 	*(xml++) = '\n';
 

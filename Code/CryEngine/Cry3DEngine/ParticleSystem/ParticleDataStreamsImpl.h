@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifdef CRY_PFX2_USE_SSE
 template<> ILINE pfx2::UColv convert<pfx2::UColv>(UCol v) { return _mm_set1_epi32(v.dcolor); }
@@ -64,6 +64,7 @@ ILINE Vec3 IOVec3Stream::Load(TParticleId pId) const
 
 ILINE void IOVec3Stream::Store(TParticleId pId, Vec3 value)
 {
+	CRY_PFX2_DEBUG_ASSERT(IsValid(value));
 	m_pXStream[pId] = value.x;
 	m_pYStream[pId] = value.y;
 	m_pZStream[pId] = value.z;

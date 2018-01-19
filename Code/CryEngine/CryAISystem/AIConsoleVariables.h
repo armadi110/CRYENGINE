@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef AICONSOLEVARIABLES_H
 #define AICONSOLEVARIABLES_H
@@ -17,11 +17,13 @@ struct AIConsoleVars
 	DeclareConstIntCVar(DebugDrawCover, 0);
 	DeclareConstIntCVar(DebugDrawCoverOccupancy, 0);
 	DeclareConstIntCVar(DebugDrawNavigation, 0);
+	DeclareConstIntCVar(DebugTriangleOnCursor, 0);
 	DeclareConstIntCVar(IslandConnectionsSystemProfileMemory, 0);
 	DeclareConstIntCVar(DebugDrawNavigationWorldMonitor, 0);
 	DeclareConstIntCVar(NavigationSystemMT, 1);
 	DeclareConstIntCVar(NavGenThreadJobs, 1);
 	float NavmeshStabilizationTimeToUpdate;
+	float NavmeshTileDistanceDraw;
 	DeclareConstIntCVar(DebugDrawCoverPlanes, 0);
 	DeclareConstIntCVar(DebugDrawCoverLocations, 0);
 	DeclareConstIntCVar(DebugDrawCoverSampler, 0);
@@ -305,6 +307,7 @@ struct AIConsoleVars
 	float       ProneVisibleRange;
 
 	int         MNMDebugAccessibility; // TODO: remove
+	const char* MNMDebugDrawFlag;
 
 	int         MNMEditorBackgroundUpdate;
 

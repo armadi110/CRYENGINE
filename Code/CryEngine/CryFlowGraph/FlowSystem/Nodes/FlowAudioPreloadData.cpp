@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CryFlowGraph/IFlowBaseNode.h>
@@ -79,7 +79,7 @@ public:
 
 				if (!preloadName.empty())
 				{
-					CryAudio::PreloadRequestId const preloadRequestId = CryAudio::StringToId_RunTime(preloadName.c_str());
+					CryAudio::PreloadRequestId const preloadRequestId = CryAudio::StringToId(preloadName.c_str());
 					
 					if (bEnable)
 					{

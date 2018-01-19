@@ -4,6 +4,7 @@
 #include "CryIcon.h"
 
 #include <QApplication>
+#include <QDebug>
 #include <QFileInfo>
 #include <QImageReader>
 #include <QPalette>
@@ -178,9 +179,12 @@ QPixmap CryPixmapIconEngine::pixmap(const QSize& size, QIcon::Mode mode, QIcon::
 		for (int j = 0; j < imageColorOnly.height(); j++)
 		{
 			QRgb pixel = imageColorOnly.pixel(i, j);
-			if (qRed(pixel) == qGreen(pixel) && qRed(pixel) == qBlue(pixel))
+			int red = qRed(pixel);
+			int green = qGreen(pixel);
+			int blue = qBlue(pixel);
+			if (red == green && red == blue)
 			{
-				imageColorOnly.setPixelColor(i, j, QColor(255, 255, 255, 0));
+				imageColorOnly.setPixelColor(i, j, QColor(red, green, blue, 0));
 			}
 		}
 	}
@@ -380,21 +384,19 @@ void CryPixmapIconEngine::addFile(const QString& fileName, const QSize& size, QI
 {
 	if (fileName.isEmpty())
 		return;
-	const QString abs = fileName.startsWith(QLatin1Char(':')) ? fileName : QFileInfo(fileName).absoluteFilePath();
-	const bool ignoreSize = !size.isValid();
-	ImageReader imageReader(abs);
-	const QByteArray format = imageReader.format();
+	QString abs = fileName.startsWith(QLatin1Char(':')) ? fileName : QFileInfo(fileName).absoluteFilePath();
+	bool ignoreSize = !size.isValid();
+	ImageReader imageReaderTry(abs);
+	QByteArray format = imageReaderTry.format();
 	if (format.isEmpty()) // Device failed to open or unsupported format.
 	{
-#ifdef WIN32
-		// Always notify programmer directly if we're trying to load an invalid file
-		if (IsDebuggerPresent())
-		{
-			__debugbreak();
-		}
-#endif
-		return;
+		qWarning() << "Could not load icon at " << fileName;
+		//Try the default Icon
+		abs = QFileInfo("icons:common/general_icon_missing.ico").absoluteFilePath();
+		ImageReader imageReaderNew(abs);
+		format = imageReaderNew.format();
 	}
+	ImageReader imageReader(abs);
 	QImage image;
 	if (format != "ico")
 	{

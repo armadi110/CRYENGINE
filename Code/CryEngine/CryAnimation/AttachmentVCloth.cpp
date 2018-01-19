@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 
@@ -281,6 +281,15 @@ void CAttachmentVCLOTH::UpdateRemapTable()
 		pSimRenderMesh->CreateRemappedBoneIndicesPair(m_arrSimRemapTable, pDefaultSkeleton->GetGuid(), this);
 }
 
+bool CAttachmentVCLOTH::EnsureRemapTableIsValid()
+{
+	if (m_arrSimRemapTable.size() == 0 || m_arrRemapTable.size() == 0)
+	{
+		UpdateRemapTable();
+	}
+	return m_arrSimRemapTable.size() > 0 && m_arrRemapTable.size() > 0;
+}
+
 void CAttachmentVCLOTH::ReleaseSimRemapTablePair()
 {
 	if (!m_pSimSkin)
@@ -331,7 +340,7 @@ float CAttachmentVCLOTH::GetExtent(EGeomForm eForm)
 	return 0.f;
 }
 
-void CAttachmentVCLOTH::GetRandomPos(PosNorm& ran, CRndGen& seed, EGeomForm eForm) const
+void CAttachmentVCLOTH::GetRandomPoints(Array<PosNorm> points, CRndGen& seed, EGeomForm eForm) const
 {
 	int nLOD = m_pRenderSkin->SelectNearestLoadedLOD(0);
 	IRenderMesh* pMesh = m_pRenderSkin->GetIRenderMesh(nLOD);
@@ -348,7 +357,7 @@ void CAttachmentVCLOTH::GetRandomPos(PosNorm& ran, CRndGen& seed, EGeomForm eFor
 		}
 	}
 
-	pMesh->GetRandomPos(ran, seed, eForm, pSkinningData);
+	pMesh->GetRandomPoints(points, seed, eForm, pSkinningData);
 }
 
 const QuatTS CAttachmentVCLOTH::GetAttWorldAbsolute() const
@@ -630,10 +639,11 @@ _smart_ptr<IRenderMesh> CAttachmentVCLOTH::CreateVertexAnimationRenderMesh(uint 
 
 void CAttachmentVCLOTH::DrawAttachment(SRendParams& RendParams, const SRenderingPassInfo &passInfo, const Matrix34& rWorldMat34, f32 fZoomFactor)
 {
+	if (!m_clothPiece.GetSimulator().IsVisible() || Console::GetInst().ca_VClothMode == 0) return;
+
 	bool bNeedSWskinning = (m_pAttachmentManager->m_pSkelInstance->m_CharEditMode&CA_CharacterTool); // in character tool always use software skinning
 	if (!bNeedSWskinning)
 	{
-		if (!m_clothPiece.GetSimulator().IsVisible()) return;
 		m_clothPiece.GetSimulator().HandleCameraDistance();
 		bNeedSWskinning = !m_clothPiece.GetSimulator().IsGpuSkinning();
 	}
@@ -694,7 +704,7 @@ void CAttachmentVCLOTH::DrawAttachment(SRendParams& RendParams, const SRendering
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
 	//---------------------------------------------------------------------------------------------
-	CRenderObject* pObj = g_pIRenderer->EF_GetObject_Temp(passInfo.ThreadID());
+	CRenderObject* pObj = passInfo.GetIRenderView()->AllocateTemporaryRenderObject();
 	if (!pObj)
 		return;
 
@@ -780,7 +790,7 @@ void CAttachmentVCLOTH::DrawAttachment(SRendParams& RendParams, const SRendering
 	IF(!swSkin, 1)
 		pObj->m_ObjFlags |= FOB_SKINNED;
 
-	pD->m_pSkinningData = GetVertexTransformationData(swSkin, nRenderLOD);
+	pD->m_pSkinningData = GetVertexTransformationData(swSkin, nRenderLOD, passInfo);
 	m_pRenderSkin->m_arrModelMeshes[nRenderLOD].m_stream.nFrameId = passInfo.GetMainFrameID();
 	m_pSimSkin->m_arrModelMeshes[nRenderLOD].m_stream.nFrameId = passInfo.GetMainFrameID();
 
@@ -947,7 +957,7 @@ void CAttachmentVCLOTH::DrawAttachment(SRendParams& RendParams, const SRendering
 		CModelMesh* pModelMesh = m_pRenderSkin->GetModelMesh(nRenderLOD);
 		static ICVar *p_e_debug_draw = gEnv->pConsole->GetCVar("e_DebugDraw");
 		if (p_e_debug_draw && p_e_debug_draw->GetIVal() > 0)
-			pModelMesh->DrawDebugInfo(pMaster->m_pDefaultSkeleton, nRenderLOD, RenderMat34, p_e_debug_draw->GetIVal(), pMaterial, pObj, RendParams, passInfo.IsGeneralPass(), (IRenderNode*)RendParams.pRenderNode, m_pAttachmentManager->m_pSkelInstance->m_SkeletonPose.GetAABB());
+			pModelMesh->DrawDebugInfo(pMaster->m_pDefaultSkeleton, nRenderLOD, RenderMat34, p_e_debug_draw->GetIVal(), pMaterial, pObj, RendParams, passInfo.IsGeneralPass(), (IRenderNode*)RendParams.pRenderNode, m_pAttachmentManager->m_pSkelInstance->m_SkeletonPose.GetAABB(),passInfo);
 #endif
 		pRenderMesh->Render(pObj, passInfo);
 
@@ -999,7 +1009,7 @@ void CAttachmentVCLOTH::TriggerMeshStreaming(uint32 nDesiredRenderLOD, const SRe
 	m_pSimSkin->m_arrModelMeshes[nDesiredRenderLOD].m_stream.nFrameId = passInfo.GetMainFrameID();
 }
 
-SSkinningData* CAttachmentVCLOTH::GetVertexTransformationData(bool bVertexAnimation, uint8 nRenderLOD)
+SSkinningData* CAttachmentVCLOTH::GetVertexTransformationData(bool bVertexAnimation, uint8 nRenderLOD, const SRenderingPassInfo& passInfo)
 {
 	DEFINE_PROFILER_FUNCTION();
 	CCharInstance* pMaster = m_pAttachmentManager->m_pSkelInstance;
@@ -1025,7 +1035,7 @@ SSkinningData* CAttachmentVCLOTH::GetVertexTransformationData(bool bVertexAnimat
 
 	if (pMaster->arrSkinningRendererData[nList].nFrameID != nFrameID)
 	{
-		pMaster->GetSkinningData(); // force master to compute skinning data if not available
+		pMaster->GetSkinningData(passInfo); // force master to compute skinning data if not available
 	}
 
 	uint32 nCustomDataSize = 0;
@@ -1050,7 +1060,7 @@ SSkinningData* CAttachmentVCLOTH::GetVertexTransformationData(bool bVertexAnimat
 		nCustomDataSize = sizeof(SVertexAnimationJob) + commandBufferLength;
 	}
 
-	SSkinningData *pSkinningData = gEnv->pRenderer->EF_CreateRemappedSkinningData(nNumBones, pMaster->arrSkinningRendererData[nList].pSkinningData, nCustomDataSize, pMaster->m_pDefaultSkeleton->GetGuid());
+	SSkinningData *pSkinningData = gEnv->pRenderer->EF_CreateRemappedSkinningData(passInfo.GetIRenderView(), nNumBones, pMaster->arrSkinningRendererData[nList].pSkinningData, nCustomDataSize, pMaster->m_pDefaultSkeleton->GetGuid());
 	pSkinningData->pCustomTag = this;
 	if (nCustomDataSize)
 	{
@@ -1730,6 +1740,8 @@ namespace VClothUtils
 // but with much better distance constraints by using path finding algorithm and closest neighbors
 void CClothSimulator::LongRangeAttachmentsSolve()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	if (m_bUseDijkstraForLRA)
 	{
 		// Dijekstra / geodesic approach / distances along mesh
@@ -1912,6 +1924,8 @@ namespace VClothUtils
 
 void CClothSimulator::UpdateCollidablesLerp(f32 t01)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	std::vector<SCollidable>& collidables = m_permCollidables;
 
 	// determine interpolated transformation matrices
@@ -1933,6 +1947,8 @@ void CClothSimulator::UpdateCollidablesLerp(f32 t01)
 
 void CClothSimulator::PositionsProjectToProxySurface(f32 t01)
 {
+	CRY_PROFILE_REGION(PROFILE_ANIMATION, "CClothSimulator::PositionsProjectToProxySurface");
+
 	std::vector<SCollidable>& collidables = m_permCollidables;
 	int colliderId[2];     // special handling for collision with two colliders at the same time, thus store id
 
@@ -2142,18 +2158,24 @@ bool CClothSimulator::CheckForceSkinningByFpsThreshold()
 	float fps = gEnv->pTimer->GetFrameRate();
 	forceSkinning = fps < m_config.forceSkinningFpsThreshold;
 
-	if (forceSkinning)
+	// force skinning only after n-th frame with framerate below threshold
+	if (forceSkinning && (m_forceSkinningAfterNFramesCounter < Console::GetInst().ca_ClothForceSkinningAfterNFrames))
 	{
-		// CryWarning(VALIDATOR_MODULE_ANIMATION, VALIDATOR_WARNING, "[Cloth] Force Skinning, Fps: %f [Thresh: %f Fps]", fps, m_config.forceSkinningFpsThreshold);
-		// g_pAuxGeom->Draw2dLabel( 100,140, 5.3f, ColorF(1,0,1,1), false, "[Cloth] FPS: %f",fps);
+		m_forceSkinningAfterNFramesCounter++;
+		forceSkinning = false;
 	}
-
+	else
+	{
+		m_forceSkinningAfterNFramesCounter = 0;
+	}
+	
 	return forceSkinning;
 }
 
 bool CClothSimulator::CheckForceSkinning()
 {
 	bool forceSkinning = CheckForceSkinningByFpsThreshold(); // detect framerate; force skinning if needed
+	forceSkinning |= Console::GetInst().ca_VClothMode == 2;
 	forceSkinning |= m_doSkinningForNSteps > 0;
 	forceSkinning |= !IsSimulationEnabled();
 	forceSkinning |= (m_timeInterval / m_config.timeStep) > (float)m_config.timeStepsMax; // not possible to simulate the actual framerate with the provided max no of substeps
@@ -2179,6 +2201,8 @@ bool CClothSimulator::CheckAnimationRewind()
 
 void CClothSimulator::DoForceSkinning()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	m_doSkinningForNSteps--;
 	if (m_doSkinningForNSteps < 0) m_doSkinningForNSteps = 0;
 
@@ -2204,6 +2228,8 @@ void CClothSimulator::DoAnimationRewind()
 
 void CClothSimulator::DampTangential()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	float k = m_config.collisionDampingTangential;
 	for (int i = 0; i < m_nVtx; i++)
 	{
@@ -2224,6 +2250,8 @@ void CClothSimulator::DampTangential()
 
 void CClothSimulator::PositionsIntegrate()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	const Vector4 dg = (m_gravity * m_config.gravityFactor / 1000.0f) * m_dt; // scale to precise/good floating point domain
 	const float resetDampingFactor = 1.0f - m_config.resetDampingFactor;
 	const float kd = 1.0f - m_config.friction;
@@ -2247,6 +2275,8 @@ void CClothSimulator::PositionsIntegrate()
 
 void CClothSimulator::PositionsPullToSkinnedPositions()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	const float minDist = m_config.maxAnimDistance;
 	const float domain = 2 * minDist;
 	const Vector4 up(0, 0, 1);
@@ -2269,6 +2299,8 @@ void CClothSimulator::PositionsPullToSkinnedPositions()
 
 void CClothSimulator::PositionsSetToSkinned(bool projectToProxySurface, bool setPosOld)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	// set positions by skinned positions
 	for (int n = 0; n < m_nVtx; ++n)
 	{
@@ -2304,6 +2336,10 @@ void CClothSimulator::PositionsSetAttachedToSkinnedInterpolated(float t01)
 
 int CClothSimulator::Step()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
+	if (Console::GetInst().ca_VClothMode == 0) return 1; // in case vcloth is disabled by c_var: skip simulation
+
 	// determine dt
 	m_dt = m_config.timeStep;
 	// m_time starts for substeps with m_timeInterval-m_config.timeStep (might be negative), and ends with 0, split last two timesteps to avoid very small timesteps
@@ -2353,6 +2389,7 @@ int CClothSimulator::Step()
 		const f32 springDamping = m_config.springDamping;
 		if (springDamping)
 		{
+			CRY_PROFILE_REGION(PROFILE_ANIMATION, "CClothSimulator::Step::Damping");
 			for (int i = 0; i < m_nEdges; i++)
 			{
 				DampEdge(m_links[i], springDamping);
@@ -2387,6 +2424,8 @@ int CClothSimulator::Step()
 		float bendStiffness = m_config.bendStiffness;
 		float bendStiffnessByTrianglesAngle = -m_config.bendStiffnessByTrianglesAngle / 10.0f;
 
+		CRY_PROFILE_REGION(PROFILE_ANIMATION, "CClothSimulator::Step::ConstraintsAndCollisions");
+
 		// interpolate transformation of collisionProxies
 		UpdateCollidablesLerp(stepTime01);
 
@@ -2397,30 +2436,35 @@ int CClothSimulator::Step()
 			if (m_config.longRangeAttachments) LongRangeAttachmentsSolve();
 
 			// solve springs - stretching, bending & shearing
-			if (stretchStiffness)
 			{
-				for (int i = 0; i < m_nEdges; i++)
+				CRY_PROFILE_REGION(PROFILE_ANIMATION, "CClothSimulator::Step::SolveEdges");
+				if (stretchStiffness)
 				{
-					SolveEdge(m_links[i], stretchStiffness);
+					for (int i = 0; i < m_nEdges; i++)
+					{
+						SolveEdge(m_links[i], stretchStiffness);
+					}
 				}
-			}
-			if (shearStiffness)
-			{
-				for (auto it = m_shearLinks.begin(); it != m_shearLinks.end(); ++it)
+				if (shearStiffness)
 				{
-					SolveEdge(*it, shearStiffness);
+					for (auto it = m_shearLinks.begin(); it != m_shearLinks.end(); ++it)
+					{
+						SolveEdge(*it, shearStiffness);
+					}
 				}
-			}
-			if (bendStiffness)
-			{
-				for (auto it = m_bendLinks.begin(); it != m_bendLinks.end(); ++it)
+				if (bendStiffness)
 				{
-					SolveEdge(*it, bendStiffness);
+					for (auto it = m_bendLinks.begin(); it != m_bendLinks.end(); ++it)
+					{
+						SolveEdge(*it, bendStiffness);
+					}
 				}
+				if (bendStiffnessByTrianglesAngle) { BendByTriangleAngleSolve(bendStiffnessByTrianglesAngle); }
 			}
-			if (bendStiffnessByTrianglesAngle) { BendByTriangleAngleSolve(bendStiffnessByTrianglesAngle); }
+
 			if (m_config.springDampingPerSubstep && springDamping)
 			{
+				CRY_PROFILE_REGION(PROFILE_ANIMATION, "CClothSimulator::Step::DampEdges");
 				// only damp  stretch links here, in the collision/stiffness loop
 				for (int i = 0; i < m_nEdges; i++)
 				{
@@ -2744,6 +2788,8 @@ namespace VClothUtils
 // See also: https://code.google.com/p/opencloth/source/browse/trunk/OpenCloth_PositionBasedDynamics/OpenCloth_PositionBasedDynamics/main.cpp
 void CClothSimulator::DampPositionBasedDynamics()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
+
 	if (!m_config.rigidDamping) return;
 
 	Vector4 xcm(ZERO);
@@ -2812,7 +2858,7 @@ public:
 public:
 	static void Execute(VertexCommandClothSkin& command, CVertexData& vertexData)
 	{
-		FUNCTION_PROFILER(GetISystem(), PROFILE_ANIMATION);
+		CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
 		//		if (!command.pClothPiece->m_bSingleThreaded)
 		command.pClothPiece->UpdateSimulation(command.pTransformations, command.transformationCount);
 
@@ -3079,7 +3125,7 @@ void CClothPiece::WaitForJob(bool bPrev)
 
 bool CClothPiece::PrepareCloth(CSkeletonPose& skeletonPose, const Matrix34& worldMat, bool visible, int lod)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_ANIMATION);
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
 
 	m_pCharInstance = skeletonPose.m_pInstance;
 	m_lastVisible = visible;
@@ -3161,7 +3207,7 @@ struct CRY_ALIGN(16)SMemVec
 
 void CClothPiece::UpdateSimulation(const DualQuat* pTransformations, const uint transformationCount)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_ANIMATION);
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
 
 	if (!m_simulator.IsVisible())
 		return;
@@ -3172,6 +3218,8 @@ void CClothPiece::UpdateSimulation(const DualQuat* pTransformations, const uint 
 	if (m_poolIdx >= 0)
 		m_buffers = m_clothGeom->GetBufferPtr(m_poolIdx);
 	if (m_buffers == NULL)
+		return;
+	if (!m_pVClothAttachment->EnsureRemapTableIsValid())
 		return;
 
 	DynArray<Vec3>& arrDstPositions = m_buffers->m_arrDstPositions;
@@ -3299,7 +3347,7 @@ void CClothPiece::UpdateSimulation(const DualQuat* pTransformations, const uint 
 template<bool PREVIOUS_POSITIONS>
 void CClothPiece::SkinSimulationToRenderMesh(int lod, CVertexData& vertexData, const strided_pointer<const Vec3>& pVertexPositionsPrevious)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_ANIMATION);
+	CRY_PROFILE_FUNCTION(PROFILE_ANIMATION);
 	if (m_clothGeom->skinMap[lod] == NULL || m_buffers == NULL)
 		return;
 

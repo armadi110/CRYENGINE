@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2015-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     06/02/2015 by Filipe amim
@@ -45,10 +45,14 @@ void DebugDrawEffect(CParticleEffect* pEffect, size_t effectBarIdx)
 	// emitter bars
 	IRenderer* pRender = gEnv->pRenderer;
 	IRenderAuxGeom* pRenderAux = gEnv->pRenderer->GetIRenderAuxGeom();
-	Vec2 screenSz = Vec2(float(gEnv->pRenderer->GetWidth()), float(gEnv->pRenderer->GetHeight()));
+
+	const float screenWidth  = pRenderAux->GetCamera().GetViewSurfaceX();
+	const float screenHeight = pRenderAux->GetCamera().GetViewSurfaceZ();
+
+	const Vec2 screenSz = Vec2(screenWidth, screenHeight);
+	const Vec2 pixSz = Vec2(1.0f / screenWidth, 1.0f / screenHeight);
 
 	size_t numEmitters = pEffect->GetEmitterCount();
-	Vec2 pixSz = Vec2(1.0f / gEnv->pRenderer->GetWidth(), 1.0f / gEnv->pRenderer->GetHeight());
 	const Vec2 emitterSz = Vec2(barSz, 0.9f / numEmitters);
 	const Vec2 emitterLoc = Vec2(effectBarIdx * barGap + startPos, startPos);
 
@@ -76,20 +80,23 @@ void DebugDrawComponentRuntime(CParticleComponentRuntime* pRuntime, size_t emitt
 	IRenderAuxGeom* pRenderAux = gEnv->pRenderer->GetIRenderAuxGeom();
 	SAuxGeomRenderFlags prevFlags = pRenderAux->GetRenderFlags();
 	SAuxGeomRenderFlags curFlags = prevFlags;
-	Vec2 screenSz = Vec2(float(gEnv->pRenderer->GetWidth()), float(gEnv->pRenderer->GetHeight()));
 	curFlags.SetMode2D3DFlag(e_Mode2D);
 	curFlags.SetDepthTestFlag(e_DepthTestOff);
 	curFlags.SetDepthWriteFlag(e_DepthWriteOff);
 	pRenderAux->SetRenderFlags(curFlags);
 
+	const float screenWidth  = float(pRenderAux->GetCamera().GetViewSurfaceX());
+	const float screenHeight = float(pRenderAux->GetCamera().GetViewSurfaceZ());
+
 	const SUpdateContext context = SUpdateContext(pRuntime);
 	const CParticleContainer& container = context.m_container;
 	const SComponentParams& params = context.m_params;
-	const size_t numInstances = pRuntime->GetNumInstances();
+	const uint numInstances = pRuntime->GetNumInstances();
 	IPidStream parentIds = container.GetIPidStream(EPDT_ParentId);
 	TIStream<uint8> states = container.GetTIStream<uint8>(EPDT_State);
 	IFStream normAges = container.GetIFStream(EPDT_NormalAge);
-	const Vec2 pixSz = Vec2(1.0f / gEnv->pRenderer->GetWidth(), 1.0f / gEnv->pRenderer->GetHeight());
+	const Vec2 screenSz = Vec2(screenWidth, screenHeight);
+	const Vec2 pixSz = Vec2(1.0f / screenWidth, 1.0f / screenHeight);
 	const Vec2 partSz = Vec2(barSz, 0.9f / container.GetMaxParticles());
 	const Vec2 contLoc = Vec2(barIdx * barGap + barSz * 3.0f + startPos, startPos);
 	const float off = barSz * 0.5f;
@@ -101,7 +108,7 @@ void DebugDrawComponentRuntime(CParticleComponentRuntime* pRuntime, size_t emitt
 		const Vec2 instSz = Vec2(barSz, 0.9f / numInstances);
 		const Vec2 instLoc = Vec2(barIdx * barGap + startPos, startPos);
 		pos = instLoc;
-		for (size_t i = 0; i < numInstances; ++i)
+		for (uint i = 0; i < numInstances; ++i)
 		{
 			AABB box;
 			box.min = pos;
@@ -162,7 +169,6 @@ void DebugDrawComponentCollisions(CParticleComponentRuntime* pRuntime)
 	IRenderAuxGeom* pRenderAux = gEnv->pRenderer->GetIRenderAuxGeom();
 	SAuxGeomRenderFlags prevFlags = pRenderAux->GetRenderFlags();
 	SAuxGeomRenderFlags curFlags = prevFlags;
-	Vec2 screenSz = Vec2(float(gEnv->pRenderer->GetWidth()), float(gEnv->pRenderer->GetHeight()));
 	curFlags.SetMode2D3DFlag(e_Mode3D);
 	curFlags.SetDepthTestFlag(e_DepthTestOn);
 	curFlags.SetDepthWriteFlag(e_DepthWriteOn);
@@ -301,12 +307,12 @@ void DebugOptSpline()
 
 }
 
-void DebugParticleSystem(const std::vector<_smart_ptr<CParticleEmitter>>& activeEmitters)
+void DebugParticleSystem(const TParticleEmitters& activeEmitters)
 {
 	DebugOptSpline();
 
 	CVars* pCVars = static_cast<C3DEngine*>(gEnv->p3DEngine)->GetCVars();
-	const bool debugContainers = (pCVars->e_ParticlesDebug & AlphaBit('t')) != 0;
+	const bool debugContainers = (pCVars->e_ParticlesDebug & AlphaBit('c')) != 0;
 	const bool debugCollisions = (pCVars->e_ParticlesDebug & AlphaBit('u')) != 0;
 
 	if (debugContainers || debugCollisions)
@@ -319,9 +325,9 @@ void DebugParticleSystem(const std::vector<_smart_ptr<CParticleEmitter>>& active
 		for (CParticleEmitter* pEmitter : activeEmitters)
 		{
 			CParticleEffect* pEffect = pEmitter->GetCEffect();
-			for (auto ref : pEmitter->GetRuntimes())
+			for (auto pRuntime : pEmitter->GetRuntimes())
 			{
-				auto pComponentRuntime = ref.pRuntime->GetCpuRuntime();
+				auto pComponentRuntime = pRuntime->GetCpuRuntime();
 				if (!pComponentRuntime)
 					continue;
 				if (!pComponentRuntime->GetComponent()->IsEnabled())
@@ -338,7 +344,7 @@ void DebugParticleSystem(const std::vector<_smart_ptr<CParticleEmitter>>& active
 
 #else
 
-void DebugParticleSystem(const std::vector<_smart_ptr<CParticleEmitter>>& activeEmitters) {}
+void DebugParticleSystem(const TParticleEmitters& activeEmitters) {}
 
 #endif
 

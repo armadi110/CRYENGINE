@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "FeatureMotion.h"
@@ -58,7 +58,7 @@ public:
 		ar(m_scale, "scale", "Scale");
 	}
 
-	virtual void SetParameters(gpu_pfx2::IParticleFeatureGpuInterface* gpuInterface) const override
+	virtual void SetParameters(gpu_pfx2::IParticleFeature* gpuInterface) const override
 	{
 
 		switch (m_mode)
@@ -98,20 +98,21 @@ public:
 		}
 	}
 
-	virtual void ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
+	virtual uint ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
 	{
 		switch (m_mode)
 		{
 		case ETurbulenceMode::Brownian:
 			Brownian(context, localAccelerations);
-			break;
+			return ENV_GRAVITY;
 		case ETurbulenceMode::Simplex:
 			ComputeSimplex(context, localVelocities, &Potential);
-			break;
+			return ENV_WIND;
 		case ETurbulenceMode::SimplexCurl:
 			ComputeSimplex(context, localVelocities, &Curl);
-			break;
+			return ENV_WIND;
 		}
+		return 0;
 	}
 
 private:
@@ -273,7 +274,7 @@ public:
 			ar(m_axis, "Axis", "Axis");
 	}
 
-	virtual void SetParameters(gpu_pfx2::IParticleFeatureGpuInterface* gpuInterface) const override
+	virtual void SetParameters(gpu_pfx2::IParticleFeature* gpuInterface) const override
 	{
 		gpu_pfx2::SFeatureParametersMotionPhysicsGravity params;
 		params.gravityType =
@@ -288,17 +289,18 @@ public:
 		gpuInterface->SetParameters(params);
 	}
 
-	virtual void ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
+	virtual uint ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
 	{
 		switch (m_type)
 		{
 		case EGravityType::Spherical:
 			ComputeGravity<false>(context, localAccelerations);
-			break;
+			return ENV_GRAVITY;
 		case EGravityType::Cylindrical:
 			ComputeGravity<true>(context, localAccelerations);
-			break;
+			return ENV_GRAVITY;
 		}
+		return 0;
 	}
 
 private:
@@ -388,7 +390,7 @@ public:
 		ar(m_axis, "Axis", "Axis");
 	}
 
-	virtual void SetParameters(gpu_pfx2::IParticleFeatureGpuInterface* gpuInterface) const override
+	virtual void SetParameters(gpu_pfx2::IParticleFeature* gpuInterface) const override
 	{
 		gpu_pfx2::SFeatureParametersMotionPhysicsVortex params;
 		params.vortexDirection =
@@ -403,7 +405,7 @@ public:
 		gpuInterface->SetParameters(params);
 	}
 
-	virtual void ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
+	virtual uint ComputeEffector(const SUpdateContext& context, IOVec3Stream localVelocities, IOVec3Stream localAccelerations) override
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 
@@ -435,6 +437,7 @@ public:
 				localVelocities.Store(particleId, velocity1);
 			}
 		}
+		return ENV_WIND;
 	}
 
 private:

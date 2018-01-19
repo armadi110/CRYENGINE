@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -2180,7 +2180,7 @@ void CScriptSystem::Update()
 
 	//if(bKickIn)
 	{
-		FRAME_PROFILER("Lua GC", m_pSystem, PROFILE_SCRIPT);
+		CRY_PROFILE_REGION(PROFILE_SCRIPT, "Lua GC");
 
 		//CryLog( "Lua GC=%d",GetCGCount() );
 

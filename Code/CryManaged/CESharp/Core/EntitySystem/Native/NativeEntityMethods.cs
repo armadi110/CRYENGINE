@@ -1,3 +1,5 @@
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -28,7 +30,7 @@ namespace CryEngine.NativeInternals
         extern public static object AddComponent(IntPtr entityPtr, ulong guidHipart, ulong guidLopart);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
-        extern public static void RegisterComponentProperty(Type componentType, PropertyInfo propertyInfo, string name, string label, string description, EntityPropertyType propertyType);
+        extern public static void RegisterComponentProperty(Type componentType, PropertyInfo propertyInfo, string name, string label, string description, EntityPropertyType propertyType, object defaultValue);
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         extern public static void RegisterComponentFunction(Type componentType, MethodInfo methodInfo);
@@ -38,7 +40,7 @@ namespace CryEngine.NativeInternals
 
         [MethodImpl(MethodImplOptions.InternalCall)]
         extern public static void AddComponentSignalParameter(Type componentType, int signalId, string paramName, Type type);
-
+        
         [MethodImpl(MethodImplOptions.InternalCall)]
         extern public static void SendComponentSignal(IntPtr entityPtr, ulong componentGuidHipart, ulong componentGuidLopart, int signalId, object[] parameters);
 

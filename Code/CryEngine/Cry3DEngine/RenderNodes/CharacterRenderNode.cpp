@@ -26,7 +26,6 @@ CCharacterRenderNode::CCharacterRenderNode()
 	m_cachedBoundsWorld = AABB(0.0f);
 	m_cachedBoundsLocal = AABB(0.0f);
 	m_matrix.SetIdentity();
-	m_renderOffset.SetIdentity();
 
 	GetInstCount(GetRenderNodeType())++;
 }
@@ -68,6 +67,7 @@ void CCharacterRenderNode::Render(const SRendParams& inputRendParams, const SRen
 	// some parameters will be modified
 	SRendParams rParms(inputRendParams);
 
+	rParms.pRenderNode = this;
 	rParms.nMaterialLayers = m_nMaterialLayers;
 	rParms.pMatrix = &m_matrix;
 	rParms.pMaterial = m_pMaterial;
@@ -86,17 +86,16 @@ void CCharacterRenderNode::Render(const SRendParams& inputRendParams, const SRen
 
 		// Nearest objects recalculate instance matrix every frame
 		//m_bPermanentRenderObjectMatrixValid = false;
-		QuatTS offset;
-		offset.SetIdentity();
-		Matrix34 nearestMatrix = m_matrix;
+		
+		auto nearestMatrix = m_matrix;	
 		CalcNearestTransform(nearestMatrix, passInfo);
-		rParms.pMatrix = &nearestMatrix;
+		rParms.pNearestMatrix = &nearestMatrix;
 
-		m_pCharacterInstance->Render(rParms, offset, passInfo);
+		m_pCharacterInstance->Render(rParms, passInfo);
 	}
 	else
 	{
-		m_pCharacterInstance->Render(rParms, m_renderOffset, passInfo);
+		m_pCharacterInstance->Render(rParms, passInfo);
 	}
 }
 
@@ -113,6 +112,9 @@ void CCharacterRenderNode::SetMatrix(const Matrix34& transform)
 		Warning(message.c_str());
 		return;
 	}
+
+	if (m_matrix == transform)
+		return;
 
 	m_matrix = transform;
 
@@ -269,16 +271,10 @@ void CCharacterRenderNode::SetCharacter(ICharacterInstance* pCharacter)
 	}
 }
 
-void CCharacterRenderNode::SetCharacterRenderOffset(const QuatTS& renderOffset)
-{
-	m_renderOffset = renderOffset;
-}
-
 //////////////////////////////////////////////////////////////////////////
 void CCharacterRenderNode::OffsetPosition(const Vec3& delta)
 {
-	if (m_pTempData)
-		m_pTempData->OffsetPosition(delta);
+	if (const auto pTempData = m_pTempData.load()) pTempData->OffsetPosition(delta);
 	m_matrix.SetTranslation(m_matrix.GetTranslation() + delta);
 	m_cachedBoundsLocal = m_cachedBoundsWorld = AABB(0.0f);
 }
@@ -531,7 +527,7 @@ void CCharacterRenderNode::UpdateStreamingPriority(const SUpdateStreamingPriorit
 		bDrawNear = true;
 	}
 
-	FRAME_PROFILER("UpdateObjectsStreamingPriority_PrecacheCharacter", GetSystem(), PROFILE_3DENGINE);
+	CRY_PROFILE_REGION(PROFILE_3DENGINE, "UpdateObjectsStreamingPriority_PrecacheCharacter");
 
 	const SRenderingPassInfo& passInfo = *streamingContext.pPassInfo;
 	// If the object is in camera space, don't use the prediction position.

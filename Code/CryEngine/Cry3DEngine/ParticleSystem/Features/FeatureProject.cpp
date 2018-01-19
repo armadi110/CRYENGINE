@@ -1,12 +1,10 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "ParticleSystem/ParticleFeature.h"
 #include "ParticleSystem/ParticleEmitter.h"
 #include "ParamTraits.h"
 #include "FeatureAngles.h"
-
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -32,9 +30,9 @@ public:
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
 		if (m_spawnOnly)
-			pComponent->AddToUpdateList(EUL_InitUpdate, this);
+			pComponent->InitParticles.add(this);
 		else
-			pComponent->AddToUpdateList(EUL_Update, this);
+			pComponent->UpdateParticles.add(this);
 		if (m_projectPosition)
 			pComponent->AddParticleData(EPVF_Position);
 		if (m_projectVelocity)
@@ -67,7 +65,7 @@ public:
 		Project(context, context.m_container.GetSpawnedRange());
 	}
 
-	virtual void Update(const SUpdateContext& context) override
+	virtual void UpdateParticles(const SUpdateContext& context) override
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 		Project(context, context.m_updateRange);
@@ -183,7 +181,7 @@ private:
 			Vec3(position.x       , position.y - size, 0.0f),
 		};
 		for (uint i = 0; i < 4; ++i)
-			samplers[i].z = terrain.GetZApr(samplers[i].x, samplers[i].y, DEFAULT_SID);
+			samplers[i].z = terrain.GetZApr(samplers[i].x, samplers[i].y);
 
 		out.vPos.z = (samplers[0].z + samplers[1].z + samplers[2].z + samplers[3].z) * 0.25f;
 		out.vNorm = (samplers[1] - samplers[0]).Cross(samplers[3] - samplers[2]).GetNormalizedSafe();
@@ -201,6 +199,12 @@ class CFeatureProjectWater : public CFeatureProjectBase
 {
 public:
 	CRY_PFX2_DECLARE_FEATURE
+
+	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
+	{
+		CFeatureProjectBase::AddToComponent(pComponent, pParams);
+		pComponent->GetEffect()->AddEnvironFlags(ENV_WATER);
+	}
 
 private:
 	virtual void FillSamples(const SUpdateContext& context, const SUpdateRange& range, TPosNormArray& samples) override

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /********************************************************************
    -------------------------------------------------------------------------
@@ -265,7 +265,7 @@ int COPCrysis2AdjustAim::RandomizeTimeInterval() const
 EGoalOpResult COPCrysis2AdjustAim::Execute(CPipeUser* pPipeUser)
 {
 	CCCPOINT(COPCrysis2AdjustAim_Execute);
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	CPuppet* pPuppet = pPipeUser->CastToCPuppet();
 	if (!pPuppet)
@@ -593,7 +593,7 @@ int COPCrysis2Peek::RandomizeTimeInterval() const
 EGoalOpResult COPCrysis2Peek::Execute(CPipeUser* pPipeUser)
 {
 	CCCPOINT(COPCrysis2Peek_Execute);
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	CPuppet* pPuppet = pPipeUser->CastToCPuppet();
 	if (!pPuppet)
@@ -898,7 +898,7 @@ EGoalOpResult COPCrysis2Hide::Execute(CPipeUser* pPipeUser)
 				{
 					Reset(pPipeUser);
 
-					pPipeUser->SetInCover(false);
+					pPipeUser->SetCoverState(ICoverUser::EStateFlags::None);
 
 					return eGOR_FAILED;
 				}
@@ -988,17 +988,15 @@ EGoalOpResult COPCrysis2Hide::Execute(CPipeUser* pPipeUser)
 					            vPos.x, vPos.y, vPos.z);
 				}
 
+				ICoverUser::StateFlags coverState = ICoverUser::EStateFlags::MovingToCover;
 				if (CoverID nextCoverID = pPipeUser->GetCoverRegister())
 				{
 					if (CoverID currCoverID = pPipeUser->GetCoverID())
 					{
 						CCoverSystem& coverSystem = *gAIEnv.pCoverSystem;
-
-						bool movingInCover = false;
-
 						if (coverSystem.GetSurfaceID(currCoverID) == coverSystem.GetSurfaceID(nextCoverID))
 						{
-							movingInCover = true;
+							coverState.Add(ICoverUser::EStateFlags::InCover);
 						}
 						else
 						{
@@ -1021,20 +1019,16 @@ EGoalOpResult COPCrysis2Hide::Execute(CPipeUser* pPipeUser)
 								if (Distance::Point_Point2DSq(currLeft, nextRight) < neighborDistSq ||
 								    Distance::Point_Point2DSq(currRight, nextLeft) < neighborDistSq)
 								{
-									movingInCover = true;
+									coverState.Add(ICoverUser::EStateFlags::InCover);
 								}
 							}
 						}
-
-						pPipeUser->SetMovingInCover(movingInCover);
-						pPipeUser->SetInCover(movingInCover);
 					}
 
 					pPipeUser->SetCoverRegister(CoverID());
 					pPipeUser->SetCoverID(nextCoverID);
 				}
-
-				pPipeUser->SetMovingToCover(true);
+				pPipeUser->SetCoverState(coverState);
 
 				m_pTracer = new COPTrace(m_exact, 0.0f);
 			}
@@ -1045,8 +1039,7 @@ EGoalOpResult COPCrysis2Hide::Execute(CPipeUser* pPipeUser)
 				// Could not reach the point, mark it ignored so that we do not try to pick it again.
 				if (CoverID coverID = pPipeUser->GetCoverRegister())
 				{
-					pPipeUser->SetMovingToCover(false);
-					pPipeUser->SetMovingInCover(false);
+					pPipeUser->SetCoverState(ICoverUser::EStateFlags::None);
 
 					pPipeUser->SetCoverRegister(CoverID());
 					pPipeUser->SetCoverBlacklisted(coverID, true, 10.0f);
@@ -1069,9 +1062,6 @@ EGoalOpResult COPCrysis2Hide::Execute(CPipeUser* pPipeUser)
 				CCCPOINT(COPCrysis2Hide_Execute_A);
 
 				Reset(pPipeUser);
-
-				pPipeUser->SetMovingToCover(false);
-				pPipeUser->SetMovingInCover(false);
 
 				if (pPipeUser->GetCoverID())
 				{
@@ -1117,8 +1107,7 @@ void COPCrysis2Hide::Reset(CPipeUser* pPipeUser)
 
 	if (pPipeUser)
 	{
-		pPipeUser->SetMovingToCover(false);
-		pPipeUser->SetMovingInCover(false);
+		pPipeUser->SetCoverState(ICoverUser::EStateFlags::None);
 
 		pPipeUser->ClearPath("COPCrysis2Hide::Reset");
 
@@ -1232,7 +1221,7 @@ void COPCrysis2Hide::UpdateMovingToCoverAnimation(CPipeUser* pPipeUser) const
 			float radius = pPipeUser->GetParameters().distanceToCover;
 			hidePos = gAIEnv.pCoverSystem->GetCoverLocation(coverID, radius, &hideHeight, &hideNormal);
 			//hidePos = gAIEnv.pCoverSystem->GetCoverSurface(coverID)->GetCoverOcclusionAt(radius, &hideHeight, &hideNormal);
-			hideHeight = pPipeUser->GetCoverLocationEffectiveHeight();
+			hideHeight = pPipeUser->GetCoverUser()->GetLocationEffectiveHeight();
 		}
 		else
 		{
@@ -1474,7 +1463,7 @@ Vec3 COPCrysis2StickPath::GetProjectedPos(CPuppet* pPuppet) const
 //////////////////////////////////////////////////////////////////////////
 EGoalOpResult COPCrysis2StickPath::Execute(CPipeUser* pPipeUser)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	return ExecuteCurrentState(pPipeUser, false);
 }
@@ -1482,7 +1471,7 @@ EGoalOpResult COPCrysis2StickPath::Execute(CPipeUser* pPipeUser)
 //////////////////////////////////////////////////////////////////////////
 void COPCrysis2StickPath::ExecuteDry(CPipeUser* pPipeUser)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	ExecuteCurrentState(pPipeUser, true);
 }
@@ -1490,7 +1479,7 @@ void COPCrysis2StickPath::ExecuteDry(CPipeUser* pPipeUser)
 //////////////////////////////////////////////////////////////////////////
 EGoalOpResult COPCrysis2StickPath::ExecuteCurrentState(CPipeUser* pPipeUser, bool bDryUpdate)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	EGoalOpResult eGoalOpResult = eGOR_FAILED;
 
@@ -1535,7 +1524,7 @@ EGoalOpResult COPCrysis2StickPath::ExecuteCurrentState(CPipeUser* pPipeUser, boo
 //////////////////////////////////////////////////////////////////////////
 bool COPCrysis2StickPath::ExecuteState_Prepare(CPuppet* pPuppet, bool bDryUpdate)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	assert(pPuppet);
 
@@ -1607,7 +1596,7 @@ bool COPCrysis2StickPath::ExecuteState_Prepare(CPuppet* pPuppet, bool bDryUpdate
 //////////////////////////////////////////////////////////////////////////
 bool COPCrysis2StickPath::ExecuteState_Navigate(CPuppet* pPuppet, bool bDryUpdate)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	assert(pPuppet);
 	assert(m_refTarget.IsValid());
@@ -1710,7 +1699,7 @@ bool COPCrysis2StickPath::ExecuteState_Navigate(CPuppet* pPuppet, bool bDryUpdat
 //////////////////////////////////////////////////////////////////////////
 bool COPCrysis2StickPath::ExecuteState_Wait(CPuppet* pPuppet, bool bDryUpdate)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	assert(pPuppet);
 	assert(m_refTarget.IsValid());
@@ -2474,7 +2463,7 @@ EGoalOpResult COPCrysis2Fly::Execute(CPipeUser* pPipeUser)
 	{
 	case C2F_INVALID:
 		{
-			FRAME_PROFILER("COPCrysis2Fly: SETUP ASTAR", gEnv->pSystem, PROFILE_AI);
+			CRY_PROFILE_REGION(PROFILE_AI, "COPCrysis2Fly: SETUP ASTAR" );
 
 			result = CalculateTarget(pPipeUser);
 
@@ -2491,7 +2480,7 @@ EGoalOpResult COPCrysis2Fly::Execute(CPipeUser* pPipeUser)
 		}
 	case C2F_PATHFINDING:
 		{
-			FRAME_PROFILER("COPCrysis2Fly: ASTAR UPDATE", gEnv->pSystem, PROFILE_AI);
+			CRY_PROFILE_REGION(PROFILE_AI, "COPCrysis2Fly: ASTAR UPDATE";
 
 			if (m_Solver)
 			{

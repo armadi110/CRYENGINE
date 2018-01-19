@@ -52,7 +52,7 @@ void CEnvironmentProbeComponent::Initialize()
 	}
 #endif
 
-	if (m_generation.m_bAutoLoad && m_generation.m_generatedCubemapPath.value.size() > 0)
+	if (m_generation.m_bAutoLoad && m_generation.m_generatedCubemapPath.value.size() > 0 && gEnv->pRenderer != nullptr)
 	{
 		LoadFromDisk(m_generation.m_generatedCubemapPath);
 	}
@@ -62,7 +62,7 @@ void CEnvironmentProbeComponent::Initialize()
 	}
 }
 
-void CEnvironmentProbeComponent::ProcessEvent(SEntityEvent& event)
+void CEnvironmentProbeComponent::ProcessEvent(const SEntityEvent& event)
 {
 	if (event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
 	{
@@ -78,18 +78,26 @@ uint64 CEnvironmentProbeComponent::GetEventMask() const
 #ifndef RELEASE
 void CEnvironmentProbeComponent::Render(const IEntity& entity, const IEntityComponent& component, SEntityPreviewContext &context) const
 {
-	if (context.bSelected && m_generation.pSelectionObject != nullptr)
+	if (context.bSelected)
 	{
-		SRenderingPassInfo passInfo = SRenderingPassInfo::CreateGeneralPassRenderingInfo(gEnv->p3DEngine->GetRenderingCamera());
-
-		SRendParams rp;
-		rp.AmbientColor = ColorF(0.0f, 0.0f, 0.0f, 1);
-		rp.dwFObjFlags |= FOB_TRANS_MASK;
-		rp.fAlpha = 1;
 		Matrix34 slotTransform = GetWorldTransformMatrix();
-		rp.pMatrix = &slotTransform;
-		rp.pMaterial = m_generation.pSelectionObject->GetMaterial();
-		m_generation.pSelectionObject->Render(rp, passInfo);
+
+		OBB obb = OBB::CreateOBBfromAABB(Matrix33(IDENTITY), AABB(-m_extents * 0.5f, m_extents * 0.5f));
+		gEnv->pRenderer->GetIRenderAuxGeom()->DrawOBB(obb, slotTransform, false, context.debugDrawInfo.color, eBBD_Faceted);
+
+		if (m_generation.pSelectionObject != nullptr)
+		{
+			SRenderingPassInfo passInfo = SRenderingPassInfo::CreateGeneralPassRenderingInfo(gEnv->p3DEngine->GetRenderingCamera());
+
+			SRendParams rp;
+			rp.AmbientColor = ColorF(0.0f, 0.0f, 0.0f, 1);
+			rp.dwFObjFlags |= FOB_TRANS_MASK;
+			rp.fAlpha = 1;
+			Matrix34 slotTransform = GetWorldTransformMatrix();
+			rp.pMatrix = &slotTransform;
+			rp.pMaterial = m_generation.pSelectionObject->GetMaterial();
+			m_generation.pSelectionObject->Render(rp, passInfo);
+		}
 	}
 }
 #endif

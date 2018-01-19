@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "PoseAlignerChain.h"
@@ -148,6 +148,8 @@ bool CPoseAlignerChain::Prepare(const SAnimationPoseModifierParams& params)
 
 bool CPoseAlignerChain::Execute(const SAnimationPoseModifierParams& params)
 {
+	DEFINE_PROFILER_FUNCTION();
+
 	if (!m_pIkLimbType)
 		return false;
 

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     29/09/2014 by Filipe amim
@@ -11,8 +11,6 @@
 #include "ParticleSystem/ParticleFeature.h"
 #include "ParamMod.h"
 
-CRY_PFX2_DBG
-
 namespace pfx2
 {
 
@@ -20,10 +18,6 @@ class CFeatureLifeTime : public CParticleFeature
 {
 public:
 	CRY_PFX2_DECLARE_FEATURE
-
-	CFeatureLifeTime()
-		: CParticleFeature(gpu_pfx2::eGpuFeatureType_LifeTime)
-	{}
 
 	virtual EFeatureType GetFeatureType() override
 	{
@@ -46,14 +40,8 @@ public:
 		pParams->m_maxParticleLifeTime = m_lifeTime.GetValueRange().end;
 
 		if (m_killOnParentDeath)
-			pComponent->AddToUpdateList(EUL_PostUpdate, this);
-
-		if (auto pInt = GetGpuInterface())
-		{
-			gpu_pfx2::SFeatureParametersLifeTime params;
-			params.lifeTime = m_lifeTime.GetBaseValue();
-			pInt->SetParameters(params);
-		}
+			pComponent->PostUpdateParticles.add(this);
+		pComponent->UpdateGPUParams.add(this);
 	}
 
 	virtual void InitParticles(const SUpdateContext& context) override
@@ -91,7 +79,7 @@ public:
 		}
 	}
 
-	virtual void PostUpdate(const SUpdateContext& context) override
+	virtual void PostUpdateParticles(const SUpdateContext& context) override
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 
@@ -109,6 +97,11 @@ public:
 			if (parentState & ESB_Dead)
 				ages.Store(particleId, 1.0f);
 		}
+	}
+
+	virtual void UpdateGPUParams(const SUpdateContext& context, gpu_pfx2::SUpdateParams& params) override
+	{
+		params.lifeTime = m_lifeTime.GetValueRange(context)(0.5f);
 	}
 
 protected:
@@ -141,7 +134,7 @@ public:
 		m_killOnParentDeath = true;
 	}
 
-	virtual bool VersionValidate(CParticleComponent* pComponent) override
+	virtual bool ResolveDependency(CParticleComponent* pComponent) override
 	{
 		// If another LifeTime feature exists, use it, and set the Kill param.
 		// Otherwise, use this feature, with default LifeTime param.

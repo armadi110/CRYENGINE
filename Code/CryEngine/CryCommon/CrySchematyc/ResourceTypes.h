@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // #SchematycTODO : Move serialization utils to separate header?
 
@@ -116,6 +116,15 @@ inline void ReflectType(CTypeDesc<CharacterFileName>& desc)
 	desc.SetDescription("Character file name");
 }
 
+typedef SerializationUtils::SResourceNameSelector<&Serialization::ModelFilename<string>> AnyModelFileName;
+
+inline void ReflectType(CTypeDesc<AnyModelFileName>& desc)
+{
+	desc.SetGUID("{51398F30-C0DD-41F6-9391-8F70755442C0}"_cry_guid);
+	desc.SetLabel("Model Filename");
+	desc.SetDescription("Model file name");
+}
+
 typedef SerializationUtils::SResourceNameSelector<&Serialization::AnimationPath<string>> LowLevelAnimationName;
 
 inline void ReflectType(CTypeDesc<LowLevelAnimationName>& desc)
@@ -125,7 +134,7 @@ inline void ReflectType(CTypeDesc<LowLevelAnimationName>& desc)
 	desc.SetDescription("Name of an animation exported to the engine");
 }
 
-typedef SerializationUtils::SResourceNameSerializer<&Serialization::ParticleEffectName> ParticleEffectName;
+typedef SerializationUtils::SResourceNameSelector<&Serialization::ParticlePicker<string>> ParticleEffectName;
 
 inline void ReflectType(CTypeDesc<ParticleEffectName>& desc)
 {

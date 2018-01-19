@@ -1,34 +1,19 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
-/*************************************************************************
-   -------------------------------------------------------------------------
-   $Id$
-   $DateTime$
-   Description:	Pathfinder Interface.
+//! \cond INTERNAL
 
-   -------------------------------------------------------------------------
-   History:
-   - 15:1:2009   18:01 : Created by Márcio Martins
-   - 4 May 2009        : Evgeny Adamenkov: Removed IRenderer
-
-*************************************************************************/
-
-#ifndef __IPATHFINDER_H__
-#define __IPATHFINDER_H__
-
-#if _MSC_VER > 1000
-	#pragma once
-#endif
+#pragma once
 
 class CAIActor;
 
-struct IAIPathAgent;
 
 #include <CryMemory/IMemory.h> // <> required for Interfuscator
 #include <CryAISystem/INavigationSystem.h>
 #include <CryCore/functor.h>
 #include <CryAISystem/IMNM.h>
 #include <CryAISystem/IAgent.h>
+#include <CryAISystem/NavigationSystem/MNMTile.h>
+#include <CryAISystem/NavigationSystem/INavigationQuery.h>
 
 /* WARNING: These interfaces and structures are soon to be deprecated.
             Use at your own risk of having to change your code later!
@@ -115,7 +100,8 @@ struct PathFollowerParams
 		isAllowedToShortcut(true),
 		snapEndPointToGround(true),
 		navCapMask(IAISystem::NAV_UNSET),
-		passRadius(0.5f)
+		passRadius(0.5f),
+		pQueryFilter(nullptr)
 	{}
 
 	// OLD: Remove this when possible, Animation to take over majority of logic.
@@ -136,6 +122,8 @@ struct PathFollowerParams
 	bool  isAllowedToShortcut;
 	bool  snapEndPointToGround; //!< try to make sure, that the path ends on the ground
 
+
+	const INavMeshQueryFilter* pQueryFilter;
 	// TODO: Add to serialize...
 	//! The navigation capabilities of the agent.
 	IAISystem::tNavCapMask navCapMask;
@@ -167,7 +155,13 @@ struct PathFollowResult
 	TPredictedStates* predictedStates;  //!< If this is non-zero then on output the prediction will be placed into it.
 
 	PathFollowResult()
-		: predictionDeltaTime(0.1f), predictedStates(0), desiredPredictionTime(0), followTargetPos(0), inflectionPoint(0) {}
+		: predictionDeltaTime(0.1f)
+		, predictedStates(0)
+		, desiredPredictionTime(0)
+		, followTargetPos(0)
+		, inflectionPoint(0)
+		, velocityDuration(-1.0f)
+	{}
 
 	bool reachedEnd;
 	Vec3 velocityOut;
@@ -180,6 +174,8 @@ struct PathFollowResult
 
 	/// The maximum distance the agent can safely move in a straight line beyond the turning point
 	//	float maxOverrunDistance;
+
+	float velocityDuration; //!< How long physics is allowed to apply the velocity (-1.0f if it is undefined).
 };
 
 //! Intermediary and minimal interface to use the pathfinder without requiring an AI object.
@@ -347,7 +343,8 @@ public:
 
 	virtual bool        UpdateAndSteerAlongPath(Vec3& dirOut, float& distToEndOut, float& distToPathOut, bool& isResolvingSticking, Vec3& pathDirOut, Vec3& pathAheadDirOut, Vec3& pathAheadPosOut, Vec3 currentPos, const Vec3& currentVel, float lookAhead, float pathRadius, float dt, bool resolveSticking, bool twoD) = 0;
 
-	virtual bool        AdjustPathAroundObstacles(const Vec3& currentpos, const AgentMovementAbility& movementAbility) = 0;
+	virtual bool        AdjustPathAroundObstacles(const Vec3& currentpos, const AgentMovementAbility& movementAbility, const INavMeshQueryFilter* pFilter) = 0;
+	virtual bool        CanPassFilter(size_t fromPointIndex, const INavMeshQueryFilter* pFilter) = 0;
 
 	virtual void        TrimPath(float length, bool twoD) = 0;
 	;
@@ -472,7 +469,11 @@ public:
 	virtual void SetAllowCuttingCorners(const bool allowCuttingCorners) = 0;
 
 	//! Checks for whether the attached path is affected by a NavMesh change or whether it would be still be fully traversable from its current position.
-	virtual bool IsRemainingPathAffectedByNavMeshChange(const NavigationMeshID affectedMeshID, const MNM::TileID affectedTileID) const = 0;
+	virtual bool IsRemainingPathAffectedByNavMeshChange(const NavigationMeshID affectedMeshID, const MNM::TileID affectedTileID, bool bAnnotationChange, bool bDataChange) const = 0;
+
+	//! Checks whether the attached path is affected by a NavMesh filter change, returns false when the remaining path cannot pass the filter.
+	virtual bool IsRemainingPathAffectedByFilterChange(const INavMeshQueryFilter* pFilter) const = 0;
+
 	// </interfuscator:shuffle>
 };
 
@@ -491,6 +492,113 @@ enum EQueuedPathID
 }
 }
 
+
+//===================================================================
+//
+// IMNMCustomPathCostComputer
+//
+// Interface that can optionally be used by the MNM Pathfinder to perform custom cost calculations for path-segments during the pathfinding process.
+// As the MNM Pathfinder can work a-synchronously, care must be taken in regards to which data ComputeCostThreadUnsafe() will access.
+// As a rule-of-thumb, it's best to gather all relevant data by the constructor in the form of a "snapshot" that can then safely be read from by ComputeCostThreadUnsafe().
+//
+//===================================================================
+
+class IMNMCustomPathCostComputer;
+
+typedef std::shared_ptr<IMNMCustomPathCostComputer> MNMCustomPathCostComputerSharedPtr;
+
+class IMNMCustomPathCostComputer
+{
+public:
+
+	enum class EComputationType
+	{
+		Cost,                   // compute the cost it takes to move along the path-segment (-> SComputationOutput::cost)
+		StringPullingAllowed    // compute whether string-pulling is still allowed on given path-segment (-> SComputationOutput::bStringPullingAllowed)
+	};
+	
+	typedef CEnumFlags<EComputationType> ComputationFlags;
+
+	struct SComputationInput
+	{
+		explicit SComputationInput(const ComputationFlags& _computationFlags, const Vec3& _locationComingFrom, const Vec3& _locationGoingTo)
+			: computationFlags(_computationFlags)
+			, locationComingFrom(_locationComingFrom)
+			, locationGoingTo(_locationGoingTo)
+		{}
+
+		const ComputationFlags computationFlags;
+		const Vec3 locationComingFrom;
+		const Vec3 locationGoingTo;
+	};
+
+	struct SComputationOutput
+	{
+		MNM::real_t cost = 0;
+		bool bStringPullingAllowed = true;
+	};
+
+public:
+
+	virtual ~IMNMCustomPathCostComputer() {}
+
+	// CAREFUL: this will get called from a potentially different thread as the MNM pathfinder can work a-synchronously!
+	virtual void ComputeCostThreadUnsafe(const SComputationInput& input, SComputationOutput& output) const = 0;
+
+	//
+	// All instances (of derived classes) shall be created via the MakeShared() method to ensure that the returned shared_ptr has our custom deleter callback injected.
+	// This is to ensure that no matter which DLL deletes the object will always call into the DLL that instantiated this class.
+	// Also, MakeShared() should be called from the main thread as this will then guarentee the derived class's ctor to gather required data at a safe time.
+	//
+
+	// CAREFUL: this is NOT thread-safe and should only be called from the main thread!
+	template <class TDerivedClass, class ... Args>
+	static MNMCustomPathCostComputerSharedPtr MakeShared(Args ... args)
+	{
+#if !defined(_RELEASE)
+		BeingConstructedViaMakeSharedFunction() = true;
+#endif
+		IMNMCustomPathCostComputer* pComputer = new TDerivedClass(args ...);
+		return MNMCustomPathCostComputerSharedPtr(pComputer, DestroyViaOperatorDelete);
+	}
+
+protected:
+
+	// CAREFUL: this is NOT thread-safe! (calls BeingConstructedViaMakeSharedFunction() which is not thread-safe)
+	IMNMCustomPathCostComputer()
+	{
+#if !defined(_RELEASE)
+		CRY_ASSERT_MESSAGE(BeingConstructedViaMakeSharedFunction(), "IMNMCustomPathCostComputer: you should have used MakeShared() to instantiate your class (since it injects the built-in custom deleter to guarantee safe cross-DLL deletion).");
+		BeingConstructedViaMakeSharedFunction() = false;
+#endif
+	}
+
+private:
+
+	// Implicit copy-construction and assignment is not supported to prevent accidentally bypassing MakeShared() when instantiating a derived class.
+	// If the derived class still wants copy-construction and assignment, it shall explicitly implement them on its own.
+	IMNMCustomPathCostComputer(const IMNMCustomPathCostComputer&) = delete;
+	IMNMCustomPathCostComputer(IMNMCustomPathCostComputer&&) = delete;
+	IMNMCustomPathCostComputer& operator=(const IMNMCustomPathCostComputer&) = delete;
+	IMNMCustomPathCostComputer& operator=(IMNMCustomPathCostComputer&&) = delete;
+
+	static void DestroyViaOperatorDelete(IMNMCustomPathCostComputer* pComputerToDelete)
+	{
+		assert(pComputerToDelete);
+		delete pComputerToDelete;
+	}
+
+#if !defined(_RELEASE)
+	// CAREFUL: reading from and writing to the returned reference is NOT thread-safe!
+	static bool& BeingConstructedViaMakeSharedFunction()
+	{
+		static bool flag;
+		return flag;
+	}
+#endif
+};
+
+
 enum EMNMDangers
 {
 	eMNMDangers_None            = 0,
@@ -500,6 +608,24 @@ enum EMNMDangers
 };
 
 typedef uint32 MNMDangersFlags;
+
+//! Parameters for snapping of the path's start/end positions onto the NavMesh.
+struct SSnapToNavMeshRulesInfo
+{
+	SSnapToNavMeshRulesInfo()
+		: bVerticalSearch(true)
+		, bBoxSearch(true)
+	{}
+
+	SSnapToNavMeshRulesInfo(const bool verticalSearch, const bool boxSearch)
+		: bVerticalSearch(verticalSearch)
+		, bBoxSearch(boxSearch)
+	{}
+
+	//<! Rules will be checked/applied in this order:
+	bool bVerticalSearch;   //!< Tries to snap vertically
+	bool bBoxSearch;	//!< Tries to snap using a box horizontally+vertically.
+};
 
 struct MNMPathRequest
 {
@@ -518,6 +644,8 @@ struct MNMPathRequest
 		, dangersToAvoidFlags(eMNMDangers_None)
 		, beautify(true)
 		, pRequesterEntity(nullptr)
+		, pCustomPathCostComputer(nullptr)
+		, pFilter(nullptr)
 	{
 
 	}
@@ -537,8 +665,9 @@ struct MNMPathRequest
 		, dangersToAvoidFlags(dangersFlags)
 		, beautify(true)
 		, pRequesterEntity(nullptr)
+		, pCustomPathCostComputer(nullptr)
+		, pFilter(nullptr)
 	{
-
 	}
 
 	Callback              resultCallback;
@@ -554,10 +683,13 @@ struct MNMPathRequest
 	int                   forceTargetBuildingId;
 	float                 endTolerance;
 	float                 endDistance;
+	SSnapToNavMeshRulesInfo	  snappingRules;
 	bool                  allowDangerousDestination;
 	MNMDangersFlags       dangersToAvoidFlags;
+	const INavMeshQueryFilter* pFilter;
 
-	IEntity*        pRequesterEntity;
+	MNMCustomPathCostComputerSharedPtr pCustomPathCostComputer;  // can be provided by the game code to allow for computing path-finding costs in more ways than just through the built-in "danger areas" (see MNMDangersFlags)
+	IEntity*              pRequesterEntity;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -578,8 +710,9 @@ struct IMNMPathfinder
 	virtual void CancelPathRequest(MNM::QueuedPathID requestId) = 0;
 
 	virtual bool CheckIfPointsAreOnStraightWalkableLine(const NavigationMeshID& meshID, const Vec3& source, const Vec3& destination, float heightOffset = 0.2f) const = 0;
+	virtual bool CheckIfPointsAreOnStraightWalkableLine(const NavigationMeshID& meshID, const Vec3& source, const Vec3& destination, const INavMeshQueryFilter* pFilter, float heightOffset = 0.2f) const = 0;
 
 	// </interfuscator:shuffle>
 };
 
-#endif //__IPATHFINDER_H__
+//! \endcond

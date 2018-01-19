@@ -1,4 +1,6 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
+
+//! \cond INTERNAL
 
 #pragma once
 
@@ -330,7 +332,7 @@ struct ScriptAnyValue
 
 struct IScriptSystemEngineModule : public Cry::IDefaultModule
 {
-	CRYINTERFACE_DECLARE(IScriptSystemEngineModule, 0x39B5373FB2984AA1, 0xB69188ED53CF5F9D);
+	CRYINTERFACE_DECLARE_GUID(IScriptSystemEngineModule, "39b5373f-b298-4aa1-b691-88ed53cf5f9d"_cry_guid);
 };
 
 //! Scripting Engine interface.
@@ -1255,3 +1257,5 @@ extern "C"
 	CRYSCRIPTSYSTEM_API IScriptSystem* CreateScriptSystem(ISystem* pSystem, bool bStdLibs);
 }
 typedef IScriptSystem*(* CREATESCRIPTSYSTEM_FNCPTR)(ISystem* pSystem, bool bStdLibs);
+
+//! \endcond

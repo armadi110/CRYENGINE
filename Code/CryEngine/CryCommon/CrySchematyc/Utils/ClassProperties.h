@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -134,6 +134,26 @@ public:
 		{
 			const CClassMemberDesc& memberDesc = memberDescs[propertyIdx];
 			if (!Any::Equals(*m_scratchpad.Get(m_properties[propertyIdx]), *rhs.m_scratchpad.Get(rhs.m_properties[propertyIdx])))
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	inline bool Compare(const CClassDesc& desc, void* pValue) const
+	{
+		if (!m_pDesc || (m_pDesc != &desc))
+			return false;
+
+		const CClassMemberDescArray& memberDescs = m_pDesc->GetMembers();
+		for (uint32 propertyIdx = 0, propertyCount = m_properties.size(); propertyIdx < propertyCount; ++propertyIdx)
+		{
+			const CClassMemberDesc& memberDesc = memberDescs[propertyIdx];
+			if (!Any::Equals(
+					*m_scratchpad.Get(m_properties[propertyIdx]), 
+					CAnyRef(memberDesc.GetTypeDesc(), static_cast<uint8*>(pValue) + memberDesc.GetOffset()))
+				)
 			{
 				return false;
 			}

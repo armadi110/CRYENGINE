@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -1639,7 +1639,7 @@ public:
 						pent->SetParams(&pfd); // revert the changes done in AssignPhysicalEntity
 						pent->SetParams(&pf);
 						if (g_mapSkels.empty())
-							gEnv->pEntitySystem->AddSink(this, IEntitySystem::OnRemove, 0);
+							gEnv->pEntitySystem->AddSink(this, IEntitySystem::OnRemove);
 						g_mapSkels.emplace(id, pSkel);
 					}
 					ActivateOutput(pActInfo, OUT_SKEL_ENT, pSkel->GetId());
@@ -1649,7 +1649,7 @@ public:
 	virtual bool OnBeforeSpawn(SEntitySpawnParams& params) { return true; }
 	virtual void OnSpawn(IEntity* pEntity, SEntitySpawnParams& params) {}
 	virtual void OnReused(IEntity* pEntity, SEntitySpawnParams& params) {}
-	virtual void OnEvent(IEntity* pEntity, SEntityEvent& event) {}
+	virtual void OnEvent(IEntity* pEntity, const SEntityEvent& event) {}
 	virtual bool OnRemove(IEntity* pEntity) 
 	{
 		if (pEntity->GetFlags() & ENTITY_FLAG_PROCEDURAL)

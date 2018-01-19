@@ -1,17 +1,8 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
-// -------------------------------------------------------------------------
-//  File name:   IFlowGraphDebugger.h
-//  Version:     v1.00
-//  Created:     13/09/2011 by Sascha Hoba.
-//  Description:
-// -------------------------------------------------------------------------
-//  History:
-//
-////////////////////////////////////////////////////////////////////////////
+//! \cond INTERNAL
 
-#ifndef __IFLOWGRAPHDEBUGGER_H__
-#define __IFLOWGRAPHDEBUGGER_H__
+#pragma once
 
 #include <CryFlowGraph/IFlowSystem.h>
 #include <CryExtension/ICryUnknown.h>
@@ -132,7 +123,7 @@ protected:
 
 struct IFlowGraphDebugger : public ICryUnknown
 {
-	CRYINTERFACE_DECLARE(IFlowGraphDebugger, 0x416CE2E1B23B4017, 0xAD93D04DA67E90E6);
+	CRYINTERFACE_DECLARE_GUID(IFlowGraphDebugger, "416ce2e1-b23b-4017-ad93-d04da67e90e6"_cry_guid);
 
 public:
 	//! Adds a new breakpoint for a specific flownode and port.
@@ -232,4 +223,4 @@ static IFlowGraphDebuggerPtr GetIFlowGraphDebuggerPtr()
 	return pFlowGraphDebugger;
 }
 
-#endif
+//! \endcond

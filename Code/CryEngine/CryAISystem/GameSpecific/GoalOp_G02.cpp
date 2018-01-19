@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /********************************************************************
    -------------------------------------------------------------------------
@@ -128,7 +128,7 @@ COPCharge::~COPCharge()
 EGoalOpResult COPCharge::Execute(CPipeUser* pOperand)
 {
 	CCCPOINT(COPCharge_Execute);
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	m_pOperand = pOperand;
 
@@ -272,7 +272,7 @@ void COPCharge::UpdateChargePos()
 //----------------------------------------------------------------------------------------------------------
 void COPCharge::ExecuteDry(CPipeUser* pOperand)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	m_pOperand = pOperand;
 
 	// Move towards the current target.
@@ -1104,7 +1104,7 @@ EGoalOpResult COPSeekCover::Execute(CPipeUser* pOperand)
 
 	if (!m_pTraceDirective)
 	{
-		FRAME_PROFILER("SeekCover/CalculatePathTree", gEnv->pSystem, PROFILE_AI);
+		CRY_PROFILE_REGION(PROFILE_AI, "SeekCover/CalculatePathTree");
 
 		if (m_state >= 0)
 		{

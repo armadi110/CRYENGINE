@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 using System;
 using System.Collections.Generic;
@@ -55,17 +55,17 @@ namespace CryEngine
 		/// <value>The engine root directory.</value>
 		public static string EngineRootDirectory => Global.GetEnginePath().c_str();
 
-        /// <summary>
-        /// Path where application data should be stored.
-        /// </summary>
-        /// <value>The data directory.</value>
-        public static string DataDirectory => Global.GetGameFolder().c_str() + "/";
+		/// <summary>
+		/// Path where application data should be stored.
+		/// </summary>
+		/// <value>The data directory.</value>
+		public static string DataDirectory => Global.GetGameFolder().c_str() + "/";
 
-        internal static string MonoDirectory => Path.Combine(EngineRootDirectory, "bin", "common", "Mono");
+		internal static string MonoDirectory => Path.Combine(EngineRootDirectory, "bin", "common", "Mono");
 
-        internal static string GlobalAssemblyCacheDirectory => Path.Combine(MonoDirectory, "lib", "mono", "gac");
+		internal static string GlobalAssemblyCacheDirectory => Path.Combine(MonoDirectory, "lib", "mono", "gac");
 
-        internal static event Action StartReload;
+		internal static event Action StartReload;
 		internal static event Action EndReload;
 
 		/// <summary>
@@ -77,9 +77,9 @@ namespace CryEngine
 
 			if(!IsDedicatedServer)
 			{
-			Input.Initialize();
-			Renderer.Instance = new Renderer();
-			Mouse.Instance = new Mouse();
+				Input.Initialize();
+				Renderer.Instance = new Renderer();
+				Mouse.Instance = new Mouse();
 			}
 
 			CryEngine.GameFramework.Instance = new GameFramework();
@@ -93,6 +93,8 @@ namespace CryEngine
 		{
 			// Make sure we unify shutdown behavior with unload
 			OnUnloadStart();
+
+			CryEngine.GameFramework.Instance?.Dispose();
 
 			GC.Collect();
 			GC.WaitForPendingFinalizers();
@@ -112,10 +114,12 @@ namespace CryEngine
 		/// </summary>
 		internal static void OnReloadDone()
 		{
-			if(EndReload != null)
-			{
-				EndReload();
-			}
+			EndReload?.Invoke();
+		}
+
+		internal static void ScanEngineAssembly()
+		{
+			ScanAssembly(typeof(Engine).Assembly);
 		}
 
 		internal static void ScanAssembly(Assembly assembly)
@@ -123,13 +127,11 @@ namespace CryEngine
 			var registeredTypes = new List<Type>();
 			foreach(Type t in assembly.GetTypes())
 			{
-				if (typeof(EntityComponent).IsAssignableFrom(t) && t != typeof(object))
+				if(typeof(EntityComponent).IsAssignableFrom(t) && 
+				   t != typeof(object) &&
+				   t.Assembly == assembly &&
+				   !registeredTypes.Contains(t))
 				{
-					if(registeredTypes.Contains(t))
-					{
-						continue;
-					}
-
 					RegisterComponent(t, ref registeredTypes);
 				}
 
@@ -144,12 +146,12 @@ namespace CryEngine
 		{
 			// Get the base class so those can be registered first.
 			var baseType = component.BaseType;
-			if(baseType != null && baseType != typeof(object))
+			if(baseType != null && baseType != typeof(object) && baseType.Assembly == component.Assembly)
 			{
 				var registerQueue = new List<Type>();
 				registerQueue.Add(baseType);
 
-				while(baseType.BaseType != null && baseType != typeof(EntityComponent))
+				while(baseType.BaseType != null && baseType.BaseType.Assembly == component.Assembly)
 				{
 					baseType = baseType.BaseType;
 					registerQueue.Add(baseType);
@@ -177,8 +179,6 @@ namespace CryEngine
 		/// </summary>
 		public static void Shutdown()
 		{
-			OnUnloadStart();
-
 			if(!IsSandbox)
 			{
 				Console.ExecuteString("quit", false, true);
@@ -186,44 +186,45 @@ namespace CryEngine
 			else
 			{
 				Console.ExecuteString("ed_disable_game_mode", false, true);
+				OnUnloadStart();
 			}
 		}
 
-        internal static string TypeToHash(Type type)
-        {
-            string result = string.Empty;
-            string input = type.FullName;
-            using (SHA384 hashGenerator = SHA384.Create())
-            {
-                var hash = hashGenerator.ComputeHash(Encoding.Default.GetBytes(input));
-                var shortHash = new byte[16];
-                for (int i = 0, j = 0; i < hash.Length; ++i, ++j)
-                {
-                    if (j >= shortHash.Length)
-                    {
-                        j = 0;
-                    }
-                    unchecked
-                    {
-                        shortHash[j] += hash[i];
-                    }
-                }
-                result = BitConverter.ToString(shortHash);
-                result = result.Replace("-", string.Empty);
-            }
-            return result;
-        }
+		internal static string TypeToHash(Type type)
+		{
+			string result = string.Empty;
+			string input = type.FullName;
+			using(SHA384 hashGenerator = SHA384.Create())
+			{
+				var hash = hashGenerator.ComputeHash(Encoding.Default.GetBytes(input));
+				var shortHash = new byte[16];
+				for(int i = 0, j = 0; i < hash.Length; ++i, ++j)
+				{
+					if(j >= shortHash.Length)
+					{
+						j = 0;
+					}
+					unchecked
+					{
+						shortHash[j] += hash[i];
+					}
+				}
+				result = BitConverter.ToString(shortHash);
+				result = result.Replace("-", string.Empty);
+			}
+			return result;
+		}
 
-        internal static string GetPluginGuid(Type type)
-        {
-            var guidAttribute = (GuidAttribute)type.GetCustomAttributes(typeof(GuidAttribute), false).FirstOrDefault();
-            if (guidAttribute != null)
-            {
-                return guidAttribute.Value;
-            }
+		internal static string GetPluginGuid(Type type)
+		{
+			var guidAttribute = (GuidAttribute)type.GetCustomAttributes(typeof(GuidAttribute), false).FirstOrDefault();
+			if(guidAttribute != null)
+			{
+				return guidAttribute.Value;
+			}
 
-            // Fall back to generating GUID based on type
-            return (new Guid(TypeToHash(type))).ToString();
-        }
+			// Fall back to generating GUID based on type
+			return (new Guid(TypeToHash(type))).ToString();
+		}
 	}
 }

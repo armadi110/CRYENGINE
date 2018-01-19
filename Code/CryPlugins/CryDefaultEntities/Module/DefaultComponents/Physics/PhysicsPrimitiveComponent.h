@@ -23,7 +23,7 @@ namespace Cry
 				AddPrimitive();
 			}
 
-			virtual void ProcessEvent(SEntityEvent& event) final
+			virtual void ProcessEvent(const SEntityEvent& event) final
 			{
 				if (event.event == ENTITY_EVENT_COMPONENT_PROPERTY_CHANGED)
 				{
@@ -67,15 +67,28 @@ namespace Cry
 
 			virtual void OnTransformChanged() final
 			{
-				if (m_physicsSlotId != -1)
+				if (IPhysicalEntity* pPhysicalEntity = m_pEntity->GetPhysicalEntity())
 				{
-					AddPrimitive();
+					pe_params_part partParams;
+					partParams.partid = m_pEntity->GetPhysicalEntityPartId0(GetEntitySlotId());
+					if (pPhysicalEntity->GetParams(&partParams))
+					{
+						AddPrimitive();
+					}
 				}
 			}
 
 #ifndef RELEASE
 			virtual IEntityComponentPreviewer* GetPreviewer() final { return this; }
 #endif
+
+			virtual void OnShutDown() final
+			{
+				if (IPhysicalEntity* pPhysicalEntity = m_pEntity->GetPhysicalEntity())
+				{
+					pPhysicalEntity->RemoveGeometry(m_pEntity->GetPhysicalEntityPartId0(GetEntitySlotId()));
+				}
+			}
 			// ~IEntityComponent
 
 #ifndef RELEASE
@@ -105,16 +118,7 @@ namespace Cry
 
 		public:
 			CPhysicsPrimitiveComponent() {}
-			virtual ~CPhysicsPrimitiveComponent()
-			{
-				if (m_physicsSlotId != -1)
-				{
-					if (IPhysicalEntity* pPhysicalEntity = m_pEntity->GetPhysicalEntity())
-					{
-						pPhysicalEntity->RemoveGeometry(m_physicsSlotId);
-					}
-				}
-			}
+			virtual ~CPhysicsPrimitiveComponent() = default;
 			
 			virtual std::unique_ptr<pe_geomparams> GetGeomParams() const { return stl::make_unique<pe_geomparams>(); }
 			virtual IGeometry* CreateGeometry() const = 0;
@@ -123,10 +127,7 @@ namespace Cry
 			{
 				if (IPhysicalEntity* pPhysicalEntity = m_pEntity->GetPhysicalEntity())
 				{
-					if (m_physicsSlotId != -1)
-					{
-						pPhysicalEntity->RemoveGeometry(m_physicsSlotId);
-					}
+					pPhysicalEntity->RemoveGeometry(m_pEntity->GetPhysicalEntityPartId0(GetEntitySlotId()));
 
 					if (m_mass > 0 || m_density > 0)
 					{
@@ -172,7 +173,12 @@ namespace Cry
 						pGeomParams->q = Quat(slotTransform);
 						pGeomParams->scale = slotTransform.GetUniformScale();
 
-						m_physicsSlotId = pPhysicalEntity->AddGeometry(pPhysGeom, pGeomParams.get());
+						if (!m_bReactToCollisions)
+						{
+							pGeomParams->flags |= geom_no_coll_response;
+						}
+
+						pPhysicalEntity->AddGeometry(pPhysGeom, pGeomParams.get(), m_pEntity->GetPhysicalEntityPartId0(GetOrMakeEntitySlotId()));
 					}
 				}
 			}
@@ -188,9 +194,7 @@ namespace Cry
 #endif
 
 			Schematyc::SurfaceTypeName m_surfaceTypeName;
-
-		protected:
-			int m_physicsSlotId = -1;
+			bool m_bReactToCollisions = true;
 		};
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -18,7 +18,12 @@ CCryVKGIFactory_DXGI* CCryVKGIFactory_DXGI::Create()
 		_smart_ptr<IDXGIFactoryToCall> pNativeFactory;
 		pNativeFactory.Assign_NoAddRef(pNativeFactoryRaw);
 
-		return new CCryVKGIFactory_DXGI(pNativeFactory);
+		auto factory = new CCryVKGIFactory_DXGI(pNativeFactory);
+		if (factory->GetVkInstance() == VK_NULL_HANDLE) {
+			delete factory;
+			factory = nullptr;
+		}
+		return factory;
 	}
 
 	return nullptr;

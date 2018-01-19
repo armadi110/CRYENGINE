@@ -16,7 +16,6 @@ add_sources("NoUberFile"
 
 add_sources("Editor_Uber_Controls.cpp"
 	SOURCE_GROUP "Controls"
-		"Controls/TemplDef.h"
 		"Controls/ColorCheckBox.cpp"
 		"Controls/ColorCheckBox.h"
 		"Controls/ColorCtrl.h"
@@ -102,6 +101,8 @@ add_sources("Editor_Uber_Dialogs.cpp"
 		"Dialogs/GenericSelectItemDialog.h"
 		"Dialogs/ToolbarDialog.cpp"
 		"Dialogs/ToolbarDialog.h"
+		"Dialogs/SourceControlAddDlg.cpp"
+		"Dialogs/SourceControlAddDlg.h"
 		"Dialogs/SourceControlDescDlg.cpp"
 		"Dialogs/SourceControlDescDlg.h"
 		"Dialogs/SelectMissionObjectiveDialog.cpp"
@@ -130,6 +131,8 @@ add_sources("Editor_Uber_Dialogs.cpp"
 		"Util/UIEnumerations.h"
 		"Util/MFCUtil.h"
 		"Util/MFCUtil.cpp"
+		"Util/QParentWndWidget.h"
+		"Util/QParentWndWidget.cpp"
 
 )
 
@@ -158,6 +161,7 @@ target_compile_definitions(${THIS_PROJECT} PRIVATE
 )
 target_link_libraries(${THIS_PROJECT} PRIVATE EditorCommon tiff)
 
-target_include_directories( ${THIS_PROJECT} PRIVATE	"${SDK_DIR}/squish-ccr")
+target_include_directories( ${THIS_PROJECT} PRIVATE "${SDK_DIR}/squish-ccr")
+target_include_directories( ${THIS_PROJECT} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
 use_xt()

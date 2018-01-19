@@ -3,7 +3,6 @@
 #include "StdAfx.h"
 #include "Metadata.h"
 #include "IConverter.h"
-#include "CryExtension\CryGUIDHelper.h"
 
 
 namespace AssetManager
@@ -23,7 +22,7 @@ bool WriteMetadata(const XmlNodeRef& asset, const SAssetMetadata& metadata)
 	pMetadataNode->setAttr("type", metadata.type);
 
 	CRY_ASSERT(metadata.guid != CryGUID::Null());
-	pMetadataNode->setAttr("guid", CryGUIDHelper::Print(metadata.guid));
+	pMetadataNode->setAttr("guid", metadata.guid.ToString().c_str());
 
 	if (!metadata.source.empty())
 	{
@@ -82,7 +81,7 @@ bool ReadMetadata(const XmlNodeRef& asset, SAssetMetadata& metadata)
 	if (pMetadataNode->haveAttr("guid"))
 	{
 		const string guid = pMetadataNode->getAttr("guid");
-		metadata.guid = CryGUIDHelper::FromString(guid);
+		metadata.guid = CryGUID::FromString(guid);
 	}
 
 	XmlNodeRef pFiles = pMetadataNode->findChild("Files");
@@ -145,7 +144,7 @@ void AddDetails(XmlNodeRef& xml, const std::vector<std::pair<string, string>>& d
 	}
 }
 
-void AddDependencies(XmlNodeRef & xml, const std::vector<string>& dependencies)
+void AddDependencies(XmlNodeRef & xml, const std::vector<std::pair<string,int32>>& dependencies)
 {
 	if (dependencies.empty())
 	{
@@ -162,18 +161,23 @@ void AddDependencies(XmlNodeRef & xml, const std::vector<string>& dependencies)
 		pDependencies = xml->newChild("Dependencies");
 	}
 
-	for (const auto& detail : dependencies)
+	for (const auto& item : dependencies)
 	{
 		XmlNodeRef pPath = pDependencies->newChild("Path");
 
-		// There is an agreement in the sandbox dependency tracking system that local paths have to start with "./"
-		if (detail.FindOneOf("/\\") != string::npos)
+		if (item.second)
 		{
-			pPath->setContent(detail);
+			pPath->setAttr("usageCount", item.second);
+		}
+
+		// There is an agreement in the sandbox dependency tracking system that local paths have to start with "./"
+		if (item.first.FindOneOf("/\\") != string::npos)
+		{
+			pPath->setContent(item.first);
 		}
 		else // Folow the engine rules: if no slashes in the name assume it is in same folder as the cryasset.
 		{
-			pPath->setContent(string().Format("./%s", detail.c_str()));
+			pPath->setContent(string().Format("./%s", item.first.c_str()));
 		}
 	}
 }

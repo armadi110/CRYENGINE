@@ -20,12 +20,14 @@ namespace Cry
 			// IEntityComponent
 			virtual void Initialize() final;
 
-			virtual void ProcessEvent(SEntityEvent& event) final;
+			virtual void ProcessEvent(const SEntityEvent& event) final;
 			virtual uint64 GetEventMask() const final;
+
+			virtual void OnShutDown() final;
 			// ~IEntityComponent
 
 		public:
-			virtual ~CPointConstraintComponent();
+			virtual ~CPointConstraintComponent() = default;
 
 			static void ReflectType(Schematyc::CTypeDesc<CPointConstraintComponent>& desc)
 			{
@@ -40,9 +42,9 @@ namespace Cry
 				desc.AddMember(&CPointConstraintComponent::m_axis, 'axis', "Axis", "Axis", "Axis around which the physical entity is constrained", Vec3(0.f, 0.f, 1.f));
 
 				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsX0, 'rlx0', "RotationLimitsX0", "Minimum X Angle", nullptr, 0.0_degrees);
-				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsX1, 'rlx1', "RotationLimitsX1", "Minimum X Angle", nullptr, 360.0_degrees);
+				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsX1, 'rlx1', "RotationLimitsX1", "Maximum X Angle", nullptr, 360.0_degrees);
 				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsYZ0, 'rly0', "RotationLimitsYZ0", "Minimum YZ Angle", nullptr, 0.0_degrees);
-				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsYZ1, 'rly1', "RotationLimitsYZ1", "Minimum YZ Angle", nullptr, 360.0_degrees);
+				desc.AddMember(&CPointConstraintComponent::m_rotationLimitsYZ1, 'rly1', "RotationLimitsYZ1", "Maximum YZ Angle", nullptr, 360.0_degrees);
 
 				desc.AddMember(&CPointConstraintComponent::m_damping, 'damp', "Damping", "Damping", nullptr, 0.f);
 			}

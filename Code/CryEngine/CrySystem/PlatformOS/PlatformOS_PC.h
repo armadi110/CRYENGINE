@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   IPlatformOS_PC.h
@@ -82,8 +82,6 @@ public:
 	virtual const char*                                          GetSKUId();
 	virtual ILocalizationManager::TLocalizationBitfield          GetSystemSupportedLanguages();
 
-	virtual IPlatformOS::EMsgBoxResult                           DebugMessageBox(const char* body, const char* title, unsigned int flags = 0) const;
-
 	virtual bool                                                 PostLocalizationBootChecks();
 
 	virtual void                                                 GetMemoryUsage(ICrySizer* pSizer) const;
@@ -140,8 +138,7 @@ private:
 	bool                         SxmlMissingFromHDD(ZipDir::FileEntryTree* pSourceDir, const char* currentPath, ZipDir::CacheRWPtr pCache);
 
 	bool                         DecryptAndCheckSigning(const char* pInData, int inDataLen, char** pOutData, int* pOutDataLen, const uint8 key[16]);
-	bool                         UseSteamReadWriter() const;
-
+	
 private:
 	CStableFPSWatcher                             m_fpsWatcher;
 	CListenerSet<IPlatformOS::IPlatformListener*> m_listeners;
@@ -152,7 +149,6 @@ private:
 	int   m_cachePakUser;
 	bool  m_bSignedIn;
 	bool  m_bSaving;
-	bool  m_bAllowMessageBox;
 	bool  m_bLevelLoad;
 	bool  m_bSaveDuringLevelLoad;
 };

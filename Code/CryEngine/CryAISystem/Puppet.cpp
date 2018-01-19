@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /********************************************************************
    -------------------------------------------------------------------------
@@ -430,7 +430,7 @@ float CPuppet::AdjustTargetVisibleRange(const CAIActor& observer, float fVisible
 void CPuppet::Update(EUpdateType type)
 {
 	CCCPOINT(CPuppet_Update);
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	m_bDryUpdate = (type != EUpdateType::Full);
 
@@ -992,7 +992,7 @@ bool CPuppet::GetTargetTrackBestTarget(CWeakRef<CAIObject>& refBestTarget, SAIPo
 //===================================================================
 void CPuppet::UpdatePuppetInternalState()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	CCCPOINT(CPuppet_UpdatePuppetInternalState);
 
 	CAIObject* pAttentionTarget = m_refAttentionTarget.GetAIObject();
@@ -1322,10 +1322,9 @@ void CPuppet::Event(unsigned short eType, SAIEVENT* pEvent)
 		{
 			SetNavSOFailureStates();
 
-			if (m_inCover || m_movingToCover)
+			if (m_pCoverUser)
 			{
-				SetCoverRegister(CoverID());
-				m_coverUser.SetCoverID(CoverID());
+				m_pCoverUser->Reset();
 			}
 
 			ResetModularBehaviorTree(AIOBJRESET_SHUTDOWN);
@@ -1383,7 +1382,7 @@ void CPuppet::Event(unsigned short eType, SAIEVENT* pEvent)
 //===================================================================
 void CPuppet::HandleVisualStimulus(SAIEVENT* pAIEvent)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	const float fGlobalVisualPerceptionScale = gEnv->pAISystem->GetGlobalVisualScale(this);
 	const float fVisualPerceptionScale = m_Parameters.m_PerceptionParams.perceptionScale.visual * fGlobalVisualPerceptionScale;
@@ -1416,7 +1415,7 @@ CPersonalInterestManager* CPuppet::GetPersonalInterestManager()
 void CPuppet::UpdateLookTarget(CAIObject* pTarget)
 {
 	CCCPOINT(CPuppet_UpdateLookTarget);
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 #ifdef AI_STRIP_OUT_LEGACY_LOOK_TARGET_CODE
 
@@ -1923,7 +1922,7 @@ void CPuppet::UpTargetPriority(const IAIObject* pTarget, float fPriorityIncremen
 //===================================================================
 void CPuppet::HandleSoundEvent(SAIEVENT* pEvent)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	const float fGlobalAudioPerceptionScale = gEnv->pAISystem->GetGlobalAudioScale(this);
 	const float fAudioPerceptionScale = m_Parameters.m_PerceptionParams.perceptionScale.audio * fGlobalAudioPerceptionScale;
@@ -1949,7 +1948,7 @@ void CPuppet::HandleSoundEvent(SAIEVENT* pEvent)
 //===================================================================
 void CPuppet::HandleBulletRain(SAIEVENT* pEvent)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	CPipeUser::HandleBulletRain(pEvent);
 
@@ -2062,7 +2061,7 @@ bool CPuppet::NavigateAroundObjectsInternal(const Vec3& targetPos, const Vec3& m
 //===================================================================
 bool CPuppet::NavigateAroundObjects(const Vec3& targetPos, bool fullUpdate)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	bool in3D = IsUsing3DNavigation();
 	const Vec3 myPos = GetPhysicsPos();
 
@@ -2077,7 +2076,7 @@ bool CPuppet::NavigateAroundObjects(const Vec3& targetPos, bool fullUpdate)
 
 	if (steeringEnabled && (deltaTime > timeForUpdate || !lastSteeringEnabled))
 	{
-		FRAME_PROFILER("NavigateAroundObjects Gather Objects", gEnv->pSystem, PROFILE_AI)
+		CRY_PROFILE_REGION(PROFILE_AI, "NavigateAroundObjects Gather Objects");
 
 		m_lastSteerTime = curTime;
 		m_steeringObjects.clear();
@@ -2120,7 +2119,7 @@ bool CPuppet::NavigateAroundObjects(const Vec3& targetPos, bool fullUpdate)
 	{
 		if ((GetType() == AIOBJECT_ACTOR) && !in3D)
 		{
-			FRAME_PROFILER("NavigateAroundObjects Update Steering", gEnv->pSystem, PROFILE_AI)
+			CRY_PROFILE_REGION(PROFILE_AI, "NavigateAroundObjects Update Steering");
 
 			bool check = fullUpdate;
 			if (m_updatePriority == AIPUP_VERY_HIGH || m_updatePriority == AIPUP_HIGH)
@@ -2283,7 +2282,7 @@ bool CPuppet::NavigateAroundObjects(const Vec3& targetPos, bool fullUpdate)
 		}
 		else
 		{
-			FRAME_PROFILER("NavigateAroundObjects Update Steering Old", gEnv->pSystem, PROFILE_AI)
+			CRY_PROFILE_REGION(PROFILE_AI, "NavigateAroundObjects Update Steering Old");
 			// Old type steering for the rest of the objects.
 			unsigned nObj = m_steeringObjects.size();
 			for (unsigned i = 0; i < nObj; ++i)
@@ -2306,7 +2305,7 @@ bool CPuppet::NavigateAroundObjects(const Vec3& targetPos, bool fullUpdate)
 bool CPuppet::NavigateAroundAIObject(const Vec3& targetPos, const CAIObject* obstacle, const Vec3& myPos,
                                      const Vec3& objectPos, bool steer, bool in3D)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	if (steer)
 	{
 		if (in3D)
@@ -2925,7 +2924,7 @@ void CPuppet::RequestThrowGrenade(ERequestedGrenadeType eGrenadeType, int iRegTy
 void CPuppet::FireCommand(float updateTime)
 {
 	CCCPOINT(CPuppet_FireCommand);
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	m_timeSinceTriggerPressed += updateTime;
 
@@ -4518,7 +4517,7 @@ void CPuppet::ResetSpeedControl()
 //===================================================================
 bool CPuppet::CheckFriendsInLineOfFire(const Vec3& fireDirection, bool cheapTest)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	ActorLookUp& lookUp = *gAIEnv.pActorLookUp;
 	lookUp.Prepare(ActorLookUp::Position | ActorLookUp::Proxy);

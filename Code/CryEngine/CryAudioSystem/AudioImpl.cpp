@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioImpl.h"
@@ -43,7 +43,7 @@ struct SObject final : IObject
 };
 
 ///////////////////////////////////////////////////////////////////////////
-void CImpl::Update(float const deltaTime)
+void CImpl::Update()
 {
 }
 
@@ -136,6 +136,12 @@ char const* const CImpl::GetFileLocation(SFileInfo* const pFileInfo)
 	return nullptr;
 }
 
+//////////////////////////////////////////////////////////////////////////
+void CImpl::GetInfo(SImplInfo& implInfo) const
+{
+	implInfo.name = "null-impl";
+}
+
 ///////////////////////////////////////////////////////////////////////////
 IObject* CImpl::ConstructGlobalObject()
 {
@@ -161,7 +167,7 @@ void CImpl::DestructListener(IListener* const pIListener)
 }
 
 ///////////////////////////////////////////////////////////////////////////
-IListener* CImpl::ConstructListener()
+IListener* CImpl::ConstructListener(char const* const szName /*= nullptr*/)
 {
 	return static_cast<IListener*>(new SListener());
 }

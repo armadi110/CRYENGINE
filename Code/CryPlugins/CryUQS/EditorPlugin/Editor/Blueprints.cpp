@@ -51,6 +51,12 @@ SERIALIZATION_ENUM(EEvaluatorType::Deferred, "Deferred", "Deferred")
 SERIALIZATION_ENUM(EEvaluatorType::Undefined, "Undefined", "Undefined")
 SERIALIZATION_ENUM_END()
 
+SERIALIZATION_ENUM_BEGIN(EEvaluatorCost, "EvaluatorCost")
+SERIALIZATION_ENUM(EEvaluatorCost::Cheap, "Cheap", "Cheap")
+SERIALIZATION_ENUM(EEvaluatorCost::Expensive, "Expensive", "Expensive")
+SERIALIZATION_ENUM(EEvaluatorCost::Undefined, "Undefined", "Undefined")
+SERIALIZATION_ENUM_END()
+
 //////////////////////////////////////////////////////////////////////////
 
 class CSyntaxErrorCollector : public UQS::DataSource::ISyntaxErrorCollector
@@ -143,6 +149,34 @@ public:
 		else
 		{
 			return EEvaluatorType::Undefined;
+		}
+	}
+
+	EEvaluatorCost GetCost() const
+	{
+		if (m_pInstantFactory)
+		{
+			switch (m_pInstantFactory->GetCostCategory())
+			{
+			case UQS::Client::IInstantEvaluatorFactory::ECostCategory::Cheap:
+				return EEvaluatorCost::Cheap;
+
+			case UQS::Client::IInstantEvaluatorFactory::ECostCategory::Expensive:
+				return EEvaluatorCost::Expensive;
+
+			default:
+				assert(0);
+				return EEvaluatorCost::Undefined;
+			}
+		}
+		else if (m_pDeferredFactory)
+		{
+			// deferred evaluators are implicitly always expensive
+			return EEvaluatorCost::Expensive;
+		}
+		else
+		{
+			return EEvaluatorCost::Undefined;
 		}
 	}
 
@@ -457,7 +491,11 @@ void CFunctionSerializationHelper::CFunctionList::Build(const SItemTypeName& typ
 			functions.emplace_back(func);
 			SFunction& shuttledItemsFunc = functions.back();
 
-			shuttledItemsFunc.prettyName.Format("SHUTTLE: %s", shuttledItemsFunc.returnType.c_str());
+			const UQS::Shared::CTypeInfo* pContainedType = shuttledItemsFunc.pFactory->GetContainedType();
+			assert(pContainedType);
+			const UQS::Client::IItemFactory* pItemFactory = UQS::Core::IHubPlugin::GetHub().GetUtils().FindItemFactoryByType(*pContainedType);
+			assert(pItemFactory);
+			shuttledItemsFunc.prettyName.Format("SHUTTLE: %s", pItemFactory->GetName());
 
 			if (bApplyTypeFilter)
 			{
@@ -504,9 +542,9 @@ int CFunctionSerializationHelper::CFunctionList::SerializeGUID(
 	const int oldFunctionIdx)
 {
 	const bool bIsNpos = (oldFunctionIdx == CFunctionSerializationHelper::npos);
-	const CryGUID oldGUID = bIsNpos ? CryGUID::Null() : m_functions[oldFunctionIdx].guid;
+	const string oldPrettyName = bIsNpos ? "" : m_functions[oldFunctionIdx].prettyName;
 
-	const CKeyValueStringList<CryGUID>::SSerializeResult serializeResult = m_functionsGuidList.Serialize(archive, szName, szLabel, oldGUID, nullptr, &validatorKey);
+	const CKeyValueStringList<CryGUID>::SSerializeResult serializeResult = m_functionsGuidList.SerializeByLabelForDisplayInDropDownList(archive, szName, szLabel, &validatorKey, oldPrettyName);
 	const int newFunctionIdx = serializeResult.newIndex - 1;	// careful: could become -2 if the drop-down-list has no entries ("I GUESS"!)
 	const bool bChanged = newFunctionIdx != oldFunctionIdx;
 
@@ -1774,7 +1812,7 @@ bool CGeneratorBlueprint::SerializeGUID(Serialization::IArchive& archive, const 
 	{
 		CKeyValueStringList<CryGUID> generatorGuidList;
 		generatorGuidList.FillFromFactoryDatabase(UQS::Core::IHubPlugin::GetHub().GetGeneratorFactoryDatabase(), true);
-		generatorGuidList.Serialize(archive, szName, szLabel, oldGeneratorGUID, setGUID);
+		generatorGuidList.SerializeByData(archive, szName, szLabel, oldGeneratorGUID, setGUID);
 	}
 	else
 	{
@@ -2092,6 +2130,7 @@ CEvaluator::CEvaluator(const EEvaluatorType type)
 	, m_inputs()
 	, m_pErrorCollector(new CErrorCollector)
 	, m_evaluatorType(EEvaluatorType::Undefined)
+	, m_evaluatorCost(EEvaluatorCost::Undefined)
 {
 	SetType(type);
 }
@@ -2125,6 +2164,7 @@ CEvaluator::CEvaluator(CEvaluator&& other)
 	, m_bNegateDiscard(other.m_bNegateDiscard)
 	, m_pErrorCollector(std::move(other.m_pErrorCollector))
 	, m_evaluatorType(other.m_evaluatorType)
+	, m_evaluatorCost(other.m_evaluatorCost)
 	, m_interfaceAdapter(std::move(other.m_interfaceAdapter))
 {
 	if (m_interfaceAdapter)
@@ -2141,6 +2181,7 @@ CEvaluator::CEvaluator()
 	, m_inputs()
 	, m_pErrorCollector(new CErrorCollector)
 	, m_evaluatorType(EEvaluatorType::Undefined)
+	, m_evaluatorCost(EEvaluatorCost::Undefined)
 	, m_interfaceAdapter()
 {
 
@@ -2157,6 +2198,7 @@ CEvaluator& CEvaluator::operator=(CEvaluator&& other)
 		m_bNegateDiscard = other.m_bNegateDiscard;
 		m_pErrorCollector = std::move(other.m_pErrorCollector);
 		m_evaluatorType = other.m_evaluatorType;
+		m_evaluatorCost = other.m_evaluatorCost;
 		m_interfaceAdapter = std::move(other.m_interfaceAdapter);
 		if (m_interfaceAdapter)
 		{
@@ -2190,6 +2232,7 @@ void CEvaluator::Serialize(Serialization::IArchive& archive)
 			if (factory.IsValid())
 			{
 				SetType(factory.GetType());
+				m_evaluatorCost = factory.GetCost();
 				if (bGUIDChanged)
 				{
 					m_inputs.ResetChildrenFromFactory(factory, *pContext);
@@ -2212,6 +2255,9 @@ void CEvaluator::Serialize(Serialization::IArchive& archive)
 			{
 				archive.warning(m_evaluatorType, "Undefined evaluator type");
 			}
+
+			// Evaluator cost (read-only)
+			archive(m_evaluatorCost, "evaluatorCost", "!Evaluator cost");
 
 			archive(m_weight, "weight", "Weight");
 
@@ -2245,7 +2291,7 @@ bool CEvaluator::SerializeEvaluatorGUID(Serialization::IArchive& archive, const 
 		CKeyValueStringList<CryGUID> evaluatorGuidList;
 		evaluatorGuidList.FillFromFactoryDatabase(UQS::Core::IHubPlugin::GetHub().GetInstantEvaluatorFactoryDatabase(), true);
 		evaluatorGuidList.FillFromFactoryDatabase(UQS::Core::IHubPlugin::GetHub().GetDeferredEvaluatorFactoryDatabase(), false);
-		evaluatorGuidList.Serialize(archive, szName, szLabel, oldGUID, setGUID);
+		evaluatorGuidList.SerializeByData(archive, szName, szLabel, oldGUID, setGUID);
 	}
 	else
 	{
@@ -2266,7 +2312,7 @@ void CEvaluator::SerializeScoreTransformGUID(Serialization::IArchive& archive, c
 	{
 		CKeyValueStringList<CryGUID> scoreTransformsList;
 		scoreTransformsList.FillFromFactoryDatabase(UQS::Core::IHubPlugin::GetHub().GetScoreTransformFactoryDatabase(), true);
-		scoreTransformsList.Serialize(archive, szName, szLabel, oldScoreTransformGUID, setScoreTransformGUID);
+		scoreTransformsList.SerializeByData(archive, szName, szLabel, oldScoreTransformGUID, setScoreTransformGUID);
 	}
 	else
 	{
@@ -2515,7 +2561,7 @@ bool SQueryFactoryType::Serialize(Serialization::IArchive& archive, const char* 
 	{
 		CKeyValueStringList<CryGUID> queryGuidList;
 		queryGuidList.FillFromFactoryDatabase(UQS::Core::IHubPlugin::GetHub().GetQueryFactoryDatabase(), true);
-		queryGuidList.Serialize(archive, szName, szLabel, oldGUID, setGUID);
+		queryGuidList.SerializeByData(archive, szName, szLabel, oldGUID, setGUID);
 	}
 	else
 	{

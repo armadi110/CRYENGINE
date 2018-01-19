@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "Command_Buffer.h"
@@ -21,6 +21,7 @@ bool CState::Initialize(CCharInstance* pInstance, const QuatTS& location)
 
 	m_location = location;
 
+	m_pFallbackPoseData = Console::GetInst().ca_ResetCulledJointsToBindPose ? &pInstance->m_SkeletonPose.GetPoseDataDefault() : &pInstance->m_SkeletonPose.GetPoseData();
 	m_pPoseData = pInstance->m_SkeletonPose.GetPoseDataWriteable();
 
 	m_jointCount = pInstance->m_pDefaultSkeleton->GetJointCount();

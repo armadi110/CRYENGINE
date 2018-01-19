@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   ixml.h
@@ -71,6 +71,7 @@ public:
 
 };
 
+//! \cond INTERNAL
 //! XML string data.
 struct IXmlStringData
 {
@@ -82,6 +83,7 @@ struct IXmlStringData
 	virtual size_t      GetStringLength() = 0;
 	// </interfuscator:shuffle>
 };
+//! \endcond
 
 class IXmlNode;
 
@@ -97,7 +99,8 @@ public:
 	XmlNodeRef(XmlNodeRef&& other);
 
 	~XmlNodeRef();
-
+	
+	bool     isValid() const   { return p != nullptr; }
 	operator IXmlNode*() const { return p; }
 
 	IXmlNode&   operator*() const      { return *p; }
@@ -476,6 +479,7 @@ struct IXmlSerializer
 #if !defined(RESOURCE_COMPILER)
 //////////////////////////////////////////////////////////////////////////
 //! XML Parser interface.
+//! \cond INTERNAL
 struct IXmlParser
 {
 	// <interfuscator:shuffle>
@@ -534,6 +538,7 @@ struct IXmlTableReader
 	virtual bool ReadCell(int& columnIndex, const char*& pContent, size_t& contentSize) = 0;
 	// </interfuscator:shuffle>
 };
+//! \endcond
 #endif
 
 //////////////////////////////////////////////////////////////////////////

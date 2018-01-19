@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "AICollision.h"
@@ -121,6 +121,26 @@ bool OverlapCylinder(const Lineseg& lineseg, float radius, const std::vector<IPh
 	return false;
 }
 
+//====================================================================
+// FindFloor
+//====================================================================
+bool FindFloor(const Vec3& position, Vec3& floor)
+{
+	const Vec3 dir = Vec3(0.0f, 0.0f, -(WalkabilityFloorDownDist + WalkabilityFloorUpDist));
+	const Vec3 start = position + Vec3(0, 0, WalkabilityFloorUpDist);
+
+	const RayCastResult& result = gAIEnv.pRayCaster->Cast(RayCastRequest(start, dir, AICE_ALL,
+		rwi_stop_at_pierceable | rwi_colltype_any(geom_colltype_player)));
+
+	if (!result || (result[0].dist < 0.0f))
+	{
+		return false;
+	}
+
+	floor = Vec3(start.x, start.y, start.z - result[0].dist);
+	return true;
+}
+
 //===================================================================
 // IsLeft: tests if a point is Left|On|Right of an infinite line.
 //    Input:  three points P0, P1, and P2
@@ -176,7 +196,7 @@ struct SPointSorter
 //===================================================================
 void ConvexHull2DGraham(std::vector<Vec3>& ptsOut, const std::vector<Vec3>& ptsIn)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	const unsigned nPtsIn = ptsIn.size();
 	if (nPtsIn < 3)
 	{
@@ -197,7 +217,7 @@ void ConvexHull2DGraham(std::vector<Vec3>& ptsOut, const std::vector<Vec3>& ptsI
 
 	std::swap(ptsSorted[0], ptsSorted[iBotRight]);
 	{
-		FRAME_PROFILER("SORT Graham", gEnv->pSystem, PROFILE_AI)
+		CRY_PROFILE_REGION(PROFILE_AI, "SORT Graham");
 		std::sort(ptsSorted.begin() + 1, ptsSorted.end(), SPointSorter(ptsSorted[0]));
 	}
 	ptsSorted.erase(std::unique(ptsSorted.begin(), ptsSorted.end(), ptEqual), ptsSorted.end());
@@ -277,7 +297,7 @@ static std::vector<Vec3> ConvexHull2DAndrewTemp;
 
 void ConvexHull2DAndrew(std::vector<Vec3>& ptsOut, const std::vector<Vec3>& ptsIn)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	const int n = (int)ptsIn.size();
 	if (n < 3)
 	{
@@ -289,7 +309,7 @@ void ConvexHull2DAndrew(std::vector<Vec3>& ptsOut, const std::vector<Vec3>& ptsI
 	P = ptsIn;
 
 	{
-		FRAME_PROFILER("SORT Andrew", gEnv->pSystem, PROFILE_AI)
+		CRY_PROFILE_REGION(PROFILE_AI, "SORT Andrew");
 		std::sort(P.begin(), P.end(), PointSorterAndrew);
 	}
 

@@ -38,7 +38,7 @@ protected:
 	virtual void   Initialize() override;
 	virtual void   OnShutDown() override {}
 	virtual uint64 GetEventMask() const override;
-	virtual void   ProcessEvent(SEntityEvent& event) override;
+	virtual void   ProcessEvent(const SEntityEvent& event) override;
 	// ~IEntityComponent
 
 public:
@@ -71,8 +71,8 @@ inline void SSwitchWithStateSerializeHelper::Serialize(Serialization::IArchive& 
 
 	if (archive.isInput())
 	{
-		m_switchId = CryAudio::StringToId_RunTime(m_switchName.c_str());
-		m_switchStateId = CryAudio::StringToId_RunTime(m_switchStateName.c_str());
+		m_switchId = CryAudio::StringToId(m_switchName.c_str());
+		m_switchStateId = CryAudio::StringToId(m_switchStateName.c_str());
 	}
 }
 } // namespace DefaultComponents

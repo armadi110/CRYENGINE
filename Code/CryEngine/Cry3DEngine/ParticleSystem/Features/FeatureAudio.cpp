@@ -1,9 +1,11 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "ParticleSystem/ParticleFeature.h"
 #include <CrySerialization/Decorators/ResourcesAudio.h>
 #include <CryAudio/IObject.h>
+#include "../ParticleComponentRuntime.h"
+#include "../ParticleEffect.h"
 #include "ParamMod.h"
 
 namespace CryAudio
@@ -34,12 +36,12 @@ public:
 		m_stopTrigger.Resolve();
 		if (GetNumResources())
 		{
-			pComponent->AddToUpdateList(EUL_MainPreUpdate, this);
+			pComponent->MainPreUpdate.add(this);
 			pComponent->AddParticleData(EPVF_Position);
 			if (m_followParticle || m_stopOnDeath)
 			{
 				pComponent->AddParticleData(EPDT_AudioObject);
-				pComponent->AddToUpdateList(EUL_InitUpdate, this);
+				pComponent->InitParticles.add(this);
 			}
 		}
 	}
@@ -71,7 +73,7 @@ public:
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 
-		context.m_container.FillData(EPDT_AudioObject, nullptr, context.GetSpawnedRange());
+		context.m_container.FillData(EPDT_AudioObject, (CryAudio::IObject*)0, context.GetSpawnedRange());
 	}
 
 	void MainPreUpdate(CParticleComponentRuntime* pComponentRuntime) override
@@ -189,7 +191,7 @@ private:
 
 	void Trigger(CryAudio::ControlId id, cstr proxyName, const Vec3& position)
 	{
-		const CryAudio::SExecuteTriggerData data(proxyName, m_occlusionType, position, true, id);
+		const CryAudio::SExecuteTriggerData data(id, proxyName, m_occlusionType, position, INVALID_ENTITYID, true);
 		gEnv->pAudioSystem->ExecuteTriggerEx(data);
 	}
 
@@ -212,7 +214,7 @@ private:
 
 		void Resolve()
 		{
-			m_id = CryAudio::StringToId_RunTime(m_name.c_str());
+			m_id = CryAudio::StringToId(m_name.c_str());
 		}
 		bool HasName() const                 { return !m_name.empty(); }
 		operator CryAudio::ControlId() const { return m_id; }
@@ -240,8 +242,8 @@ public:
 	{
 		if (!m_parameterName.empty())
 		{
-			m_parameterId = CryAudio::StringToId_RunTime(m_parameterName.c_str());
-			pComponent->AddToUpdateList(EUL_MainPreUpdate, this);
+			m_parameterId = CryAudio::StringToId(m_parameterName.c_str());
+			pComponent->MainPreUpdate.add(this);
 			m_value.AddToComponent(pComponent, this);
 		}
 	}

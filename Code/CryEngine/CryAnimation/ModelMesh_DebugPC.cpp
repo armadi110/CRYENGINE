@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "ModelMesh.h"
@@ -202,9 +202,13 @@ void CModelMesh::DrawWireframeStatic(const Matrix34& rRenderMat34, uint32 color)
 
 #endif
 
-void CModelMesh::DrawDebugInfo(CDefaultSkeleton* pCSkel, int nLOD, const Matrix34& rRenderMat34, int DebugMode, IMaterial* pMaterial, CRenderObject* pObj, const SRendParams& RendParams, bool isGeneralPass, IRenderNode* pRenderNode, const AABB& aabb)
+void CModelMesh::DrawDebugInfo(CDefaultSkeleton* pCSkel, int nLOD, const Matrix34& rRenderMat34, int DebugMode, IMaterial* pMaterial, CRenderObject* pObj, const SRendParams& RendParams, bool isGeneralPass, IRenderNode* pRenderNode, const AABB& aabb,const SRenderingPassInfo &passInfo)
 {
 	if (m_pIRenderMesh == 0)
+		return;
+
+	const float cvar_e_debugDrawMaxDistance = gEnv->pConsole->GetCVar("e_DebugDrawMaxDistance")->GetFVal();
+	if (pObj->m_fDistance > cvar_e_debugDrawMaxDistance)
 		return;
 
 	bool bNoText = DebugMode < 0;
@@ -227,7 +231,7 @@ void CModelMesh::DrawDebugInfo(CDefaultSkeleton* pCSkel, int nLOD, const Matrix3
 	Matrix34 tm = rRenderMat34;	
 	if (pObj->m_ObjFlags & FOB_NEAREST)
 	{
-		tm.AddTranslation(gEnv->pRenderer->GetCamera().GetPosition());
+		tm.AddTranslation(passInfo.GetCamera().GetPosition());
 	}
 	Vec3 trans = tm.GetTranslation();
 

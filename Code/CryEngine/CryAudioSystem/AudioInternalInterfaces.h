@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -34,7 +34,6 @@ enum class EAudioManagerRequestType : EnumFlagsType
 	SetAudioImpl,
 	ReleaseAudioImpl,
 	RefreshAudioSystem,
-	ConstructAudioListener,
 	LoseFocus,
 	GetFocus,
 	MuteAll,
@@ -55,6 +54,7 @@ enum class EAudioManagerRequestType : EnumFlagsType
 	ReleasePendingRays,
 	ReloadControlsData,
 	GetAudioFileData,
+	GetImplInfo,
 };
 
 enum class EAudioCallbackManagerRequestType : EnumFlagsType
@@ -96,6 +96,7 @@ enum class EAudioListenerRequestType : EnumFlagsType
 {
 	None,
 	SetTransformation,
+	RegisterListener,
 	ReleaseListener,
 };
 
@@ -175,25 +176,6 @@ struct SAudioManagerRequestData<EAudioManagerRequestType::SetAudioImpl> final : 
 	virtual ~SAudioManagerRequestData() override = default;
 
 	Impl::IImpl* const pIImpl;
-};
-
-//////////////////////////////////////////////////////////////////////////
-template<>
-struct SAudioManagerRequestData<EAudioManagerRequestType::ConstructAudioListener> final : public SAudioManagerRequestDataBase
-{
-	explicit SAudioManagerRequestData(CATLListener** const ppListener_)
-		: SAudioManagerRequestDataBase(EAudioManagerRequestType::ConstructAudioListener)
-		, ppListener(ppListener_)
-	{}
-
-	explicit SAudioManagerRequestData(SAudioManagerRequestData<EAudioManagerRequestType::ConstructAudioListener> const* const pAMRData)
-		: SAudioManagerRequestDataBase(EAudioManagerRequestType::ConstructAudioListener)
-		, ppListener(pAMRData->ppListener)
-	{}
-
-	virtual ~SAudioManagerRequestData() override = default;
-
-	CATLListener** const ppListener;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -449,6 +431,25 @@ struct SAudioManagerRequestData<EAudioManagerRequestType::GetAudioFileData> fina
 
 	CryFixedStringT<MaxFileNameLength> const name;
 	SFileData&                               fileData;
+};
+
+//////////////////////////////////////////////////////////////////////////
+template<>
+struct SAudioManagerRequestData<EAudioManagerRequestType::GetImplInfo> final : public SAudioManagerRequestDataBase
+{
+	explicit SAudioManagerRequestData(SImplInfo& implInfo_)
+		: SAudioManagerRequestDataBase(EAudioManagerRequestType::GetImplInfo)
+		, implInfo(implInfo_)
+	{}
+
+	explicit SAudioManagerRequestData(SAudioManagerRequestData<EAudioManagerRequestType::GetImplInfo> const* const pAMRData)
+		: SAudioManagerRequestDataBase(EAudioManagerRequestType::GetImplInfo)
+		, implInfo(pAMRData->implInfo)
+	{}
+
+	virtual ~SAudioManagerRequestData() override = default;
+
+	SImplInfo& implInfo;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -760,7 +761,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::ExecuteTriggerEx> final 
 		, occlusionType(data.occlusionType)
 		, transformation(data.transformation)
 		, entityId(data.entityId)
-		, bSetCurrentEnvironments(data.bSetCurrentEnvironments)
+		, setCurrentEnvironments(data.setCurrentEnvironments)
 		, triggerId(data.triggerId)
 	{}
 
@@ -770,7 +771,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::ExecuteTriggerEx> final 
 		, occlusionType(pAORData->occlusionType)
 		, transformation(pAORData->transformation)
 		, entityId(pAORData->entityId)
-		, bSetCurrentEnvironments(pAORData->bSetCurrentEnvironments)
+		, setCurrentEnvironments(pAORData->setCurrentEnvironments)
 		, triggerId(pAORData->triggerId)
 	{}
 
@@ -780,7 +781,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::ExecuteTriggerEx> final 
 	EOcclusionType const                       occlusionType;
 	CObjectTransformation const                transformation;
 	EntityId const                             entityId;
-	bool const bSetCurrentEnvironments;
+	bool const setCurrentEnvironments;
 	ControlId const                            triggerId;
 };
 
@@ -920,7 +921,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::RegisterObject> final : 
 		, occlusionType(data.occlusionType)
 		, transformation(data.transformation)
 		, entityId(data.entityId)
-		, bSetCurrentEnvironments(data.bSetCurrentEnvironments)
+		, setCurrentEnvironments(data.setCurrentEnvironments)
 	{}
 
 	explicit SAudioObjectRequestData(SAudioObjectRequestData<EAudioObjectRequestType::RegisterObject> const* const pAMRData)
@@ -929,7 +930,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::RegisterObject> final : 
 		, occlusionType(pAMRData->occlusionType)
 		, transformation(pAMRData->transformation)
 		, entityId(pAMRData->entityId)
-		, bSetCurrentEnvironments(pAMRData->bSetCurrentEnvironments)
+		, setCurrentEnvironments(pAMRData->setCurrentEnvironments)
 	{}
 
 	virtual ~SAudioObjectRequestData() override = default;
@@ -938,7 +939,7 @@ struct SAudioObjectRequestData<EAudioObjectRequestType::RegisterObject> final : 
 	EOcclusionType const                       occlusionType;
 	CObjectTransformation const                transformation;
 	EntityId const                             entityId;
-	bool const bSetCurrentEnvironments;
+	bool const setCurrentEnvironments;
 };
 
 //////////////////////////////////////////////////////////////////////////
@@ -1033,6 +1034,28 @@ struct SAudioListenerRequestData<EAudioListenerRequestType::SetTransformation> f
 
 //////////////////////////////////////////////////////////////////////////
 template<>
+struct SAudioListenerRequestData<EAudioListenerRequestType::RegisterListener> final : public SAudioListenerRequestDataBase
+{
+	explicit SAudioListenerRequestData(CATLListener** const ppListener_, char const* const szName)
+		: SAudioListenerRequestDataBase(EAudioListenerRequestType::RegisterListener)
+		, ppListener(ppListener_)
+		, name(szName)
+	{}
+
+	explicit SAudioListenerRequestData(SAudioListenerRequestData<EAudioListenerRequestType::RegisterListener> const* const pALRData)
+		: SAudioListenerRequestDataBase(EAudioListenerRequestType::RegisterListener)
+		, ppListener(pALRData->ppListener)
+		, name(pALRData->name)
+	{}
+
+	virtual ~SAudioListenerRequestData() override = default;
+
+	CATLListener** const                       ppListener;
+	CryFixedStringT<MaxObjectNameLength> const name;
+};
+
+//////////////////////////////////////////////////////////////////////////
+template<>
 struct SAudioListenerRequestData<EAudioListenerRequestType::ReleaseListener> final : public SAudioListenerRequestDataBase
 {
 	explicit SAudioListenerRequestData(CATLListener* const pListener_)
@@ -1103,23 +1126,41 @@ private:
 // Filter for drawing debug info to the screen
 enum class EAudioDebugDrawFilter : EnumFlagsType
 {
-	All                       = 0,
-	DrawSpheres               = BIT(6),  // a
-	ShowObjectLabel           = BIT(7),  // b
-	ShowObjectTriggers        = BIT(8),  // c
-	ShowObjectStates          = BIT(9),  // d
-	ShowObjectParameters      = BIT(10), // e
-	ShowObjectEnvironments    = BIT(11), // f
-	ShowOcclusionRayLabels    = BIT(12), // g
-	DrawOcclusionRays         = BIT(13), // h
-	DrawObjectStandaloneFiles = BIT(14), // i
+	All                        = 0,
+	ShowSpheres                = BIT(6),  // a
+	ShowObjectLabel            = BIT(7),  // b
+	ShowObjectTriggers         = BIT(8),  // c
+	ShowObjectStates           = BIT(9),  // d
+	ShowObjectParameters       = BIT(10), // e
+	ShowObjectEnvironments     = BIT(11), // f
+	ShowObjectDistance         = BIT(12), // g
+	ShowOcclusionRayLabels     = BIT(13), // h
+	ShowOcclusionRays          = BIT(14), // i
+	DrawListenerOcclusionPlane = BIT(15), // j
+	ShowObjectStandaloneFiles  = BIT(16), // k
 
-	ShowStandaloneFiles       = BIT(26), // u
-	ShowActiveEvents          = BIT(27), // v
-	ShowActiveObjects         = BIT(28), // w
-	ShowFileCacheManagerInfo  = BIT(29), // x
+	HideMemoryInfo             = BIT(18), // m
+	FilterAllObjectInfo        = BIT(19), // n
+
+	ShowStandaloneFiles        = BIT(26), // u
+	ShowActiveEvents           = BIT(27), // v
+	ShowActiveObjects          = BIT(28), // w
+	ShowFileCacheManagerInfo   = BIT(29), // x
 };
 CRY_CREATE_ENUM_FLAG_OPERATORS(EAudioDebugDrawFilter);
+
+static constexpr EAudioDebugDrawFilter objectDebugMask =
+  EAudioDebugDrawFilter::ShowSpheres |
+  EAudioDebugDrawFilter::ShowObjectLabel |
+  EAudioDebugDrawFilter::ShowObjectTriggers |
+  EAudioDebugDrawFilter::ShowObjectStates |
+  EAudioDebugDrawFilter::ShowObjectParameters |
+  EAudioDebugDrawFilter::ShowObjectEnvironments |
+  EAudioDebugDrawFilter::ShowObjectDistance |
+  EAudioDebugDrawFilter::ShowOcclusionRayLabels |
+  EAudioDebugDrawFilter::ShowOcclusionRays |
+  EAudioDebugDrawFilter::DrawListenerOcclusionPlane |
+  EAudioDebugDrawFilter::ShowObjectStandaloneFiles;
 
 #endif // INCLUDE_AUDIO_PRODUCTION_CODE
 

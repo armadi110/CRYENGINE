@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -250,7 +250,7 @@ struct IResponseInstance
 
 struct IDynamicResponseSystemEngineModule : public Cry::IDefaultModule
 {
-	CRYINTERFACE_DECLARE(IDynamicResponseSystemEngineModule, 0xA7C12111E4D6413E, 0xAFD1BF5930DD8C6A);
+	CRYINTERFACE_DECLARE_GUID(IDynamicResponseSystemEngineModule, "a7c12111-e4d6-413e-afd1-bf5930dd8c6a"_cry_guid);
 };
 
 struct IDynamicResponseSystem

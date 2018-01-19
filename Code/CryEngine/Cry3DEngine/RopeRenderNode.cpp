@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "RopeRenderNode.h"
@@ -817,6 +817,9 @@ void CRopeRenderNode::GetLocalBounds(AABB& bbox)
 //////////////////////////////////////////////////////////////////////////
 void CRopeRenderNode::SetMatrix(const Matrix34& mat)
 {
+	if (m_worldTM == mat)
+		return;
+
 	m_worldTM = mat;
 	m_InvWorldTM = m_worldTM.GetInverted();
 	m_pos = mat.GetTranslation();
@@ -895,7 +898,7 @@ void CRopeRenderNode::Render(const SRendParams& rParams, const SRenderingPassInf
 
 	IRenderer* pRend = GetRenderer();
 
-	CRenderObject* pObj = pRend->EF_GetObject_Temp(passInfo.ThreadID());
+	CRenderObject* pObj = passInfo.GetIRenderView()->AllocateTemporaryRenderObject();
 	if (!pObj)
 		return; // false;
 	pObj->m_pRenderNode = this;
@@ -924,7 +927,7 @@ void CRopeRenderNode::Render(const SRendParams& rParams, const SRenderingPassInf
 	pObj->m_nMaterialLayers = m_nMaterialLayers;
 
 	//////////////////////////////////////////////////////////////////////////
-	if (GetCVars()->e_DebugDraw)
+	if (GetCVars()->e_DebugDraw && pObj->m_fDistance <= GetCVars()->e_DebugDrawMaxDistance)
 	{
 		RenderDebugInfo(rParams, passInfo);
 	}
@@ -1889,7 +1892,7 @@ void CRopeRenderNode::SetAudioParams(SRopeAudioParams const& audioParams)
 ///////////////////////////////////////////////////////////////////////////////
 void CRopeRenderNode::OffsetPosition(const Vec3& delta)
 {
-	if (m_pTempData) m_pTempData->OffsetPosition(delta);
+	if (const auto pTempData = m_pTempData.load()) pTempData->OffsetPosition(delta);
 	m_pos += delta;
 	m_worldTM.SetTranslation(m_pos);
 	m_InvWorldTM = m_worldTM.GetInverted();

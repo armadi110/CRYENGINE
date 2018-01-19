@@ -88,7 +88,7 @@ inline void FormatDetailHeader(Schematyc::CStackString& detailHeader, const Sche
 	}
 }
 
-REGISTER_VIEWPANE_FACTORY(CMainWindow, "Schematyc Editor", "Tools", false)
+REGISTER_VIEWPANE_FACTORY(CMainWindow, "Schematyc Editor (Experimental)", "Tools", false)
 
 CMainWindow::CMainWindow()
 	: CAssetEditor(QStringList { "SchematycEntity", "SchematycLibrary" })
@@ -218,7 +218,7 @@ bool CMainWindow::RestoreUndo(const XmlNodeRef& input)
 		m_pGraphView->SelectItems(selectedItemIds);
 	}
 
-	if (m_pPreview)
+	if (m_pPreview && m_pScript->GetRoot()->GetType() == Schematyc::EScriptElementType::Class)
 	{
 		m_pPreview->SetClass(static_cast<const Schematyc::IScriptClass*>(m_pScript->GetRoot()));
 	}
@@ -275,11 +275,14 @@ bool CMainWindow::OnSaveAsset(CEditableAsset& editAsset)
 {
 	if (m_pScript)
 	{
-		ICrySchematycCore* pSchematycCore = gEnv->pSchematyc;
-		Schematyc::IScriptRegistry& scriptRegistry = pSchematycCore->GetScriptRegistry();
+		if (m_pAsset == &editAsset.GetAsset())
+		{
+			ICrySchematycCore* pSchematycCore = gEnv->pSchematyc;
+			Schematyc::IScriptRegistry& scriptRegistry = pSchematycCore->GetScriptRegistry();
 
-		scriptRegistry.SaveScript(*m_pScript);
-		return true;
+			scriptRegistry.SaveScript(*m_pScript);
+			return true;
+		}
 	}
 
 	return false;
@@ -298,6 +301,12 @@ bool CMainWindow::OnAboutToCloseAsset(string& reason) const
 
 void CMainWindow::OnCloseAsset()
 {
+	if (CBroadcastManager* pBroadcastManager = CBroadcastManager::Get(this))
+	{
+		PopulateInspectorEvent popEvent([](CInspector& inspector) {});
+		pBroadcastManager->Broadcast(popEvent);
+	}
+
 	if (m_pGraphView)
 	{
 		m_pGraphView->SetModel(nullptr);
@@ -336,85 +345,27 @@ void CMainWindow::OnCloseAsset()
 	m_pAsset = nullptr;
 }
 
-void CMainWindow::closeEvent(QCloseEvent* pEvent)
-{
-	CAssetEditor::closeEvent(pEvent);
-}
-
 void CMainWindow::RegisterWidgets()
 {
 	EnableDockingSystem();
 
-	// Scripts
-	auto createScriptBrowserWidget = [this]()
-	{
-		Schematyc::CScriptBrowserWidget* const pWidget = CreateScriptBrowserWidget();
-		if (pWidget)
-		{
-			pWidget->setWindowTitle("Scripts");
-		}
-		return pWidget;
-	};
-	RegisterWidget("Script Browser", createScriptBrowserWidget, true, false);
-
-	// Graph View
-	auto createGraphViewWidget = [this]()
-	{
-		CGraphViewWidget* const pWidget = CreateGraphViewWidget();
-		if (pWidget)
-		{
-			pWidget->setWindowTitle("Graph View");
-		}
-		return pWidget;
-	};
-	RegisterWidget("Graph View", createGraphViewWidget, true, false);
-
-	// Preview
-	{
-		auto createPreviewWidget = [this]()
-		{
-			Schematyc::CPreviewWidget* const pWidget = CreatePreviewWidget();
-			if (pWidget)
-			{
-				pWidget->setWindowTitle("Preview");
-			}
-			return pWidget;
-		};
-		RegisterWidget("Preview", createPreviewWidget, true, false);
-	}
-
-	// Log
-	{
-		auto createLogWidget = [this]()
-		{
-			Schematyc::CLogWidget* const pWidget = CreateLogWidget();
-			if (pWidget)
-			{
-				pWidget->setWindowTitle("Log");
-			}
-			return pWidget;
-		};
-		RegisterWidget("Log", createLogWidget, true, false);
-	}
-
-	// Inspector
-	auto createInspectorWidget = [this]()
-	{
-		CInspector* const pWidget = CreateInspectorWidget();
-		if (pWidget)
-			pWidget->setWindowTitle("Properties");
-		return pWidget;
-	};
-	RegisterWidget("Properties", createInspectorWidget, true, false);
+	RegisterDockableWidget("Script Browser", [&]() { return CreateScriptBrowserWidget(); }, true, false);
+	RegisterDockableWidget("Graph View", [&]() { return CreateGraphViewWidget(); }, true, false);
+	RegisterDockableWidget("Preview", [&]() { return CreatePreviewWidget(); }, true, false);
+	RegisterDockableWidget("Log", [&]() { return CreateLogWidget(); }, true, false);
+	RegisterDockableWidget("Properties", [&]() { return CreateInspectorWidget(); }, true, false);
 }
 
 void CMainWindow::InitMenu()
 {
+	// TODO: Delete is not working atm. As soon as we have a mechanism to know what was last
+	//			 focused we can bring it back.
 	const CEditor::MenuItems items[] = {
 		CEditor::MenuItems::FileMenu, CEditor::MenuItems::Save,
-		CEditor::MenuItems::EditMenu, CEditor::MenuItems::Undo, CEditor::MenuItems::Redo,
-		CEditor::MenuItems::Copy,     CEditor::MenuItems::Paste,CEditor::MenuItems::Delete
+		CEditor::MenuItems::EditMenu, CEditor::MenuItems::Undo,CEditor::MenuItems::Redo,
+		CEditor::MenuItems::Copy,     CEditor::MenuItems::Paste,/*CEditor::MenuItems::Delete*/
 	};
+	// ~TODO
 	AddToMenu(items, sizeof(items) / sizeof(CEditor::MenuItems));
 }
 

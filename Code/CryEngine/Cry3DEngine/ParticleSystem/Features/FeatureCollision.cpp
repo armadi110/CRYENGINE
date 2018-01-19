@@ -1,9 +1,8 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "FeatureCollision.h"
-
-CRY_PFX2_DBG
+#include "ParticleSystem/ParticleComponentRuntime.h"
 
 namespace pfx2
 {
@@ -24,8 +23,8 @@ CFeatureCollision::CFeatureCollision()
 
 void CFeatureCollision::AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams)
 {
-	pComponent->AddToUpdateList(EUL_InitUpdate, this);
-	pComponent->AddToUpdateList(EUL_PostUpdate, this);
+	pComponent->InitParticles.add(this);
+	pComponent->PostUpdateParticles.add(this);
 	pComponent->AddParticleData(EPVF_PositionPrev);
 	pComponent->AddParticleData(EPDT_ContactPoint);
 	if (m_rotateToNormal)
@@ -34,6 +33,7 @@ void CFeatureCollision::AddToComponent(CParticleComponent* pComponent, SComponen
 
 void CFeatureCollision::Serialize(Serialization::IArchive& ar)
 {
+	CParticleFeature::Serialize(ar);
 	ar(m_terrain, "Terrain", "Terrain");
 	ar(m_staticObjects, "StaticObjects", "Static Objects");
 	ar(m_dynamicObjects, "DynamicObjects", "Dynamic Objects");
@@ -54,6 +54,8 @@ int CFeatureCollision::GetRayTraceFilter() const
 		filter |= ent_static;
 	if (m_dynamicObjects)
 		filter |= ent_rigid | ent_sleeping_rigid | ent_living | ent_independent;
+	if (C3DEngine::GetCVars()->e_ParticlesDebug & AlphaBit('t'))
+		filter |= ent_sort_by_mass;
 	return filter;
 }
 
@@ -220,11 +222,11 @@ bool RayWorldIntersection(SContactPoint& contact, const Vec3& startIn, const Vec
 	start -= ray * kExpandBack;
 	ray *= (1.0f + kExpandBack + kExpandFront);
 
-	if (bTraceTerrain && (objectFilter & ent_terrain))
+	if ((objectFilter & ent_terrain) && !(objectFilter & ent_sort_by_mass))
 	{
 		objectFilter &= ~ent_terrain;
 		CHeightMap::SRayTrace rt;
-		if (Cry3DEngineBase::GetTerrain()->RayTrace(start, start + ray, &rt, 0))
+		if (Cry3DEngineBase::GetTerrain()->RayTrace(start, start + ray, &rt))
 		{
 			contact.m_point = rt.vHit;
 			contact.m_normal = rt.vNorm;
@@ -234,6 +236,7 @@ bool RayWorldIntersection(SContactPoint& contact, const Vec3& startIn, const Vec
 		}
 	}
 
+	objectFilter &= ~ent_sort_by_mass;
 	if (objectFilter)
 	{
 		ray_hit rayHit;
@@ -509,7 +512,7 @@ void CFeatureCollision::DoCollisions(const SUpdateContext& context) const
 	}
 }
 
-void CFeatureCollision::PostUpdate(const SUpdateContext& context)
+void CFeatureCollision::PostUpdateParticles(const SUpdateContext& context)
 {
 	CRY_PFX2_PROFILE_DETAIL;
 
@@ -551,9 +554,9 @@ CRY_PFX2_IMPLEMENT_FEATURE(CParticleFeature, CFeatureCollision, "Motion", "Colli
 
 void CFeatureGPUCollision::AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams)
 {
-	pComponent->AddToUpdateList(EUL_Update, this);
+	pComponent->UpdateParticles.add(this);
 
-	if (auto pInt = GetGpuInterface())
+	if (auto pInt = MakeGpuInterface(pComponent, gpu_pfx2::eGpuFeatureType_Collision))
 	{
 		gpu_pfx2::SFeatureParametersCollision params;
 		params.offset = m_offset;
@@ -565,6 +568,7 @@ void CFeatureGPUCollision::AddToComponent(CParticleComponent* pComponent, SCompo
 
 void CFeatureGPUCollision::Serialize(Serialization::IArchive& ar)
 {
+	CParticleFeature::Serialize(ar);
 	ar(m_offset, "Offset", "Offset");
 	ar(m_radius, "Radius", "Radius");
 	ar(m_restitution, "Restitution", "Restitution");

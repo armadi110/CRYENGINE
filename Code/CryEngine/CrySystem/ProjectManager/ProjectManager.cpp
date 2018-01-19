@@ -9,15 +9,18 @@
 
 #include <cctype>
 
+// Temporary using statement to not break YASLI_ENUM_BEGIN_NESTED below
+// Before fixing, validate that serialization to disk is the same, it currently serializes a string.
+using namespace Cry;
 using namespace Cry::ProjectManagerInternals;
 
 #if CRY_PLATFORM_WINDOWS
 #include <Shlwapi.h>
 #endif
 
-YASLI_ENUM_BEGIN_NESTED(ICryPluginManager, EPluginType, "PluginType")
-YASLI_ENUM_VALUE_NESTED(ICryPluginManager, EPluginType::Native, "Native")
-YASLI_ENUM_VALUE_NESTED(ICryPluginManager, EPluginType::Managed, "Managed")
+YASLI_ENUM_BEGIN_NESTED(IPluginManager, EPluginType, "PluginType")
+YASLI_ENUM_VALUE_NESTED(IPluginManager, EPluginType::Native, "Native")
+YASLI_ENUM_VALUE_NESTED(IPluginManager, EPluginType::Managed, "Managed")
 YASLI_ENUM_END()
 
 CProjectManager::CProjectManager()
@@ -76,7 +79,7 @@ void CProjectManager::SaveProjectChanges()
 	gEnv->pSystem->GetArchiveHost()->SaveJsonFile(m_project.filePath, Serialization::SStruct(m_project));
 }
 
-void SProject::Serialize(Serialization::IArchive& ar)
+bool SProject::Serialize(Serialization::IArchive& ar)
 {
 	// Only save to the latest format
 	if (ar.isOutput())
@@ -85,18 +88,13 @@ void SProject::Serialize(Serialization::IArchive& ar)
 	}
 
 	ar(version, "version", "version");
-	if (version == 0 || version == 1 || version == 2)
-	{
-		SProjectFileParser<2> parser;
-		parser.Serialize(ar, *this);
-	}
-	else
-	{
-		CryWarning(VALIDATOR_MODULE_SYSTEM, VALIDATOR_ERROR, "Tried to load project with unrecognized cryproject format version %i!\nPossible attempt at running a project from a newer engine version.");
-	}
+
+	SProjectFileParser<LatestProjectFileVersion> parser;
+	parser.Serialize(ar, *this);
+	return true;
 }
 
-void CProjectManager::ParseProjectFile()
+bool CProjectManager::ParseProjectFile()
 {
 	char szEngineRootDirectoryBuffer[_MAX_PATH];
 	CryFindEngineRootFolder(CRY_ARRAY_COUNT(szEngineRootDirectoryBuffer), szEngineRootDirectoryBuffer);
@@ -111,7 +109,7 @@ void CProjectManager::ParseProjectFile()
 		m_sys_game_name->Set("CRYENGINE - No Project");
 		// Specify an assets directory despite having no project, this is to prevent CryPak scanning engine root
 		m_sys_game_folder->Set("Assets");
-		return;
+		return false;
 	}
 
 	string extension = PathUtil::GetExt(projectFile);
@@ -135,20 +133,70 @@ void CProjectManager::ParseProjectFile()
 		m_project.filePath = projectFile.c_str();
 	}
 
-	if (gEnv->pSystem->GetArchiveHost()->LoadJsonFile(Serialization::SStruct(m_project), m_project.filePath, true))
+#ifndef CRY_FORCE_CRYPROJECT_IN_PAK
+	int flags = ICryPak::FOPEN_ONDISK;
+#else
+	int flags = 0;
+#endif
+	CCryFile file;
+	file.Open(m_project.filePath.c_str(), "rb", flags);
+
+	std::vector<char> projectFileJson;
+	if (file.GetHandle() != nullptr)
 	{
+		projectFileJson.resize(file.GetLength());
+	}
+
+	if (projectFileJson.size() > 0 &&
+		file.ReadRaw(projectFileJson.data(), projectFileJson.size()) == projectFileJson.size() &&
+		gEnv->pSystem->GetArchiveHost()->LoadJsonBuffer(Serialization::SStruct(m_project), projectFileJson.data(), projectFileJson.size()))
+	{
+		if (m_project.version > LatestProjectFileVersion)
+		{
+			EQuestionResult result = CryMessageBox("Attempting to start the engine with a potentially unsupported .cryproject made with a newer version of the engine!\nDo you want to continue?", "Loading unknown .cryproject version", eMB_YesCancel);
+			if (result == eQR_Cancel)
+			{
+				CryLogAlways("Unknown .cryproject version %i detected, user opted to quit", m_project.version);
+				return false;
+			}
+
+			CryWarning(VALIDATOR_MODULE_SYSTEM, VALIDATOR_WARNING, "Loading a potentially unsupported .cryproject made with a newer version of the engine!");
+		}
+
 		m_project.rootDirectory = PathUtil::RemoveSlash(PathUtil::ToUnixPath(PathUtil::GetPathWithoutFilename(m_project.filePath)));
 
 		// Create the full path to the asset directory
 		m_project.assetDirectoryFullPath = PathUtil::Make(m_project.rootDirectory, m_project.assetDirectory);
 
+		// Does directory exist
+		if (!CryDirectoryExists(m_project.assetDirectoryFullPath.c_str()))
+		{
+			EQuestionResult result = CryMessageBox(string().Format("Attempting to start the engine with non-existent asset directory %s!\nDo you want to create it?", m_project.assetDirectoryFullPath.c_str()), "Non-existent asset directory", eMB_YesCancel);
+			if (result == eQR_Cancel)
+			{
+				CryLogAlways("\tNon-existent asset directory %s detected, user opted to quit", m_project.assetDirectoryFullPath.c_str());
+				return false;
+			}
+			
+			CryCreateDirectory(m_project.assetDirectoryFullPath.c_str());
+		}
+
 		// Set the legacy game folder and name
 		m_sys_game_folder->Set(m_project.assetDirectory);
 		m_sys_game_name->Set(m_project.name);
 
-		for (SProject::SConsoleVariable& consoleVariable : m_project.consoleVariables)
+		for (SProject::SConsoleInstruction& consoleVariable : m_project.consoleVariables)
 		{
 			gEnv->pConsole->LoadConfigVar(consoleVariable.key, consoleVariable.value);
+		}
+
+		for (SProject::SConsoleInstruction& consoleCommand : m_project.consoleCommands)
+		{
+			stack_string command = consoleCommand.key;
+			command.append(" ");
+			command.append(consoleCommand.value.c_str());
+			
+			gEnv->pConsole->ExecuteString(command.c_str(), false, true);
 		}
 
 		auto gameDllIt = m_project.legacyGameDllPaths.find("any");
@@ -187,10 +235,12 @@ void CProjectManager::ParseProjectFile()
 		// Update the project file if the loaded version was outdated
 		if (m_project.version != LatestProjectFileVersion)
 		{
+			// Add plug-ins that were made default since this version
+			AddDefaultPlugins(m_project.version);
+
 			// Add default plug-ins since they were hardcoded before version 1
 			if (m_project.version == 0)
 			{
-				AddDefaultPlugins();
 				LoadLegacyPluginCSV();
 				LoadLegacyGameCfg();
 			}
@@ -205,19 +255,74 @@ void CProjectManager::ParseProjectFile()
 			SaveProjectChanges();
 		}
 	}
+	else if(m_sys_game_folder->GetString()[0] == '\0')
+	{
+		// No project folder found, and no legacy context to migrate from.
+		m_project.filePath.clear();
+	}
 
+	// Check if we are migrating from legacy workflow
+	if (CanMigrateFromLegacyWorkflow())
+	{
+		CryLogAlways("\nMigrating from legacy project workflow to new %s file", m_project.filePath.c_str());
+
+		// Migration will occur once MigrateFromLegacyWorkflowIfNecessary is called
+		return true;
+	} 
+	// Detect running engine without project directory
+	else if (m_project.filePath.empty())
+	{
+		if (gEnv->bTesting)
+		{
+			CryLogAlways("\nRunning engine in unit testing mode without project");
+
+			// Create a temporary asset directory, as some systems rely on an assets directory existing.
+			m_project.assetDirectory = "NoAssetFolder";
+			m_project.assetDirectoryFullPath = PathUtil::Make(szEngineRootDirectoryBuffer, m_project.assetDirectory);
+			CryCreateDirectory(m_project.assetDirectoryFullPath.c_str());
+
+			m_sys_game_folder->Set(m_project.assetDirectory.c_str());
+
+			return true;
+		}
+		else
+		{
+			CryMessageBox("Attempting to start the engine without a project!\nPlease use a .cryproject file!", "Engine initialization failed", eMB_Error);
+			return false;
+		}
+	}
+	// Detect running without asset directory
+	else if (m_project.assetDirectory.empty())
+	{
+		if (!gEnv->bTesting)
+		{
+			EQuestionResult result = CryMessageBox("Attempting to start the engine without an asset directory!\nContinuing will put the engine into a readonly state where changes can't be saved, do you want to continue?", "No Assets directory", eMB_YesCancel);
+			if (result == eQR_Cancel)
+			{
+				CryLogAlways("\tNo asset directory detected, user opted to quit");
+				return false;
+			}
+		}
+
+		// Engine started without asset directory, we have to create a temporary directory in this case
+		// This is done as many systems rely on checking for files in the asset directory, without one they will search the root or even the entire drive.
+		m_project.assetDirectory = "NoAssetFolder";
+		CryLogAlways("\tSkipped use of assets directory");
+	}
 
 	CryLogAlways("\nProject %s", GetCurrentProjectName());
-	CryLogAlways("	Using Project Folder %s", GetCurrentProjectDirectoryAbsolute());
-	CryLogAlways("	Using Asset Folder %s", GetCurrentAssetDirectoryAbsolute());
-	CryLogAlways("	Using Engine Folder %s", szEngineRootDirectoryBuffer);
+	CryLogAlways("\tUsing Project Folder %s", GetCurrentProjectDirectoryAbsolute());
+	CryLogAlways("\tUsing Engine Folder %s", szEngineRootDirectoryBuffer);
+	CryLogAlways("\tUsing Asset Folder %s", GetCurrentAssetDirectoryAbsolute());
+
+	return true;
 }
 
 void CProjectManager::MigrateFromLegacyWorkflowIfNecessary()
 {
 	// Populate project data and save .cryproject if no project was used
 	// This is done by assuming legacy game folder setup.
-	if (m_project.version == 0 && strlen(GetCurrentAssetDirectoryRelative()) > 0)
+	if (CanMigrateFromLegacyWorkflow())
 	{
 		m_project.version = LatestProjectFileVersion;
 		m_project.type = "CRYENGINE Project";
@@ -235,7 +340,7 @@ void CProjectManager::MigrateFromLegacyWorkflowIfNecessary()
 		m_project.assetDirectoryFullPath = PathUtil::Make(m_project.rootDirectory, m_project.assetDirectory);
 
 		// Make sure we include default plug-ins
-		AddDefaultPlugins();
+		AddDefaultPlugins(0);
 		LoadLegacyPluginCSV();
 		LoadLegacyGameCfg();
 
@@ -254,8 +359,10 @@ void CProjectManager::MigrateFromLegacyWorkflowIfNecessary()
 
 void CProjectManager::RegisterCVars()
 {
-	// Default to no project when unit testing, indicating that we are testing pure engine
-	m_sys_project = REGISTER_STRING("sys_project", gEnv->bTesting ? "" : "game.cryproject", VF_NULL, "Specifies which project to load.\nLoads from the engine root if relative path, otherwise full paths are allowed to allow out-of-engine projects\nHas no effect if -project switch is used!");
+	// Default to no project when running unit tests or shader cache generator
+	bool bDefaultToNoProject = gEnv->bTesting || gEnv->pSystem->IsShaderCacheGenMode();
+
+	m_sys_project = REGISTER_STRING("sys_project", bDefaultToNoProject ? "" : "game.cryproject", VF_NULL, "Specifies which project to load.\nLoads from the engine root if relative path, otherwise full paths are allowed to allow out-of-engine projects\nHas no effect if -project switch is used!");
 
 	// Legacy
 	m_sys_game_name = REGISTER_STRING("sys_game_name", "CRYENGINE", VF_DUMPTODISK, "Specifies the name to be displayed in the Launcher window title bar");
@@ -313,9 +420,9 @@ void CProjectManager::LoadLegacyPluginCSV()
 		const char* pNewline = Parser_StrChr(pTokenStart, pBufferEnd, '\n');
 		const char* pSemicolon = Parser_StrChr(pTokenStart, pNewline, ';');
 
-		ICryPluginManager::EPluginType pluginType = ICryPluginManager::EPluginType::Native;
+		Cry::IPluginManager::EType pluginType = Cry::IPluginManager::EType::Native;
 		if (Parser_StrEquals(pTokenStart, pSemicolon, "C#"))
-			pluginType = ICryPluginManager::EPluginType::Managed;
+			pluginType = Cry::IPluginManager::EType::Managed;
 
 		// Parsing of plugin name
 		pTokenStart = Parser_NextChar(pSemicolon, pNewline);
@@ -328,8 +435,8 @@ void CProjectManager::LoadLegacyPluginCSV()
 		pluginClassName.assign(pTokenStart, pSemicolon - pTokenStart);
 		pluginClassName.Trim();
 
-		pTokenStart = Parser_NextChar(pSemicolon, pNewline);
 		pSemicolon = Parser_StrChr(pTokenStart, pNewline, ';');
+		pTokenStart = Parser_NextChar(pSemicolon, pNewline);
 
 		string pluginBinaryPath;
 		pluginBinaryPath.assign(pTokenStart, pSemicolon - pTokenStart);
@@ -343,8 +450,7 @@ void CProjectManager::LoadLegacyPluginCSV()
 		pluginAssetDirectory.Trim();
 
 		pTokenStart = Parser_NextChar(pNewline, pBufferEnd);
-
-		AddPlugin(pluginType, pluginBinaryPath);
+		AddPlugin(SPluginDefinition{ pluginType, pluginBinaryPath });
 	}
 }
 
@@ -366,26 +472,30 @@ void CProjectManager::OnLoadConfigurationEntry(const char* szKey, const char* sz
 	}
 }
 
-void CProjectManager::AddDefaultPlugins()
+void CProjectManager::AddDefaultPlugins(unsigned int previousVersion)
 {
-	for (const char* szDefaultPlugin : CCryPluginManager::GetDefaultPlugins())
+	for (const CCryPluginManager::TDefaultPluginPair& defaultPlugin : CCryPluginManager::GetDefaultPlugins())
 	{
-		AddPlugin(ICryPluginManager::EPluginType::Native, szDefaultPlugin);
+		// If the version the plug-in was made default in is higher than the version we're upgrading from, add to project
+		if (defaultPlugin.first > previousVersion)
+		{
+			AddPlugin(defaultPlugin.second);
+		}
 	}
 }
 
-void CProjectManager::AddPlugin(ICryPluginManager::EPluginType type, const char* szFileName)
+void CProjectManager::AddPlugin(const SPluginDefinition& definition)
 {
 	// Make sure duplicates aren't added
 	for(const SPluginDefinition& pluginDefinition : m_project.plugins)
 	{
-		if (!stricmp(pluginDefinition.path, szFileName))
+		if (!stricmp(pluginDefinition.path, definition.path))
 		{
 			return;
 		}
 	}
 
-	m_project.plugins.emplace_back(type, szFileName);
+	m_project.plugins.push_back(definition);
 }
 
 string CProjectManager::LoadTemplateFile(const char* szPath, std::function<string(const char* szAlias)> aliasReplacementFunc) const
@@ -468,16 +578,49 @@ void CProjectManager::RegenerateCSharpSolution(const char* szDirectory) const
 			sourceFileRelativePath = fullpath.substr(rootDataFolder.length(), fullpath.length() - rootDataFolder.length());
 		}
 
-		includes += "<Compile Include=\"" + PathUtil::ToDosPath(sourceFileRelativePath) + "\" />\n";
+		includes += "    <Compile Include=\"" + PathUtil::ToDosPath(sourceFileRelativePath) + "\" />\n";
+	}
+
+	string pluginReferences;
+	const std::vector<SPluginDefinition> plugins = m_project.plugins;
+	for (const SPluginDefinition& plugin : plugins)
+	{
+		if (plugin.type != Cry::IPluginManager::EType::Managed)
+		{
+			continue;
+		}
+
+		bool include = plugin.platforms.empty();
+		if (!include)
+		{
+			for (EPlatform platform : plugin.platforms)
+			{
+				include = platform == EPlatform::Current;
+				if (include)
+				{
+					break;
+				}
+			}
+		}
+		
+		if (include)
+		{
+			string pluginName = PathUtil::GetFileName(plugin.path);
+			string path = plugin.path;
+			pluginReferences += "    <Reference Include=\"" + pluginName + "\">\n"
+			                    "      <HintPath>" + path + "</HintPath>\n"
+			                    "      <Private>False</Private>\n"
+			                    "    </Reference>\n";
+		}
 	}
 
 	string csProjName = "Game.csproj";
 
 	string projectFilePath = PathUtil::Make(m_project.rootDirectory, csProjName.c_str());
-	CCryFile projectFile(projectFilePath.c_str(), "wb");
+	CCryFile projectFile(projectFilePath.c_str(), "wb", ICryPak::FLAGS_NO_LOWCASE);
 	if (projectFile.GetHandle() != nullptr)
 	{
-		string projectFileContents = LoadTemplateFile("%ENGINE%/EngineAssets/Templates/ManagedProject.csproj", [this, includes](const char* szAlias) -> string
+		string projectFileContents = LoadTemplateFile("%ENGINE%/EngineAssets/Templates/ManagedProjectTemplate.csproj.txt", [this, includes, pluginReferences](const char* szAlias) -> string
 		{
 			if (!strcmp(szAlias, "csproject_guid"))
 			{
@@ -503,11 +646,15 @@ void CProjectManager::RegenerateCSharpSolution(const char* szDirectory) const
 			}
 			else if (!strcmp(szAlias, "output_path"))
 			{
-				return PathUtil::Make(m_project.rootDirectory, "user/bin");
+				return PathUtil::Make(m_project.rootDirectory, "bin");
 			}
 			else if (!strcmp(szAlias, "includes"))
 			{
 				return includes;
+			}
+			else if (!strcmp(szAlias, "managed_plugin_references"))
+			{
+				return pluginReferences;
 			}
 
 			CRY_ASSERT_MESSAGE(false, "Unhandled alias!");
@@ -517,10 +664,10 @@ void CProjectManager::RegenerateCSharpSolution(const char* szDirectory) const
 		projectFile.Write(projectFileContents.data(), projectFileContents.size());
 
 		string solutionFilePath = PathUtil::Make(m_project.rootDirectory, "Game.sln");
-		CCryFile solutionFile(solutionFilePath.c_str(), "wb");
+		CCryFile solutionFile(solutionFilePath.c_str(), "wb", ICryPak::FLAGS_NO_LOWCASE);
 		if (solutionFile.GetHandle() != nullptr)
 		{
-			string solutionFileContents = LoadTemplateFile("%ENGINE%/EngineAssets/Templates/ManagedSolution.sln", [this, csProjName](const char* szAlias) -> string
+			string solutionFileContents = LoadTemplateFile("%ENGINE%/EngineAssets/Templates/ManagedSolutionTemplate.sln.txt", [this, csProjName](const char* szAlias) -> string
 			{
 				if (!strcmp(szAlias, "project_name"))
 				{
@@ -544,6 +691,14 @@ void CProjectManager::RegenerateCSharpSolution(const char* szDirectory) const
 
 			solutionFile.Write(solutionFileContents.data(), solutionFileContents.size());
 		}
+		else
+		{
+			CRY_ASSERT_MESSAGE(false, "Unable to create C# solution file!");
+		}
+	}
+	else
+	{
+		CRY_ASSERT_MESSAGE(false, "Unable to create C# project file!");
 	}
 }
 
@@ -552,7 +707,7 @@ void CProjectManager::FindSourceFilesInDirectoryRecursive(const char* szDirector
 	string searchPath = PathUtil::Make(szDirectory, szExtension);
 
 	_finddata_t fd;
-	intptr_t handle = gEnv->pCryPak->FindFirst(searchPath, &fd);
+	intptr_t handle = gEnv->pCryPak->FindFirst(searchPath, &fd, ICryPak::FLAGS_NEVER_IN_PAK);
 	if (handle != -1)
 	{
 		do
@@ -566,7 +721,7 @@ void CProjectManager::FindSourceFilesInDirectoryRecursive(const char* szDirector
 	// Find additional directories
 	searchPath = PathUtil::Make(szDirectory, "*.*");
 
-	handle = gEnv->pCryPak->FindFirst(searchPath, &fd);
+	handle = gEnv->pCryPak->FindFirst(searchPath, &fd, ICryPak::FLAGS_NEVER_IN_PAK);
 	if (handle != -1)
 	{
 		do
@@ -584,4 +739,11 @@ void CProjectManager::FindSourceFilesInDirectoryRecursive(const char* szDirector
 
 		gEnv->pCryPak->FindClose(handle);
 	}
+}
+
+void CProjectManager::GetPluginInfo(uint16 index, Cry::IPluginManager::EType& typeOut, string& pathOut) const
+{
+	auto plugin = m_project.plugins[index];
+	pathOut = plugin.path;
+	typeOut = plugin.type;
 }

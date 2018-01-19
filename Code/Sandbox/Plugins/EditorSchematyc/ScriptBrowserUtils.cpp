@@ -36,7 +36,6 @@
 #include <Controls/DictionaryWidget.h>
 #include <Controls/QPopupWidget.h>
 
-#include <QPointer>
 #include <QCursor>
 #include <QtUtil.h>
 
@@ -94,7 +93,7 @@ struct SSignalReceiver
 	{}
 
 	EScriptSignalReceiverType type;
-	CryGUID                     guid;
+	CryGUID                   guid;
 	string                    label;
 	string                    description;
 };
@@ -112,7 +111,7 @@ struct SInterface
 	{}
 
 	EDomain domain;
-	CryGUID   guid;
+	CryGUID guid;
 	string  name;
 	string  fullName;
 	string  description;
@@ -129,10 +128,10 @@ struct SComponent
 		, description(szDescription)
 	{}
 
-	CryGUID  typeGUID;
-	string name;
-	string fullName;
-	string description;
+	CryGUID typeGUID;
+	string  name;
+	string  fullName;
+	string  description;
 };
 
 struct SAction
@@ -147,11 +146,11 @@ struct SAction
 		, description(_szDescription)
 	{}
 
-	CryGUID  guid;
-	CryGUID  componentInstanceGUID;
-	string name;
-	string fullName;
-	string description;
+	CryGUID guid;
+	CryGUID componentInstanceGUID;
+	string  name;
+	string  fullName;
+	string  description;
 };
 
 inline void MoveRenameScriptsRecursive(IScriptElement& element)
@@ -194,6 +193,7 @@ bool CanRemoveScriptElement(const IScriptElement& element)
 	{
 	case EScriptElementType::Root:
 	case EScriptElementType::Base:
+	case EScriptElementType::Constructor:
 		{
 			return false;
 		}
@@ -707,7 +707,7 @@ IScriptSignalReceiver* AddScriptSignalReceiver(IScriptElement* pScope)
 IScriptInterfaceImpl* AddScriptInterfaceImpl(IScriptElement* pScope, const QPoint* pPosition)
 {
 	CrySchematycEditor::CInterfacesDictionary dict(&gEnv->pSchematyc->GetScriptRegistry().GetRootElement());
-	QPointer<CModalPopupDictionary> pDictionary = new CModalPopupDictionary("Schematyc::AddInterfaceImplementation", dict);
+	CModalPopupDictionary dictionary("Schematyc::AddInterfaceImplementation", dict);
 
 	QPoint pos;
 	if (pPosition)
@@ -719,9 +719,9 @@ IScriptInterfaceImpl* AddScriptInterfaceImpl(IScriptElement* pScope, const QPoin
 		pos = QCursor::pos();
 	}
 
-	pDictionary->ExecAt(pos, QPopupWidget::TopLeft);
+	dictionary.ExecAt(pos, QPopupWidget::TopLeft);
 
-	CrySchematycEditor::CInterfaceDictionaryEntry* pEntry = static_cast<CrySchematycEditor::CInterfaceDictionaryEntry*>(pDictionary->GetResult());
+	CrySchematycEditor::CInterfaceDictionaryEntry* pEntry = static_cast<CrySchematycEditor::CInterfaceDictionaryEntry*>(dictionary.GetResult());
 	if (pEntry)
 	{
 		return gEnv->pSchematyc->GetScriptRegistry().AddInterfaceImpl(pEntry->GetDomain(), pEntry->GetInterfaceGUID(), pScope);
@@ -733,7 +733,7 @@ IScriptInterfaceImpl* AddScriptInterfaceImpl(IScriptElement* pScope, const QPoin
 IScriptComponentInstance* AddScriptComponentInstance(IScriptElement* pScope, const QPoint* pPosition)
 {
 	CrySchematycEditor::CComponentsDictionary dict(pScope);
-	QPointer<CModalPopupDictionary> pDictionary = new CModalPopupDictionary("Schematyc::AddComponent", dict);
+	CModalPopupDictionary dictionary("Schematyc::AddComponent", dict);
 
 	QPoint pos;
 	if (pPosition)
@@ -745,9 +745,9 @@ IScriptComponentInstance* AddScriptComponentInstance(IScriptElement* pScope, con
 		pos = QCursor::pos();
 	}
 
-	pDictionary->ExecAt(pos, QPopupWidget::TopLeft);
+	dictionary.ExecAt(pos, QPopupWidget::TopLeft);
 
-	CrySchematycEditor::CComponentDictionaryEntry* pEntry = static_cast<CrySchematycEditor::CComponentDictionaryEntry*>(pDictionary->GetResult());
+	CrySchematycEditor::CComponentDictionaryEntry* pEntry = static_cast<CrySchematycEditor::CComponentDictionaryEntry*>(dictionary.GetResult());
 	if (pEntry)
 	{
 		CStackString name = QtUtil::ToString(pEntry->GetName()).c_str();
@@ -827,7 +827,7 @@ bool RenameScriptElement(IScriptElement& scriptElement, const char* szName)
 	return false;
 }
 
-void RemoveScriptElement(const IScriptElement& element)
+bool RemoveScriptElement(const IScriptElement& element)
 {
 	if (CanRemoveScriptElement(element))
 	{
@@ -843,8 +843,11 @@ void RemoveScriptElement(const IScriptElement& element)
 		if (result == QDialogButtonBox::Yes)
 		{
 			gEnv->pSchematyc->GetScriptRegistry().RemoveElement(element.GetGUID());
+			return true;
 		}
 	}
+
+	return false;
 }
 } // ScriptBrowserUtils
 } // Schematyc

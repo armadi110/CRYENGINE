@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "CCryVKGIFactory.hpp"
@@ -16,8 +16,11 @@ CCryVKGIFactory* CCryVKGIFactory::Create()
 CCryVKGIFactory::CCryVKGIFactory()
 {
 	VK_FUNC_LOG();
-	m_pInstance.reset(new NCryVulkan::CInstance);
-	m_pInstance->Initialize("appName",1,"CryEngine",1); //query appname somewhere.
+	auto pInstance = stl::make_unique<NCryVulkan::CInstance>();
+	if (pInstance->Initialize("appName", 1, "CryEngine", 1))
+	{
+		m_pInstance = std::move(pInstance);
+	}
 }
 
 CCryVKGIFactory::~CCryVKGIFactory()

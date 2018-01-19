@@ -18,6 +18,7 @@ class CMonoClass
 {
 	friend class CMonoLibrary;
 	friend class CMonoRuntime;
+	friend class CAppDomain;
 
 	// Begin public API
 public:
@@ -35,26 +36,30 @@ public:
 	std::shared_ptr<CMonoObject> CreateInstance(void** pConstructorParams = nullptr, int numParams = 0);
 	std::shared_ptr<CMonoObject> CreateInstanceWithDesc(const char* parameterDesc, void** pConstructorParams);
 
+	std::shared_ptr<CMonoObject> CreateFromMonoObject(MonoInternals::MonoObject* pObject);
+
 	// Searches the specified class for the method
 	// Will NOT search in base classes, see FindMethodInInheritedClasses
-	std::shared_ptr<CMonoMethod> FindMethod(const char* szName, int numParams = 0);
+	std::weak_ptr<CMonoMethod> FindMethod(const char* szName, int numParams = 0);
 	// Searches the entire inheritance tree for the specified method
-	std::shared_ptr<CMonoMethod> FindMethodInInheritedClasses(const char* szName, int numParams = 0);
+	std::weak_ptr<CMonoMethod> FindMethodInInheritedClasses(const char* szName, int numParams = 0);
 
 	// Searches the specified class for the method by its description
 	// Will NOT search in base classes, see FindMethodWithDescInInheritedClasses
-	std::shared_ptr<CMonoMethod> FindMethodWithDesc(const char* szMethodDesc);
+	std::weak_ptr<CMonoMethod> FindMethodWithDesc(const char* szMethodDesc);
 	// Searches the entire inheritance tree for the specified method by its description
 	// Skips searching after encountering pBaseClass if present
-	std::shared_ptr<CMonoMethod> FindMethodWithDescInInheritedClasses(const char* szMethodDesc, CMonoClass* pBaseClass);
+	std::weak_ptr<CMonoMethod> FindMethodWithDescInInheritedClasses(const char* szMethodDesc, CMonoClass* pBaseClass);
 	
-	std::shared_ptr<CMonoProperty> FindProperty(const char* szName);
-	std::shared_ptr<CMonoProperty> FindPropertyInInheritedClasses(const char* szName);
+	std::weak_ptr<CMonoProperty> FindProperty(const char* szName);
+	std::weak_ptr<CMonoProperty> FindPropertyInInheritedClasses(const char* szName);
 
-	static std::shared_ptr<CMonoProperty> MakeProperty(MonoInternals::MonoProperty* pProperty);
-	static std::shared_ptr<CMonoProperty> MakeProperty(MonoInternals::MonoReflectionProperty* pProperty);
+	static std::shared_ptr<CMonoProperty> MakeProperty(MonoInternals::MonoProperty* pProperty, const char* szName);
+	static std::shared_ptr<CMonoProperty> MakeProperty(MonoInternals::MonoReflectionProperty* pProperty, const char* szName);
 
+	void SetMonoClass(MonoInternals::MonoClass* pMonoClass);
 	MonoInternals::MonoClass* GetMonoClass() const { return m_pClass; }
+	bool IsValueType() const;
 
 	bool IsVoid() const { return m_pClass == MonoInternals::mono_get_void_class(); }
 
@@ -64,6 +69,8 @@ protected:
 
 	void ReloadClass();
 	void OnAssemblyUnload();
+	// Re-query all cached methods, in case they were removed from the class
+	void RefreshCachedMembers();
 
 	// Temporary classes are assigned a weak pointer of itself to pass on to created objects
 	void SetWeakPointer(std::weak_ptr<CMonoClass> pClass) { m_pThis = pClass; }
@@ -84,7 +91,9 @@ protected:
 
 	// Vector containing weak pointers to all queried methods
 	// Needed to make sure function pointers are activated after serialization
-	std::vector<std::weak_ptr<CMonoMethod>> m_methods;
+	std::vector<std::shared_ptr<CMonoMethod>> m_methods;
+
+	std::vector<std::shared_ptr<CMonoProperty>> m_properties;
 
 	string m_namespace;
 	string m_name;

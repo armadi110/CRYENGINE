@@ -13,7 +13,7 @@ class CAudioAreaEntity final
 	: public CDesignerEntityComponent<>
 	  , public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CAudioAreaEntity, "AudioAreaEntity", 0xA8EC43DAC8B046A8, 0x94182C1C8C56F2D1);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CAudioAreaEntity, "AudioAreaEntity", "a8ec43da-c8b0-46a8-9418-2c1c8c56f2d1"_cry_guid);
 
 public:
 	enum EFlowgraphInputPorts
@@ -37,7 +37,7 @@ public:
 
 	// CNativeEntityBase
 	virtual uint64                GetEventMask() const override { return CDesignerEntityComponent::GetEventMask() | BIT64(ENTITY_EVENT_ENTERNEARAREA) | BIT64(ENTITY_EVENT_MOVENEARAREA) | BIT64(ENTITY_EVENT_ENTERAREA) | BIT64(ENTITY_EVENT_MOVEINSIDEAREA) | BIT64(ENTITY_EVENT_LEAVEAREA) | BIT64(ENTITY_EVENT_LEAVENEARAREA) | BIT64(ENTITY_EVENT_TIMER); }
-	virtual void                  ProcessEvent(SEntityEvent& event) override;
+	virtual void                  ProcessEvent(const SEntityEvent& event) override;
 
 	virtual IEntityPropertyGroup* GetPropertyGroup() final { return this; }
 

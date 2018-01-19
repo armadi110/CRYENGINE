@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /********************************************************************
    -------------------------------------------------------------------------
@@ -106,7 +106,7 @@ void CAIDynHideObjectManager::GetHidePositionsWithinRange(std::vector<SDynamicOb
                                                           IAISystem::tNavCapMask navCapMask, float passRadius,
                                                           unsigned int lastNavNodeIndex)
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	hideSpots.resize(0);
 

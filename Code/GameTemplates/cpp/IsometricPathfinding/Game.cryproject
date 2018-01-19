@@ -1,10 +1,19 @@
 {
-	"version": 1,
+	"version": 3,
 	"type": "",
-	"info": { "name": "Isometric Pathfinding Game Template" },
+	"info": {
+		"name": "Isometric Pathfinding Game Template",
+		"guid": "071b680b-d1d1-a72a-0799-48d84f3e0aa6"
+	},
 	"content": {
 		"assets": [ "Assets" ],
-		"code": [ "Code" ]
+		"code": [ "Code" ],
+		"libs": [
+			{
+				"name": "Isometric Pathfinding Game Template",
+				"shared": { "any": "", "win_x64": "", "win_x86": "" }
+			}
+		]
 	},
 	"require": {
 		"engine": "engine-dev",
@@ -12,12 +21,16 @@
 			{ "type": "EPluginType::Native", "path": "CryDefaultEntities" },
 			{ "type": "EPluginType::Native", "path": "CrySensorSystem" },
 			{ "type": "EPluginType::Native", "path": "CryPerceptionSystem" },
-			{ "type": "EPluginType::Native", "path": "bin/win_x64/Game.dll" }
+			{ "type": "EPluginType::Native", "path": "bin/win_x64/Game.dll" },
+			{
+				"type": "EPluginType::Native",
+				"path": "CryGamePlatform",
+				"platforms": [ "PS4" ]
+			}
 		]
 	},
 	"console_variables": [
-		{ "name": "ca_useIMG_CAF", "value": "0" },
-		{ "name": "e_waterocean", "value": "0" },
 		{ "name": "sys_target_platforms", "value": "pc,ps4,xboxone,linux" }
-	]
+	],
+	"console_commands": [ ]
 }

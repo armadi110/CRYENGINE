@@ -53,7 +53,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnAwake()
+		protected override void OnAwake()
 		{
 			_cursor = SceneObject.Instantiate<Panel>(Owner);
 			_cursor.Background.Source = ImageSource.Blank;
@@ -75,7 +75,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnKey(InputEvent e)
+		protected override void OnKey(InputEvent e)
 		{
 			if(!_submitDesired)
 			{
@@ -163,7 +163,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnLeftMouseDown(int x, int y)
+		protected override void OnLeftMouseDown(int x, int y)
 		{
 			var nearestIdx = -1;
 			var nearestOffsetDelta = int.MaxValue;
@@ -187,7 +187,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnEnterFocus()
+		protected override void OnEnterFocus()
 		{
 			_contentBackup = _text.Content;
 			_cursorIndex = _text.Content.Length;
@@ -200,7 +200,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnLeaveFocus()
+		protected override void OnLeaveFocus()
 		{
 			if(_submitDesired)
 				_text.Content = _contentBackup;
@@ -221,7 +221,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnUpdate()
+		protected override void OnRender()
 		{
 			if(DateTime.Now > _blinkTime)
 			{
@@ -235,7 +235,8 @@ namespace CryEngine.UI.Components
 			if(updateTextLayout)
 				_text.UpdateLayout();
 			var cursorOffset = _text.GetOffsetAt(_cursorIndex);
-			var fieldWidth = (Owner as UIElement).RectTransform.Bounds.w - 2;
+			var rect = Owner.GetComponent<RectTransform>();
+			var fieldWidth = rect == null ? 0 : rect.Bounds.w - 2;
 			if(cursorOffset < fieldWidth)
 			{
 				_cursor.RectTransform.Padding = new Padding(cursorOffset, 0);
@@ -255,7 +256,8 @@ namespace CryEngine.UI.Components
 		/// </summary>
 		public override bool HitTest(int x, int y)
 		{
-			return (Owner as UIElement).RectTransform.ClampRect.Contains(x, y);
+			var rect = Owner.GetComponent<RectTransform>();
+			return rect != null && rect.ClampRect.Contains(x, y);
 		}
 	}
 }

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     29/10/2014 by Filipe amim
@@ -13,7 +13,6 @@
 #include "ParticleSystem/ParticleEmitter.h"
 #include "ParamMod.h"
 
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -27,22 +26,14 @@ public:
 		: m_velocity(0.0f)
 		, m_angle(0.0f)
 		, m_axis(0.0f, 0.0f, 1.0f)
-		, CParticleFeature(gpu_pfx2::eGpuFeatureType_VelocityCone)
 	{}
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
+		pComponent->UpdateGPUParams.add(this);
 		m_angle.AddToComponent(pComponent, this);
 		m_velocity.AddToComponent(pComponent, this);
-
-		if (auto pInt = GetGpuInterface())
-		{
-			gpu_pfx2::SFeatureParametersVelocityCone params;
-			params.angle = m_angle.GetBaseValue();
-			params.velocity = m_velocity.GetBaseValue();
-			pInt->SetParameters(params);
-		}
 	}
 
 	virtual void Serialize(Serialization::IArchive& ar) override
@@ -90,6 +81,13 @@ public:
 		}
 	}
 
+	virtual void UpdateGPUParams(const SUpdateContext& context, gpu_pfx2::SUpdateParams& params) override
+	{
+		params.angle = m_angle.GetValueRange(context)(0.5f);
+		params.velocity = m_velocity.GetValueRange(context)(0.5f);
+		params.initFlags |= gpu_pfx2::eFeatureInitializationFlags_VelocityCone;
+	}
+
 private:
 	CParamMod<SModParticleSpawnInit, UAngle180> m_angle;
 	CParamMod<SModParticleSpawnInit, UFloat10>  m_velocity;
@@ -108,21 +106,13 @@ public:
 	CFeatureVelocityDirectional()
 		: m_direction(ZERO)
 		, m_scale(1.0f)
-		, CParticleFeature(gpu_pfx2::eGpuFeatureType_VelocityDirectional)
 	{}
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
+		pComponent->UpdateGPUParams.add(this);
 		m_scale.AddToComponent(pComponent, this);
-
-		if (auto pGpu = GetGpuInterface())
-		{
-			gpu_pfx2::SFeatureParametersVelocityDirectional params;
-			params.direction = m_direction;
-			params.scale = m_scale.GetBaseValue();
-			pGpu->SetParameters(params);
-		}
 	}
 
 	virtual void Serialize(Serialization::IArchive& ar) override
@@ -156,6 +146,13 @@ public:
 		}
 	}
 
+	virtual void UpdateGPUParams(const SUpdateContext& context, gpu_pfx2::SUpdateParams& params) override
+	{
+		params.direction = m_direction;
+		params.directionScale = m_scale.GetValueRange(context)(0.5f);
+		params.initFlags |= gpu_pfx2::eFeatureInitializationFlags_VelocityDirectional;
+	}
+
 private:
 	Vec3 m_direction;
 	CParamMod<SModParticleSpawnInit, UFloat10> m_scale;
@@ -172,20 +169,13 @@ public:
 
 	CFeatureVelocityOmniDirectional()
 		: m_velocity(0.0f)
-		, CParticleFeature(gpu_pfx2::eGpuFeatureType_VelocityOmniDirectional)
 	{}
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
+		pComponent->UpdateGPUParams.add(this);
 		m_velocity.AddToComponent(pComponent, this);
-
-		if (auto pGpu = GetGpuInterface())
-		{
-			gpu_pfx2::SFeatureParametersVelocityOmniDirectional params;
-			params.velocity = m_velocity.GetBaseValue();
-			pGpu->SetParameters(params);
-		}
 	}
 
 	virtual void Serialize(Serialization::IArchive& ar) override
@@ -213,6 +203,12 @@ public:
 		}
 	}
 
+	virtual void UpdateGPUParams(const SUpdateContext& context, gpu_pfx2::SUpdateParams& params) override
+	{
+		params.velocity = m_velocity.GetValueRange(context)(0.5f);
+		params.initFlags |= gpu_pfx2::eFeatureInitializationFlags_VelocityOmniDirectional;
+	}
+
 private:
 	CParamMod<SModParticleSpawnInit, UFloat10> m_velocity;
 };
@@ -228,19 +224,13 @@ public:
 
 	CFeatureVelocityInherit()
 		: m_scale(1.0f)
-		, CParticleFeature(gpu_pfx2::eGpuFeatureType_VelocityInherit) {}
+	{}
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
+		pComponent->UpdateGPUParams.add(this);
 		m_scale.AddToComponent(pComponent, this);
-
-		if (auto gpuInt = GetGpuInterface())
-		{
-			gpu_pfx2::SFeatureParametersScale params;
-			params.scale = m_scale.GetBaseValue();
-			gpuInt->SetParameters(params);
-		}
 	}
 
 	virtual void Serialize(Serialization::IArchive& ar) override
@@ -293,6 +283,11 @@ public:
 		}
 	}
 
+	virtual void UpdateGPUParams(const SUpdateContext& context, gpu_pfx2::SUpdateParams& params) override
+	{
+		params.velocityScale = m_scale.GetValueRange(context)(0.5f);
+	}
+
 private:
 	CParamMod<SModParticleSpawnInit, SFloat> m_scale;
 };
@@ -313,7 +308,7 @@ public:
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
 		m_azimuth.AddToComponent(pComponent, this);
 		m_angle.AddToComponent(pComponent, this);
 		m_velocity.AddToComponent(pComponent, this);

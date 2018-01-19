@@ -10,13 +10,13 @@ class CAudioAreaAmbienceEntity final
 	: public CDesignerEntityComponent<>
 	  , public IEntityPropertyGroup
 {
-	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS(CAudioAreaAmbienceEntity, "AudioAreaAmbience", 0x66F9FDBA753B4A3C, 0x977230560C65881B);
+	CRY_ENTITY_COMPONENT_INTERFACE_AND_CLASS_GUID(CAudioAreaAmbienceEntity, "AudioAreaAmbience", "66f9fdba-753b-4a3c-9772-30560c65881b"_cry_guid);
 
 	virtual ~CAudioAreaAmbienceEntity() {}
 
 public:
 	// CDesignerEntityComponent
-	virtual void                  ProcessEvent(SEntityEvent& event) override;
+	virtual void                  ProcessEvent(const SEntityEvent& event) override;
 	virtual uint64                GetEventMask() const override { return CDesignerEntityComponent::GetEventMask() | BIT64(ENTITY_EVENT_ENTERNEARAREA) | BIT64(ENTITY_EVENT_MOVENEARAREA) | BIT64(ENTITY_EVENT_ENTERAREA) | BIT64(ENTITY_EVENT_MOVEINSIDEAREA) | BIT64(ENTITY_EVENT_LEAVEAREA) | BIT64(ENTITY_EVENT_LEAVENEARAREA); }
 
 	virtual IEntityPropertyGroup* GetPropertyGroup() final      { return this; }

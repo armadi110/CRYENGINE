@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #ifndef Animation_PoseAligner_h
 #define Animation_PoseAligner_h
@@ -234,7 +234,7 @@ public:
 class CPoseAlignerC3 :
 	PoseAligner::CPose
 {
-	CRYGENERATE_CLASS(CPoseAlignerC3, "AnimationPoseAlignerC3", 0xf5381a4c1374ff00, 0x8de19ba730cf572b)
+	CRYGENERATE_CLASS_GUID(CPoseAlignerC3, "AnimationPoseAlignerC3", "f5381a4c-1374-ff00-8de1-9ba730cf572b"_cry_guid)
 
 		virtual ~CPoseAlignerC3() {}
 

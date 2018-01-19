@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -37,6 +37,7 @@ struct Sphere;
 struct IAIActionManager;
 struct ISmartObjectManager;
 struct HidespotQueryContext;
+struct IAuditionMap;
 class IVisionMap;
 struct IFactionMap;
 class IAISystemComponent;
@@ -68,6 +69,7 @@ struct ISequenceManager;
 
 typedef CryFixedArray<IPhysicalEntity*, 32> PhysSkipList;
 
+//! \cond INTERNAL
 //! If this is changed be sure to change the table aiCollisionEntitiesTable in AICollision.cpp.
 enum EAICollisionEntities
 {
@@ -419,10 +421,11 @@ enum EAIFilterType
 	eAIFT_Faction,
 	eAIFT_None,
 };
+//! \endcond
 
 struct IAIEngineModule : public Cry::IDefaultModule
 {
-	CRYINTERFACE_DECLARE(IAIEngineModule, 0x4B00591DC87443C7, 0x9BCA78A59ECD6D9C);
+	CRYINTERFACE_DECLARE_GUID(IAIEngineModule, "4b00591d-c874-43c7-9bca-78a59ecd6d9c"_cry_guid);
 };
 
 struct IAISystemCallbacks
@@ -538,7 +541,6 @@ struct IAISystem
 	virtual ~IAISystem() {}
 
 	virtual bool                        Init() = 0;
-	virtual bool                        CompleteInit() = 0;
 
 	virtual void                        Reload() {}
 	virtual void                        Reset(EResetReason reason) = 0;
@@ -748,6 +750,7 @@ struct IAISystem
 	virtual void         DynOmniLightEvent(const Vec3& pos, float radius, EAILightEventType type, EntityId shooterId, float time = 5.0f) = 0;
 	virtual void         DynSpotLightEvent(const Vec3& pos, const Vec3& dir, float radius, float fov, EAILightEventType type, EntityId shooterId, float time = 5.0f) = 0;
 
+	virtual IAuditionMap*  GetAuditionMap() = 0;
 	virtual IVisionMap*  GetVisionMap() = 0;
 	virtual IFactionMap& GetFactionMap() = 0;
 	///////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -780,6 +783,7 @@ struct IAISystem
 };
 
 #if defined(ENABLE_LW_PROFILERS)
+//! \cond INTERNAL
 class CAILightProfileSection
 {
 public:
@@ -801,6 +805,7 @@ public:
 private:
 	uint64 m_nTicks;
 };
+//! \endcond
 
 	#define AISYSTEM_LIGHT_PROFILER() CAILightProfileSection _aiLightProfileSection;
 #else

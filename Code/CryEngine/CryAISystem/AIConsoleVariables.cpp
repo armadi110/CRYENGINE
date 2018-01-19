@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "AIConsoleVariables.h"
@@ -381,6 +381,12 @@ void AIConsoleVars::Init()
 	                       "4 - triangles, mesh contours, external links and triangle IDs\n"
 	                       "5 - triangles, mesh contours, external links and island IDs\n"
 	                       "6 - triangles with backfaces, mesh contours and external links\n");
+	DefineConstIntCVarName("ai_MNMDebugTriangleOnCursor", DebugTriangleOnCursor, 0, VF_CHEAT | VF_CHEAT_NOCHECK,
+		"Displays the basic information about the MNM Triangle where the cursor is pointing.\n"
+		"Usage: ai_MNMDebugTriangleOnCursor [0/1]\n"
+		"Default is 0 (off)\n"
+		"0 - off\n"
+		"1 - show triangle information\n");
 	DefineConstIntCVarName("ai_IslandConnectionsSystemProfileMemory", IslandConnectionsSystemProfileMemory, 0, VF_CHEAT | VF_CHEAT_NOCHECK,
 	                       "Enables/Disables the memory profile for the island connections system.");
 	DefineConstIntCVarName("ai_NavigationSystemMT", NavigationSystemMT, 1, VF_CHEAT | VF_CHEAT_NOCHECK,
@@ -397,10 +403,18 @@ void AIConsoleVars::Init()
 	                       " Fast machine [10]\n"
 	                       " Slow machine [4]\n"
 	                       " Smooth [1]\n");
+	REGISTER_CVAR2("ai_MNMDebugDrawFlag", &MNMDebugDrawFlag, "", VF_CHEAT | VF_CHEAT_NOCHECK,
+		"Color the MNM triangles is overriden by the specified annotation flag color.\n"
+		"Usage: ai_MNMDebugDrawFlag 'flagName'\n"
+		"Default is 'empty'\n");
+	REGISTER_CVAR2("ai_NavmeshTileDistanceDraw", &NavmeshTileDistanceDraw, 200.0f, VF_CHEAT | VF_CHEAT_NOCHECK,
+	               "Maximum distance from the camera for tile to be drawn.\n"
+	               "Usage: ai_NavmeshTileDistanceDraw [0.0-...]\n"
+	               "Default is 200.0\n");
 	REGISTER_CVAR2("ai_NavmeshStabilizationTimeToUpdate", &NavmeshStabilizationTimeToUpdate, 0.3f, VF_CHEAT | VF_CHEAT_NOCHECK,
-	               "Time that navmesh needs to be without any new updates to apply the latest changes.\n"
-	               "Usage: ai_NavmeshStabilizationTimeToUpdate [0.0-...]\n"
-	               "Default is 0.3\n");
+		"Time that navmesh needs to be without any new updates to apply the latest changes.\n"
+		"Usage: ai_NavmeshStabilizationTimeToUpdate [0.0-...]\n"
+		"Default is 0.3\n");
 	DefineConstIntCVarName("ai_DebugDrawNavigationWorldMonitor", DebugDrawNavigationWorldMonitor, 0, VF_CHEAT | VF_CHEAT_NOCHECK,
 	                       "Enables displaying bounding boxes for world changes.\n"
 	                       "Usage: ai_DebugDrawNavigationWorldMonitor [0/1]\n"

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CryEntitySystem/IEntity.h>
@@ -59,9 +59,9 @@ public:
 
 	void WriteHeader()
 	{
-		Column("Entity");
 		Column("Effect");
 		Column("Component");
+		Column("Entity");
 		for (const auto& stat : statisticsOutput)
 			Column(stat.m_statName);
 		NewLine();
@@ -77,9 +77,18 @@ public:
 		cstr componentName = pComponent->GetName();
 		cstr entityName = pEntity ? pEntity->GetName() : gDefaultEntityName;
 
-		Column(entityName);
-		Column(effectName);
-		Column(componentName);
+		Column(string().Format("%s%s%s",
+			pEmitter->IsActive() ? "#Active " : "#Inactive ",
+			pEmitter->IsAlive() ? "#E:Alive " : "#E:Dead ",
+			effectName));
+		Column(string().Format("%s%s%s%s", 
+			pComponent->GetParentComponent() ? "#Child " : "",
+			pComponent->ComponentParams().IsImmortal() ? "#Immortal " : "",
+			pRuntime->IsAlive() ? "#C:Alive " : "#C:Dead ",
+			componentName));
+		Column(string().Format("%s%s", entityName, 
+			pEmitter->IsIndependent() ? " #Independent" : ""
+		));
 		for (const auto& stat : statisticsOutput)
 			Column(string().Format("%d", statistics.m_values[stat.m_stat]));
 		NewLine();
@@ -106,7 +115,7 @@ public:
 		m_pRender = gEnv->pRenderer;
 		m_pRenderAux = m_pRender->GetIRenderAuxGeom();
 		m_prevFlags = m_pRenderAux->GetRenderFlags();
-		m_screenSize = Vec2(float(m_pRender->GetWidth()), float(m_pRender->GetHeight()));
+		m_screenSize = Vec2(float(m_pRenderAux->GetCamera().GetViewSurfaceX()), float(m_pRenderAux->GetCamera().GetViewSurfaceZ()));
 		SAuxGeomRenderFlags curFlags = m_prevFlags;
 		curFlags.SetMode2D3DFlag(e_Mode2D);
 		curFlags.SetDepthTestFlag(e_DepthTestOff);
@@ -209,7 +218,11 @@ void CParticleProfiler::Display()
 		{
 #ifndef _RELEASE
 			if (GetCVars()->e_ParticlesProfiler & AlphaBit('f'))
+			{
 				SaveToFile();
+				if (!(GetCVars()->e_ParticlesProfiler & AlphaBit('s')))
+					GetCVars()->e_ParticlesProfiler &= ~AlphaBit('f');
+			}
 #endif
 			if (GetCVars()->e_ParticlesProfiler & 1)
 				DrawPerfomanceStats();
@@ -437,7 +450,10 @@ void CParticleProfiler::DrawMemoryStats()
 	IRenderAuxGeom* pRenderAux = gEnv->pRenderer->GetIRenderAuxGeom();
 	CStatisticsDisplay output;
 
-	const Vec2 pixSz = Vec2(1.0f / gEnv->pRenderer->GetWidth(), 1.0f / gEnv->pRenderer->GetHeight());
+	const float screenWidth  = float(pRenderAux->GetCamera().GetViewSurfaceX());
+	const float screenHeight = float(pRenderAux->GetCamera().GetViewSurfaceZ());
+
+	const Vec2 pixSz = Vec2(1.0f / screenWidth, 1.0f / screenHeight);
 	const Vec2 offset = Vec2(0.25, 0.025f);
 	const float widthPerByte = 1.0f / float(1 << 15);
 	const float height = 1.0f / 64.0f;
@@ -447,10 +463,9 @@ void CParticleProfiler::DrawMemoryStats()
 	for (CParticleEmitter* pEmitter : GetPSystem()->GetActiveEmitters())
 	{
 		CParticleEffect* pEffect = pEmitter->GetCEffect();
-		for (auto ref : pEmitter->GetRuntimes())
+		for (auto pRuntime : pEmitter->GetRuntimes())
 		{
-			const CParticleComponentRuntime* pRuntime = ref.pRuntime->GetCpuRuntime();
-			if (!pRuntime)
+			if (!pRuntime->GetCpuRuntime())
 				continue;
 			const CParticleContainer& container = pRuntime->GetContainer();
 			const uint totalNumParticles = container.GetMaxParticles();
@@ -475,10 +490,9 @@ void CParticleProfiler::DrawMemoryStats()
 	for (CParticleEmitter* pEmitter : GetPSystem()->GetActiveEmitters())
 	{
 		CParticleEffect* pEffect = pEmitter->GetCEffect();
-		for (auto ref : pEmitter->GetRuntimes())
+		for (auto pRuntime : pEmitter->GetRuntimes())
 		{
-			const CParticleComponentRuntime* pRuntime = ref.pRuntime->GetCpuRuntime();
-			if (!pRuntime)
+			if (!pRuntime->GetCpuRuntime())
 				continue;
 
 			const CParticleContainer& container = pRuntime->GetContainer();

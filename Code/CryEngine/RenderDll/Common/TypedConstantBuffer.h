@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -21,6 +21,11 @@ public:
 	CTypedConstantBuffer() : m_hostBuffer(AlignHostBuffer()) { ZeroStruct(m_hostBuffer); }
 	CTypedConstantBuffer(const CTypedConstantBuffer<T>& cb) : m_hostBuffer(AlignHostBuffer()), m_constantBuffer(nullptr) { m_hostBuffer = cb.m_hostBuffer; }
 	CTypedConstantBuffer(CConstantBufferPtr incb) : m_hostBuffer(AlignHostBuffer()), m_constantBuffer(incb) {}
+
+	void Clear()
+	{
+		m_constantBuffer.reset();
+	}
 
 	bool               IsDeviceBufferAllocated() { return m_constantBuffer != nullptr; }
 	CConstantBufferPtr GetDeviceConstantBuffer()

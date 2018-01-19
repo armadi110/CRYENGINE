@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "System.h"
@@ -161,7 +161,7 @@ void CSystem::CollectMemInfo(SCryEngineStatsGlobalMemInfo& m_stats)
 	m_stats.totalAllocatedInModules = 0;
 	m_stats.totalNumAllocsInModules = 0;
 
-	const std::vector<const char*>& szModules = GetModuleNames();
+	const std::vector<string>& szModules = GetModuleNames();
 	const int numModules = szModules.size();
 
 	//////////////////////////////////////////////////////////////////////////
@@ -194,7 +194,7 @@ void CSystem::CollectMemStats(ICrySizer* pSizer, MemStatsPurposeEnum nPurpose, s
 	std::vector<SmallModuleInfo> stats;
 #if CRY_PLATFORM_WINDOWS
 	//////////////////////////////////////////////////////////////////////////
-	const std::vector<const char*>& szModules = GetModuleNames();
+	const std::vector<string>& szModules = GetModuleNames();
 	const int numModules = szModules.size();
 
 	for (int i = 0; i < numModules; i++)
@@ -1135,9 +1135,7 @@ void CSystem::FatalError(const char* format, ...)
 
 	if (!g_cvars.sys_no_crash_dialog)
 	{
-#ifdef WIN32
-		::MessageBox(NULL,szBuffer,"CRYENGINE FATAL ERROR",MB_OK|MB_ICONERROR);
-#endif
+		CryMessageBox(szBuffer,"CRYENGINE FATAL ERROR", eMB_Error);
 	}
 
 	//Triggers a fatal error, so the DebugCallstack can create the error.log and terminate the application
@@ -1519,7 +1517,7 @@ void CSystem::ChangeUserPath(const char* sUserPath)
 
 		// Make the userFolder path absolute
 		char cwdBuffer[MAX_PATH];
-		_getcwd(cwdBuffer, MAX_PATH);
+		CryGetCurrentDirectory(MAX_PATH, cwdBuffer);
 		string tempBuffer;
 		tempBuffer.Format("%s\\%s", cwdBuffer, userFolder.c_str());
 		tempBuffer = PathUtil::RemoveSlash(tempBuffer);

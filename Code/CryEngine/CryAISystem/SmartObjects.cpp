@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 /********************************************************************
    -------------------------------------------------------------------------
@@ -850,15 +850,7 @@ CSmartObjectManager::CSmartObjectManager()
 	CSmartObject::CState("Combat");
 	CSmartObject::CState("Dead");
 
-	uint64 onEventSubscriptions = 0;
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_INIT);
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_RESET);
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_DONE);
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_HIDE);
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_UNHIDE);
-	onEventSubscriptions |= ENTITY_EVENT_BIT(ENTITY_EVENT_XFORM);
-
-	gEnv->pEntitySystem->AddSink(this, IEntitySystem::AllSinkEvents & (~IEntitySystem::OnBeforeSpawn), onEventSubscriptions);
+	gEnv->pEntitySystem->AddSink(this, IEntitySystem::AllSinkEvents & (~IEntitySystem::OnBeforeSpawn));
 }
 
 CSmartObjectManager::~CSmartObjectManager()
@@ -1182,7 +1174,7 @@ void CSmartObjectManager::SoftReset()
 	//m_SmartObjects.clear();
 
 	// re-register entities with the smart objects system
-	IEntityIt* it = gEnv->pEntitySystem->GetEntityIterator();
+	IEntityItPtr it = gEnv->pEntitySystem->GetEntityIterator();
 	while (!it->IsEnd())
 	{
 		IEntity* pEntity = it->Next();
@@ -1191,7 +1183,6 @@ void CSmartObjectManager::SoftReset()
 		SEntitySpawnParams params;
 		OnSpawn(pEntity, params);
 	}
-	it->Release();
 
 	RebuildNavigation();
 	m_bRecalculateUserSize = true;
@@ -1231,7 +1222,7 @@ void CSmartObjectManager::RecalculateUserSize()
 float CSmartObjectManager::CalculateDelayTime(CSmartObject* pUser, const Vec3& posUser,
                                               CSmartObject* pObject, const Vec3& posObject, CCondition* pCondition) const
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	if (!pCondition->bEnabled)
 		return -1.0f;
@@ -2313,7 +2304,7 @@ SOUpdateStats currentUpdateStats;
 
 void CSmartObjectManager::Update()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI)
+	CRY_PROFILE_FUNCTION(PROFILE_AI)
 
 	currentUpdateStats.reset();
 
@@ -2386,7 +2377,7 @@ void CSmartObjectManager::Update()
 
 int CSmartObjectManager::Process(CSmartObject* pSmartObjectUser, CSmartObjectClass* pClass)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	AIAssert(pSmartObjectUser);
 
@@ -3278,7 +3269,7 @@ void CSmartObjectManager::RescanSOClasses(IEntity* pEntity)
 ///////////////////////////////////////////////
 void CSmartObjectManager::OnSpawn(IEntity* pEntity, SEntitySpawnParams& params)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	/* Márcio: Enabling SmartObjects in multiplayer.
 	   if (gEnv->bMultiplayer)
 	    return;
@@ -3306,6 +3297,10 @@ void CSmartObjectManager::OnSpawn(IEntity* pEntity, SEntitySpawnParams& params)
 	{
 		smartObject = new CSmartObject(pEntity ? pEntity->GetId() : 0);
 	}
+
+	pEntity->AddEventListener(ENTITY_EVENT_HIDE, this);
+	pEntity->AddEventListener(ENTITY_EVENT_UNHIDE, this);
+	pEntity->AddEventListener(ENTITY_EVENT_XFORM, this);
 
 	for (uint32 i = 0; i < vClasses.size(); ++i)
 	{
@@ -3335,6 +3330,7 @@ void CSmartObjectManager::RemoveEntity(IEntity* pEntity)
 ///////////////////////////////////////////////
 bool CSmartObjectManager::OnRemove(IEntity* pEntity)
 {
+	DoRemove(pEntity);
 	return true;
 }
 
@@ -3346,6 +3342,10 @@ void CSmartObjectManager::DoRemove(IEntity* pEntity, bool bDeleteSmartObject)
 	CSmartObject* pSmartObject = GetSmartObject(pEntity->GetId());
 	if (pSmartObject)
 	{
+		pEntity->RemoveEventListener(ENTITY_EVENT_HIDE, this);
+		pEntity->RemoveEventListener(ENTITY_EVENT_UNHIDE, this);
+		pEntity->RemoveEventListener(ENTITY_EVENT_XFORM, this);
+
 		// let's make sure AI navigation is not using it
 		// in case this is a navigation smart object entity!
 		UnregisterFromNavigation(pSmartObject);
@@ -3423,15 +3423,12 @@ void CSmartObjectManager::OnReused(IEntity* pEntity, SEntitySpawnParams& params)
 
 // Implementation of IEntitySystemSink methods
 ///////////////////////////////////////////////
-void CSmartObjectManager::OnEvent(IEntity* pEntity, SEntityEvent& event)
+void CSmartObjectManager::OnEntityEvent(IEntity* pEntity, const SEntityEvent& event)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	switch (event.event)
 	{
-	case ENTITY_EVENT_DONE:
-		DoRemove(pEntity);
-		break;
 	case ENTITY_EVENT_HIDE:
 		{
 			CSmartObject* pSmartObject = GetSmartObject(pEntity->GetId());
@@ -3444,13 +3441,6 @@ void CSmartObjectManager::OnEvent(IEntity* pEntity, SEntityEvent& event)
 			CSmartObject* pSmartObject = GetSmartObject(pEntity->GetId());
 			if (pSmartObject)
 				pSmartObject->Hide(false);
-			break;
-		}
-	case ENTITY_EVENT_INIT:
-	case ENTITY_EVENT_RESET:
-		{
-			SEntitySpawnParams params;
-			OnSpawn(pEntity, params);
 			break;
 		}
 	case ENTITY_EVENT_XFORM:
@@ -4269,7 +4259,7 @@ bool CSmartObjectManager::LoadSmartObjectsLibrary()
 
 void CSmartObjectManager::DebugDrawValidateSmartObjectArea() const
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	IEntity* ent = gEnv->pEntitySystem->FindEntityByName("ValidateSmartObjectArea");
 	if (ent)
@@ -4323,7 +4313,7 @@ bool CSmartObjectManager::GetSmartObjectLinkCostFactorForMNM(const OffMeshLink_S
 				                         pRequesterEntity,
 				                         &m_statesToExcludeForPathfinding) > 0)
 				{
-					FRAME_PROFILER("CSmartObjectManager::GetSmartObjectLinkCostFactorForMNM::CostMultiplierCalculation", gEnv->pSystem, PROFILE_AI);
+					CRY_PROFILE_REGION(PROFILE_AI, "CSmartObjectManager::GetSmartObjectLinkCostFactorForMNM::CostMultiplierCalculation");
 					if (fCostMultiplier)
 					{
 						*fCostMultiplier = vHelperLinks[0]->condition->fProximityFactor;
@@ -4399,7 +4389,7 @@ int CSmartObjectManager::GetNavigationalSmartObjectActionTypeForMNM(CPipeUser* p
 
 void CSmartObjectManager::DebugDrawBannedNavsos()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	CDebugDrawContext dc;
 

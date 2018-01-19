@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "stdafx.h"
 #include "cvars.h"
@@ -152,6 +152,7 @@ void Console::Init()
 	ca_DebugTextLayer = 0xffffffff;
 	DefineConstIntCVar(ca_DebugCommandBuffer, 0, VF_CHEAT | VF_DUMPTODISK, "if this is 1, it will print the amount of commands for the blend-buffer");
 	DefineConstIntCVar(ca_DebugAnimationStreaming, 0, VF_CHEAT | VF_DUMPTODISK, "if this is 1, then it shows what animations are streamed in");
+	DefineConstIntCVar(ca_DebugAttachmentsProxies, 0, 0, "draw characters attachments proxies: 0 - disabled; 1 - dynamic proxies; 2 - auxiliary proxies; 4 - cloth proxies; 8 - ragdoll proxies");
 	DefineConstIntCVar(ca_LoadUncompressedChunks, 0, VF_CHEAT, "If this 1, then uncompressed chunks prefer compressed while loading");
 	DefineConstIntCVar(ca_UseMorph, 1, VF_CHEAT, "the morph skinning step is skipped (it's part of overall skinning during rendering)");
 	DefineConstIntCVar(ca_NoAnim, 0, VF_CHEAT, "the animation isn't updated (the characters remain in the same pose)");
@@ -199,8 +200,8 @@ void Console::Init()
 	DefineConstIntCVar(ca_DebugADIKTargets, 0, VF_CHEAT, "If 1, then it will show if there are animation-driven IK-Targets for this model.");
 	DefineConstIntCVar(ca_SaveAABB, 0, 0, "if the AABB is invalid, replace it by the default AABB");
 	DefineConstIntCVar(ca_DebugCriticalErrors, 0, VF_CHEAT, "if 1, then we stop with a Fatal-Error if we detect a serious issue");
-	DefineConstIntCVar(ca_UseIMG_CAF, 1, VF_CHEAT, "if 1, then we use the IMG file. In development mode it is suppose to be off");
-	DefineConstIntCVar(ca_UseIMG_AIM, 1, VF_CHEAT, "if 1, then we use the IMG file. In development mode it is suppose to be off");
+	DefineConstIntCVar(ca_UseIMG_CAF, 0, VF_CHEAT, "if 1, then we use the IMG file. In development mode it is suppose to be off");
+	DefineConstIntCVar(ca_UseIMG_AIM, 0, VF_CHEAT, "if 1, then we use the IMG file. In development mode it is suppose to be off");
 	DefineConstIntCVar(ca_UnloadAnimationCAF, 1, VF_DUMPTODISK, "unloading streamed CAFs as soon as they are not used");
 	DefineConstIntCVar(ca_UnloadAnimationDBA, 1, VF_NULL, "if 1, then unload DBA if not used");
 	DefineConstIntCVar(ca_MinInPlaceCAFStreamSize, 128 * 1024, VF_CHEAT, "min size a caf should be for in-place streaming");
@@ -208,6 +209,9 @@ void Console::Init()
 	DefineConstIntCVar(ca_SerializeSkeletonAnim, 0, VF_CHEAT, "Turn on CSkeletonAnim Serialization.");
 	DefineConstIntCVar(ca_AllowMultipleEffectsOfSameName, 1, VF_CHEAT, "Allow a skeleton animation to spawn more than one instance of an effect with the same name on the same instance.");
 	DefineConstIntCVar(ca_UseAssetDefinedLod, 0, VF_CHEAT, "Lowers render LODs for characters with respect to \"consoles_lod0\" UDP. Requires characters to be reloaded.");
+	DefineConstIntCVar(ca_ForceAnimationLod, -1, VF_CHEAT, "Forces a specific LOD to be used for animation updates."
+						"\n-1    - don't force any lod, use the lod system (default)"
+						"\n 0..n - animation lod level");
 	DefineConstIntCVar(ca_Validate, 0, VF_CHEAT, "if set to 1, will run validation on animation data");
 	// animation transition interpolation mode
 	REGISTER_COMMAND("ca_DefaultTransitionInterpolationType", (ConsoleCommandFunc)CADefaultTransitionInterpolationType, VF_CHEAT, "changes transition interpolation method.");
@@ -272,6 +276,9 @@ void Console::Init()
 	REGISTER_CVAR(ca_AttachmentCullingRation, 200.0f, 0, "ration between size of attachment and distance to camera");
 	REGISTER_CVAR(ca_AttachmentCullingRationMP, 300.0f, 0, "ration between size of attachment and distance to camera for MP");
 
+	// vcloth
+	REGISTER_CVAR(ca_VClothMode, 1, 0, "0 - disabled (disable rendering & simulation)\n1 - enabled (default)\n2 - force skinning (disable simulation)");
+
 	//cloth
 	REGISTER_CVAR(ca_cloth_max_timestep, 0.0f, 0, "");
 	REGISTER_CVAR(ca_cloth_max_safe_step, 0.0f, 0, "if a segment stretches more than this (in *relative* units), its length is reinforced");
@@ -285,12 +292,14 @@ void Console::Init()
 	REGISTER_CVAR(ca_FacialAnimationRadius, 30.f, VF_CHEAT, "Maximum distance at which facial animations are updated - handles zooming correctly");
 
 	//sampling
+	REGISTER_CVAR(ca_ResetCulledJointsToBindPose, 1, 0, "Specifies whether culled joints should be reset to bind pose or preserve their transform from last evaluated frame (0 = preserve, 1 = reset).");
 	DefineConstIntCVar(ca_SampleQuatHemisphereFromCurrentPose, 0, VF_NULL, "For override animation sampling, use current pose for quat hemisphere sign");
 
 	DefineConstIntCVar(ca_DrawCloth, 1, VF_CHEAT, "bitfield: 2 shows particles, 4 shows proxies, 6 shows both");
 	DefineConstIntCVar(ca_ClothBlending, 1, VF_CHEAT, "if this is 0 blending with animation is disabled");
 	DefineConstIntCVar(ca_ClothBypassSimulation, 0, VF_CHEAT, "if this is 0 actual cloth simulation is disabled (wrap skinning still works)");
 	DefineConstIntCVar(ca_ClothMaxChars, 20, VF_CHEAT, "max characters with cloth on screen");
+	REGISTER_INT("ca_ClothForceSkinningAfterNFrames", 3, 0, "safety mechanism: if framerate falls below threshold for n-frames, skinning is forced to avoid performance issues");
 
 }
 

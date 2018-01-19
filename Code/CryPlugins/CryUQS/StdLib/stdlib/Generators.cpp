@@ -17,7 +17,7 @@ namespace UQS
 				Client::CGeneratorFactory<CGenerator_PointsOnPureGrid>::SCtorParams ctorParams;
 
 				ctorParams.szName = "std::PointsOnPureGrid";
-				ctorParams.guid = "498bce51-a2b9-4e77-b0f9-e127e8a5cc72"_uqs_guid;
+				ctorParams.guid = "498bce51-a2b9-4e77-b0f9-e127e8a5cc72"_cry_guid;
 				ctorParams.szDescription =
 					"Generates points on a grid.\n"
 					"The grid is specified by a center, size (of one edge) and a spacing between the points.\n"
@@ -30,7 +30,7 @@ namespace UQS
 				Client::CGeneratorFactory<CGenerator_PointsOnNavMesh>::SCtorParams ctorParams;
 
 				ctorParams.szName = "std::PointsOnNavMesh";
-				ctorParams.guid = "70b13c46-e012-4fde-bba5-70ccd4f8b321"_uqs_guid;
+				ctorParams.guid = "70b13c46-e012-4fde-bba5-70ccd4f8b321"_cry_guid;
 				ctorParams.szDescription =
 					"Generates Pos3s on the navigation mesh limited by an AABB.\n"
 					"The AABB is defined by a pivot and local mins and maxs.\n"
@@ -44,7 +44,7 @@ namespace UQS
 				Client::CGeneratorFactory<CGenerator_PointsOnGridProjectedOntoNavMesh>::SCtorParams ctorParams;
 
 				ctorParams.szName = "std::PointsOnGridProjectedOntoNavMesh";
-				ctorParams.guid = "91486c28-ff91-4bf2-86e4-7b0c63e30e54"_uqs_guid;
+				ctorParams.guid = "91486c28-ff91-4bf2-86e4-7b0c63e30e54"_cry_guid;
 				ctorParams.szDescription =
 					"Generates points on a grid which are then projected onto the navigation mesh.\n"
 					"The grid is specified by a center, size (of one edge) and a spacing between the points.\n"
@@ -173,32 +173,32 @@ namespace UQS
 
 		CGenerator_PointsOnGridProjectedOntoNavMesh::CGenerator_PointsOnGridProjectedOntoNavMesh(const SParams& params)
 			: m_params(params)
+			, m_bSetupPending(true)
 			, m_numCellsOnOneAxis(0)
 			, m_startPosX(0.0f)
 			, m_startPosY(0.0f)
-			, m_pCurrentStateFn(&CGenerator_PointsOnGridProjectedOntoNavMesh::State1_Setup)
 			, m_debugRunawayCounter(0)
 		{
 		}
 
-		Client::IGenerator::EUpdateStatus CGenerator_PointsOnGridProjectedOntoNavMesh::State1_Setup(const SUpdateContext& updateContext, Client::CItemListProxy_Writable<Pos3>& itemListToPopulate)
+		bool CGenerator_PointsOnGridProjectedOntoNavMesh::Setup(const SUpdateContext& updateContext)
 		{
 			if (m_params.size <= 0.0f)
 			{
 				updateContext.error.Format("Bad 'size' param: %f (should be > 0.0)", m_params.size);
-				return EUpdateStatus::ExceptionOccurred;
+				return false;
 			}
 
 			if (m_params.spacing <= 0.0f)
 			{
 				updateContext.error.Format("Bad 'spacing' param: %f (should be > 0.0)", m_params.spacing);
-				return EUpdateStatus::ExceptionOccurred;
+				return false;
 			}
 
 			if (m_params.verticalTolerance <= 0.0f)
 			{
 				updateContext.error.Format("Bad 'verticalTolerance' param: %f (should be > 0.0)", m_params.verticalTolerance);
-				return EUpdateStatus::ExceptionOccurred;
+				return false;
 			}
 
 			m_numCellsOnOneAxis = std::max((int)(m_params.size / m_params.spacing), 1);
@@ -219,12 +219,10 @@ namespace UQS
 			m_openList.push_back(compressedCenterIndex);
 			m_visited[compressedCenterIndex] = true;
 
-			m_pCurrentStateFn = &CGenerator_PointsOnGridProjectedOntoNavMesh::State2_Flood;
-
-			return EUpdateStatus::StillGeneratingItems;
+			return true;
 		}
 
-		Client::IGenerator::EUpdateStatus CGenerator_PointsOnGridProjectedOntoNavMesh::State2_Flood(const SUpdateContext& updateContext, Client::CItemListProxy_Writable<Pos3>& itemListToPopulate)
+		Client::IGenerator::EUpdateStatus CGenerator_PointsOnGridProjectedOntoNavMesh::Flood(const SUpdateContext& updateContext, Client::CItemListProxy_Writable<Pos3>& itemListToPopulate)
 		{
 			while (!m_openList.empty())
 			{
@@ -367,7 +365,14 @@ namespace UQS
 
 		Client::IGenerator::EUpdateStatus CGenerator_PointsOnGridProjectedOntoNavMesh::DoUpdate(const SUpdateContext& updateContext, Client::CItemListProxy_Writable<Pos3>& itemListToPopulate)
 		{
-			return (this->*m_pCurrentStateFn)(updateContext, itemListToPopulate);
+			if (m_bSetupPending)
+			{
+				if (!Setup(updateContext))
+					return Client::IGenerator::EUpdateStatus::ExceptionOccurred;
+				m_bSetupPending = false;
+			}
+
+			return Flood(updateContext, itemListToPopulate);
 		}
 
 	}

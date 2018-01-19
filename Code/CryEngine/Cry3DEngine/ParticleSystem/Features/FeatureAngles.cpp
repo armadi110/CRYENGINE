@@ -1,12 +1,12 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
-#include <CrySerialization/Math.h>
-#include "ParticleSystem/ParticleFeature.h"
-#include "ParamTraits.h"
 #include "FeatureAngles.h"
-
-CRY_PFX2_DBG
+#include "ParamTraits.h"
+#include "ParticleSystem/ParticleFeature.h"
+#include "ParticleSystem/ParticleComponentRuntime.h"
+#include "ParticleSystem/ParticleSystem.h"
+#include <CrySerialization/Math.h>
 
 namespace pfx2
 {
@@ -30,7 +30,7 @@ public:
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
 		pComponent->AddParticleData(EPDT_Angle2D);
 
 		if (m_initialSpin != 0.0f || m_randomSpin != 0.0f)
@@ -107,7 +107,7 @@ public:
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_InitUpdate, this);
+		pComponent->InitParticles.add(this);
 		pComponent->AddParticleData(EPQF_Orientation);
 
 		if (m_initialSpin != Vec3(ZERO) || m_randomSpin != Vec3(ZERO))
@@ -149,8 +149,10 @@ public:
 			const Ang3 randSpin = FromVec3(m_randomSpin);
 			for (auto particleId : context.GetSpawnedRange())
 			{
+				const Quat wOrientation0 = orientations.Load(particleId);
 				const Ang3 angularVelocity = RandomAng3(context.m_spawnRng, randSpin) + initSpin;
-				angularVelocities.Store(particleId, Vec3(angularVelocity));
+				const Vec3 wAngularVelocity = wOrientation0 * Vec3(angularVelocity);
+				angularVelocities.Store(particleId, Vec3(wAngularVelocity));
 			}
 		}
 	}
@@ -271,7 +273,7 @@ public:
 	
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pComponent->AddToUpdateList(EUL_Update, this);
+		pComponent->UpdateParticles.add(this);
 		pComponent->AddParticleData(EPQF_Orientation);
 	}
 
@@ -288,7 +290,7 @@ public:
 			m_alignView = EAlignView::None;
 	}
 
-	virtual void Update(const SUpdateContext& context) override
+	virtual void UpdateParticles(const SUpdateContext& context) override
 	{
 		CRY_PFX2_PROFILE_DETAIL;
 

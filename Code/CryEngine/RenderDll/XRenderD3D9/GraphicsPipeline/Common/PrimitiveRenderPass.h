@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 #include <array>
@@ -12,28 +12,29 @@ class CPrimitiveRenderPass;
 
 struct SCompiledRenderPrimitive : private NoCopy
 {
-	SCompiledRenderPrimitive();
+	SCompiledRenderPrimitive() {};
 	SCompiledRenderPrimitive(SCompiledRenderPrimitive&& other);
 
 	void Reset();
 
-	struct SInstanceInfo
+	struct SDrawInfo
 	{
-		std::vector<SDeviceObjectHelpers::SConstantBufferBindInfo>  constantBuffers;
-
-		uint32        vertexOrIndexCount;
-		uint32        vertexOrIndexOffset;
-		uint32        vertexBaseOffset;
+		uint32        vertexOrIndexCount  = 0;
+		uint32        vertexOrIndexOffset = 0;
+		uint32        vertexBaseOffset    = 0;
 	};
 
 	CDeviceGraphicsPSOPtr      m_pPipelineState;
 	CDeviceResourceLayoutPtr   m_pResourceLayout;
 	CDeviceResourceSetPtr      m_pResources;
-	const CDeviceInputStream*  m_pVertexInputSet;
-	const CDeviceInputStream*  m_pIndexInputSet;
+	const CDeviceInputStream*  m_pVertexInputSet = nullptr;
+	const CDeviceInputStream*  m_pIndexInputSet  = nullptr;
+	
+	// Reserve 3 optional inline constant buffers for a primitive
+	std::array<SDeviceObjectHelpers::SConstantBufferBindInfo,3> m_inlineConstantBuffers;
 
-	uint8                      m_stencilRef;
-	std::vector<SInstanceInfo> m_instances;
+	uint8                      m_stencilRef = 0;
+	SDrawInfo                  m_drawInfo;
 };
 
 
@@ -43,6 +44,8 @@ public:
 	enum EPrimitiveType
 	{
 		ePrim_Triangle,
+		ePrim_ProceduralTriangle,     // Triangle generated procedurally on GPU (no vertex stream)
+		ePrim_ProceduralQuad,         // Quad generated procedurally on GPU (no vertex stream)
 		ePrim_UnitBox,                // axis aligned box ( 0, 0, 0) - (1,1,1)
 		ePrim_CenteredBox,            // axis aligned box (-1,-1,-1) - (1,1,1)
 		ePrim_Projector,              // pyramid shape with sparsely tessellated ground plane
@@ -52,15 +55,15 @@ public:
 		ePrim_ClipProjector1,         // same as ePrim_Projector1 but with even denser tessellation
 		ePrim_ClipProjector2,         // same as ePrim_Projector2 but with even denser tessellation
 		ePrim_FullscreenQuad,         // fullscreen quad             ( 0  0, 0) - ( 1  1, 0)
-		ePrim_FullscreenQuadCentered, // fullscreen quad             (-1,-1, 0) - ( 1, 1, 0)
-		ePrim_FullscreenQuadTess,     // tessellated fullscreen quad (-1,-1, 0) - ( 1, 1, 0)
+		ePrim_FullscreenQuadCentered, // fullscreen quad             (-1,-1, 0) - ( 1, 1, 0). UV layout (0,0)=bottom left, (1,1)=top right
+		ePrim_FullscreenQuadTess,     // tessellated fullscreen quad (-1,-1, 0) - ( 1, 1, 0). UV layout (0,0)=bottom left, (1,1)=top right
 		ePrim_Custom,
 
 		ePrim_Count,
 		ePrim_First = ePrim_Triangle
 	};
 
-	enum EDirtyFlags
+	enum EDirtyFlags : uint32
 	{
 		eDirty_ResourceLayout = BIT(0),
 		eDirty_Resources      = BIT(1),
@@ -108,7 +111,7 @@ public:
 	void          SetTexture(uint32 shaderSlot, CTexture* pTexture, ResourceViewHandle resourceViewID = EDefaultResourceViews::Default, EShaderStage shaderStages = EShaderStage_Pixel);
 	void          SetSampler(uint32 shaderSlot, SamplerStateHandle sampler, EShaderStage shaderStages = EShaderStage_Pixel);
 	void          SetConstantBuffer(uint32 shaderSlot, CConstantBuffer* pBuffer, EShaderStage shaderStages = EShaderStage_Pixel);
-	void          SetBuffer(uint32 shaderSlot, const CGpuBuffer* pBuffer, ResourceViewHandle resourceViewID = EDefaultResourceViews::Default, EShaderStage shaderStages = EShaderStage_Pixel);
+	void          SetBuffer(uint32 shaderSlot, CGpuBuffer* pBuffer, ResourceViewHandle resourceViewID = EDefaultResourceViews::Default, EShaderStage shaderStages = EShaderStage_Pixel);
 	void          SetInlineConstantBuffer(EConstantBufferShaderSlot shaderSlot, CConstantBuffer* pBuffer, EShaderStage shaderStages = EShaderStage_Pixel);
 	void          SetPrimitiveType(EPrimitiveType primitiveType);
 	void          SetCustomVertexStream(buffer_handle_t vertexBuffer, InputLayoutHandle vertexFormat, uint32 vertexStride);
@@ -149,12 +152,9 @@ private:
 		SPrimitiveGeometry();
 	};
 
-	static bool OnResourceInvalidated(void* pThis, uint32 flags) threadsafe;
-
 private:
 	EPrimitiveFlags           m_flags;
 	EDirtyFlags               m_dirtyMask;
-	std::atomic<bool>         m_bResourcesInvalidated;
 	uint32                    m_renderState;
 	uint32                    m_stencilState;
 	uint8                     m_stencilReadMask;
@@ -217,8 +217,12 @@ public:
 	void   SetDepthTarget(CTexture* pDepthTarget, ResourceViewHandle hDepthTargetView = EDefaultResourceViews::DepthStencil);
 	void   SetOutputUAV(uint32 slot, CGpuBuffer* pBuffer);
 	void   SetViewport(const D3DViewPort& viewport);
+	void   SetViewport(const SRenderViewport& viewport);
 	void   SetScissor(bool bEnable, const D3DRectangle& scissor);
 	void   SetTargetClearMask(uint32 clearMask);
+
+	bool   IsOutputDirty() const { return m_renderPassDesc.HasChanged(); }
+	const  D3DViewPort& GetViewport() const { return m_viewport; }
 
 	void   Reset();
 
@@ -226,6 +230,7 @@ public:
 	bool   AddPrimitive(CRenderPrimitive* pPrimitive);
 	bool   AddPrimitive(SCompiledRenderPrimitive* pPrimitive);
 	void   UndoAddPrimitive() { CRY_ASSERT(!m_compiledPrimitives.empty()); m_compiledPrimitives.pop_back(); }
+	void   ClearPrimitives();
 
 	uint32                     GetPrimitiveCount()            const { return m_compiledPrimitives.size(); }
 	CTexture*                  GetRenderTarget(int index)     const { return m_renderPassDesc.GetRenderTargets()[index].pTexture; }
@@ -243,7 +248,7 @@ protected:
 	void   Prepare(CDeviceCommandListRef RESTRICT_REFERENCE commandList);
 	void   Compile();
 
-	static bool OnResourceInvalidated(void* pThis, uint32 flags);
+	static bool OnResourceInvalidated(void* pThis, SResourceBindPoint bindPoint, UResourceReference pResource, uint32 flags) threadsafe;
 
 protected:
 	EPrimitivePassFlags                     m_passFlags;
@@ -257,20 +262,12 @@ protected:
 	D3DRectangle                            m_scissor;
 	bool                                    m_scissorEnabled;
 	bool                                    m_bAddingPrimitives;
-	bool                                    m_bOutputsDirty;
-	std::atomic<bool>                       m_bResourcesInvalidated;
 	uint32                                  m_clearMask;
 	std::vector<SCompiledRenderPrimitive*>  m_compiledPrimitives;
 };
 
 
 ///////////////////////////////////// Inline functions for CRenderPrimitive /////////////////////////////////////
-
-inline bool CRenderPrimitive::OnResourceInvalidated(void* pThis, uint32 flags)
-{
-	reinterpret_cast<CRenderPrimitive*>(pThis)->m_bResourcesInvalidated = true;
-	return true;
-}
 
 #define ASSIGN_VALUE(dst, src, dirtyFlag)                     \
   m_dirtyMask |= !((dst)==(src)) ? (dirtyFlag) : eDirty_None; \
@@ -314,26 +311,6 @@ inline void CRenderPrimitive::SetTechnique(CShader* pShader, const CCryNameTSCRC
 		m_dirtyMask |= eDirty_Technique;
 }
 
-inline void CRenderPrimitive::SetTexture(uint32 shaderSlot, CTexture* pTexture, ResourceViewHandle resourceViewID, EShaderStage shaderStages)
-{
-	m_dirtyMask |= (EDirtyFlags)m_resourceDesc.SetTexture(shaderSlot, pTexture, resourceViewID, shaderStages);
-}
-
-inline void CRenderPrimitive::SetSampler(uint32 shaderSlot, SamplerStateHandle sampler, EShaderStage shaderStages)
-{
-	m_dirtyMask |= (EDirtyFlags)m_resourceDesc.SetSampler(shaderSlot, sampler, shaderStages);
-}
-
-inline void CRenderPrimitive::SetConstantBuffer(uint32 shaderSlot, CConstantBuffer* pBuffer, EShaderStage shaderStages)
-{
-	m_dirtyMask |= (EDirtyFlags)m_resourceDesc.SetConstantBuffer(shaderSlot, pBuffer, shaderStages);
-}
-
-inline void CRenderPrimitive::SetBuffer(uint32 shaderSlot, const CGpuBuffer* pBuffer, ResourceViewHandle resourceViewID, EShaderStage shaderStages)
-{
-	m_dirtyMask |= (EDirtyFlags)m_resourceDesc.SetBuffer(shaderSlot, pBuffer, resourceViewID, shaderStages);
-}
-
 inline void CRenderPrimitive::SetInlineConstantBuffer(EConstantBufferShaderSlot shaderSlot, CConstantBuffer* pBuffer, EShaderStage shaderStages)
 {
 	if (m_constantManager.SetTypedConstantBuffer(shaderSlot, pBuffer, shaderStages))
@@ -375,18 +352,40 @@ inline void CRenderPrimitive::SetDrawTopology(ERenderPrimitiveType primType)
 
 #undef ASSIGN_VALUE
 
+// ------------------------------------------------------------------------
+
+inline void CRenderPrimitive::SetTexture(uint32 shaderSlot, CTexture* pTexture, ResourceViewHandle resourceViewID, EShaderStage shaderStages)
+{
+	m_resourceDesc.SetTexture(shaderSlot, pTexture, resourceViewID, shaderStages);
+}
+
+inline void CRenderPrimitive::SetSampler(uint32 shaderSlot, SamplerStateHandle sampler, EShaderStage shaderStages)
+{
+	m_resourceDesc.SetSampler(shaderSlot, sampler, shaderStages);
+}
+
+inline void CRenderPrimitive::SetConstantBuffer(uint32 shaderSlot, CConstantBuffer* pBuffer, EShaderStage shaderStages)
+{
+	m_resourceDesc.SetConstantBuffer(shaderSlot, pBuffer, shaderStages);
+}
+
+inline void CRenderPrimitive::SetBuffer(uint32 shaderSlot, CGpuBuffer* pBuffer, ResourceViewHandle resourceViewID, EShaderStage shaderStages)
+{
+	m_resourceDesc.SetBuffer(shaderSlot, pBuffer, resourceViewID, shaderStages);
+}
+
 ///////////////////////////////////// Inline functions for CRenderPrimitiveRenderPass /////////////////////////////////////
 inline void CPrimitiveRenderPass::SetRenderTarget(uint32 slot, CTexture* pRenderTarget, ResourceViewHandle hRenderTargetView)
 {
-	m_bOutputsDirty |= m_renderPassDesc.SetRenderTarget(slot, pRenderTarget, hRenderTargetView);
+	m_renderPassDesc.SetRenderTarget(slot, pRenderTarget, hRenderTargetView);
 }
 
 inline void CPrimitiveRenderPass::SetOutputUAV(uint32 slot, CGpuBuffer* pBuffer)
 {
-	m_bOutputsDirty |= m_renderPassDesc.SetOutputUAV(slot, pBuffer);
+	m_renderPassDesc.SetOutputUAV(slot, pBuffer);
 }
 
 inline void CPrimitiveRenderPass::SetDepthTarget(CTexture* pDepthTarget, ResourceViewHandle hDepthTargetView)
 {
-	m_bOutputsDirty |= m_renderPassDesc.SetDepthTarget(pDepthTarget, hDepthTargetView);
+	m_renderPassDesc.SetDepthTarget(pDepthTarget, hDepthTargetView);
 }

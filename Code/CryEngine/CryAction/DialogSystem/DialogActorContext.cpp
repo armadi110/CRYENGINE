@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "DialogActorContext.h"
@@ -1224,7 +1224,7 @@ bool CDialogActorContext::IsStillPlaying() const
 }
 
 // IEntityEventListener
-void CDialogActorContext::OnEntityEvent(IEntity* pEntity, SEntityEvent& event)
+void CDialogActorContext::OnEntityEvent(IEntity* pEntity, const SEntityEvent& event)
 {
 	switch (event.event)
 	{

@@ -1,8 +1,9 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioImpl.h"
 #include "AudioImplCVars.h"
+#include <Logger.h>
 #include <CryAudio/IAudioSystem.h>
 #include <CryCore/Platform/platform_impl.inl>
 #include <CrySystem/IEngineModule.h>
@@ -15,7 +16,6 @@ namespace Impl
 namespace SDL_mixer
 {
 // Define global objects.
-CLogger g_implLogger;
 CCVars g_cvars;
 
 //////////////////////////////////////////////////////////////////////////
@@ -26,7 +26,7 @@ class CEngineModule_CryAudioImplSDLMixer : public IImplModule
 	CRYINTERFACE_ADD(IImplModule)
 	CRYINTERFACE_END()
 
-	CRYGENERATE_SINGLETONCLASS(CEngineModule_CryAudioImplSDLMixer, "EngineModule_AudioImpl", 0x8030c0d1905b4031, 0xa3785a8b53125f3f)
+	CRYGENERATE_SINGLETONCLASS_GUID(CEngineModule_CryAudioImplSDLMixer, "EngineModule_AudioImpl", "8030c0d1-905b-4031-a378-5a8b53125f3f"_cry_guid)
 
 	CEngineModule_CryAudioImplSDLMixer();
 
@@ -44,11 +44,11 @@ class CEngineModule_CryAudioImplSDLMixer : public IImplModule
 
 		if (m_bSuccess)
 		{
-			g_implLogger.Log(ELogType::Always, "CryAudioImplSDLMixer loaded");
+			Cry::Audio::Log(ELogType::Always, "CryAudioImplSDLMixer loaded");
 		}
 		else
 		{
-			g_implLogger.Log(ELogType::Error, "CryAudioImplSDLMixer failed to load");
+			Cry::Audio::Log(ELogType::Error, "CryAudioImplSDLMixer failed to load");
 		}
 
 		return m_bSuccess;

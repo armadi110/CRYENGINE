@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     29/09/2014 by Filipe amim
@@ -8,12 +8,11 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
-#include "ParticleSystem/ParticleEmitter.h"
-#include <CrySerialization/SmartPtr.h>
 #include "FeatureColor.h"
 #include "Domain.h"
-
-CRY_PFX2_DBG
+#include "ParticleSystem/ParticleEmitter.h"
+#include "ParticleSystem/ParticleComponentRuntime.h"
+#include <CrySerialization/SmartPtr.h>
 
 namespace pfx2
 {
@@ -25,14 +24,14 @@ void IColorModifier::Serialize(Serialization::IArchive& ar)
 	ar(m_enabled);
 }
 
-CFeatureFieldColor::CFeatureFieldColor() : m_color(255, 255, 255), CParticleFeature(gpu_pfx2::eGpuFeatureType_Color) {}
+CFeatureFieldColor::CFeatureFieldColor() : m_color(255, 255, 255) {}
 
 void CFeatureFieldColor::AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams)
 {
 	m_modInit.clear();
 	m_modUpdate.clear();
 
-	pComponent->AddToUpdateList(EUL_InitUpdate, this);
+	pComponent->InitParticles.add(this);
 	pComponent->AddParticleData(EPDT_Color);
 
 	for (auto& pModifier : m_modifiers)
@@ -43,10 +42,10 @@ void CFeatureFieldColor::AddToComponent(CParticleComponent* pComponent, SCompone
 	if (!m_modUpdate.empty())
 	{
 		pComponent->AddParticleData(InitType(EPDT_Color));
-		pComponent->AddToUpdateList(EUL_Update, this);
+		pComponent->UpdateParticles.add(this);
 	}
 
-	if (auto pInt = GetGpuInterface())
+	if (auto pInt = MakeGpuInterface(pComponent, gpu_pfx2::eGpuFeatureType_Color))
 	{
 		const int numSamples = gpu_pfx2::kNumModifierSamples;
 		Vec3 samples[numSamples];
@@ -100,7 +99,7 @@ void CFeatureFieldColor::InitParticles(const SUpdateContext& context)
 	container.CopyData(InitType(EPDT_Color), EPDT_Color, container.GetSpawnedRange());
 }
 
-void CFeatureFieldColor::Update(const SUpdateContext& context)
+void CFeatureFieldColor::UpdateParticles(const SUpdateContext& context)
 {
 	CRY_PFX2_PROFILE_DETAIL;
 
@@ -195,8 +194,8 @@ private:
 		}
 	}
 
-	UFloat m_luminance;
-	UFloat m_rgb;
+	UUnitFloat m_luminance;
+	UUnitFloat m_rgb;
 };
 
 SERIALIZATION_CLASS_NAME(IColorModifier, CColorRandom, "ColorRandom", "Color Random");
@@ -267,12 +266,6 @@ SERIALIZATION_CLASS_NAME(IColorModifier, CColorCurve, "ColorCurve", "Color Curve
 class CColorAttribute : public IColorModifier
 {
 public:
-	CColorAttribute()
-		: m_scale(1.0f)
-		, m_bias(0.0f)
-		, m_gamma(1.0f) 
-		, m_spawnOnly(false) {}
-
 	virtual void AddToParam(CParticleComponent* pComponent, CFeatureFieldColor* pParam)
 	{
 		if (m_spawnOnly)
@@ -284,7 +277,7 @@ public:
 	virtual void Serialize(Serialization::IArchive& ar)
 	{
 		IColorModifier::Serialize(ar);
-		ar(m_name, "Name", "Attribute Name");
+		ar(m_attribute, "Name", "Attribute Name");
 		ar(m_scale, "Scale", "Scale");
 		ar(m_bias, "Bias", "Bias");
 		ar(m_gamma, "Gamma", "Gamma");
@@ -297,8 +290,7 @@ public:
 
 		CParticleContainer& container = context.m_container;
 		const CAttributeInstance& attributes = context.m_runtime.GetEmitter()->GetAttributeInstance();
-		auto attributeId = attributes.FindAttributeIdByName(m_name.c_str());
-		ColorF attribute = attributes.GetAsColorF(attributeId, ColorF(1.0f, 1.0f, 1.0f));
+		ColorF attribute = m_attribute.GetValueAs(attributes, ColorB(~0U));
 		attribute.r = pow(attribute.r, m_gamma) * m_scale + m_bias;
 		attribute.g = pow(attribute.g, m_gamma) * m_scale + m_bias;
 		attribute.b = pow(attribute.b, m_gamma) * m_scale + m_bias;
@@ -313,11 +305,11 @@ public:
 	}
 
 private:
-	string m_name;
-	SFloat m_scale;
-	SFloat m_bias;
-	UFloat m_gamma;
-	bool   m_spawnOnly;
+	CAttributeReference m_attribute;
+	SFloat              m_scale     = 1;
+	SFloat              m_bias      = 0;
+	UFloat              m_gamma     = 1;
+	bool                m_spawnOnly = false;
 };
 
 SERIALIZATION_CLASS_NAME(IColorModifier, CColorAttribute, "Attribute", "Attribute");

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   CryMemoryManager.h
@@ -213,6 +213,9 @@ public:
 	}
 
 	size_type max_size() const           { return stack_capacity / sizeof(value_type); }
+
+	template<class U, class... Args>
+	void construct(U* p, Args&&... args) { new (p) U(std::forward<Args>(args)...); }
 
 	void      destroy(pointer p)         { p->~value_type(); }
 
@@ -658,10 +661,16 @@ CRY_MEM_USAGE_API void CryModuleGetMemoryInfo(CryModuleMemoryInfo* pMemInfo);
 
 #if !defined(NOT_USE_CRY_MEMORY_MANAGER)
 // Note: No need to override placement new, new[], delete, delete[]
+PREFAST_SUPPRESS_WARNING(28251)
 void* __cdecl operator new(std::size_t size);
+
+PREFAST_SUPPRESS_WARNING(28251)
 void* __cdecl operator new(std::size_t size, const std::nothrow_t& nothrow_value) noexcept;
 
+PREFAST_SUPPRESS_WARNING(28251)
 void* __cdecl operator new[](std::size_t size);
+
+PREFAST_SUPPRESS_WARNING(28251)
 void* __cdecl operator new[](std::size_t size, const std::nothrow_t& nothrow_value) noexcept;
 
 

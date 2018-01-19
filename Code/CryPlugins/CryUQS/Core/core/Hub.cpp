@@ -83,6 +83,8 @@ namespace UQS
 
 		void CHub::Update()
 		{
+			CRY_PROFILE_FUNCTION(UQS_PROFILED_SUBSYSTEM_TO_USE);
+
 			// - if this assert fails, then the game code tries to do the update when it hasn't declared to do so
 			// - this check is done to prevent updating from more than one place
 			assert(gEnv->IsEditing() || (m_bAutomaticUpdateInProgress == !m_overrideFlags.Check(EHubOverrideFlags::CallUpdate)));
@@ -183,6 +185,11 @@ namespace UQS
 			return m_itemSerializationSupport;
 		}
 
+		CSettingsManager& CHub::GetSettingsManager()
+		{
+			return m_settingsManager;
+		}
+
 		DataSource::IEditorLibraryProvider* CHub::GetEditorLibraryProvider()
 		{
 			return m_pEditorLibraryProvider;
@@ -215,6 +222,13 @@ namespace UQS
 			if (event == ESYSTEM_EVENT_GAME_POST_INIT_DONE)
 			{
 				//
+				// - ask all sub-systems to register their factories (before doing the consistency checks below!!!)
+				// - the sub-systems should have used ESYSTEM_EVENT_GAME_POST_INIT (*not* the _DONE event) to subscribe to the IHub for receiving events
+				//
+
+				SendHubEventToAllListeners(UQS::Core::EHubEvent::RegisterYourFactoriesNow);
+
+				//
 				// instantiate all factories from the StdLib
 				//
 
@@ -225,16 +239,10 @@ namespace UQS
 
 				//
 				// register all factories from the StdLib (this happens implicitly)
+				// (this is also necessary for monolithic build where the game code, for example, does *not* call Client::CFactoryRegistrationHelper::RegisterAllFactoryInstancesInHub)
 				//
 
 				Client::CFactoryRegistrationHelper::RegisterAllFactoryInstancesInHub(*this);
-
-				//
-				// - ask all sub-systems to register their factories (before doing the consistency checks below!!!)
-				// - the sub-systems should have used ESYSTEM_EVENT_GAME_POST_INIT (*not* the _DONE event) to subscribe to the IHub for receiving events
-				//
-
-				SendHubEventToAllListeners(UQS::Core::EHubEvent::RegisterYourFactoriesNow);
 
 				//
 				// check for consistency errors (this needs to be done *after* all subsystems registered their item types, functions, generators, evaluators)
@@ -274,11 +282,6 @@ namespace UQS
 					Schematyc::EnvPackageCallback callback = SCHEMATYC_DELEGATE(&CHub::OnRegisterSchematycEnvPackage);
 					gEnv->pSchematyc->GetEnvRegistry().RegisterPackage(SCHEMATYC_MAKE_ENV_PACKAGE(GetSchematycPackageGUID(), szName, Schematyc::g_szCrytek, szDescription, callback));
 				}
-
-				if (!(m_overrideFlags & EHubOverrideFlags::InstantiateStdLibFactories))
-				{
-					StdLib::CStdLibRegistration::RegisterInSchematyc();
-				}
 #endif
 
 				//
@@ -295,6 +298,18 @@ namespace UQS
 					m_pXmlDatasource->SetupAndInstallInHub(*this, "libs/ai/uqs");
 				}
 			}
+#if UQS_SCHEMATYC_SUPPORT
+			if (gEnv->pSchematyc)
+			{
+				if (event == ESYSTEM_EVENT_FULL_SHUTDOWN || event == ESYSTEM_EVENT_FAST_SHUTDOWN)
+				{
+					if (!(m_overrideFlags & EHubOverrideFlags::InstantiateStdLibFactories))
+					{
+						gEnv->pSchematyc->GetEnvRegistry().DeregisterPackage(GetSchematycPackageGUID());
+					}
+				}
+			}
+#endif 
 		}
 
 		void CHub::SendHubEventToAllListeners(EHubEvent ev)

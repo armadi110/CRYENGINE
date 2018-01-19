@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "BoundingVolume.h"
@@ -209,13 +209,11 @@ bool BoundingVolume::Contains(const Vec3& point) const
 
 void BoundingVolume::OffsetVerticesAndAABB(const Vec3& delta)
 {
-#ifdef SEG_WORLD
 	const size_t vertexCount = vertices.size();
 	for (size_t i = 0; i < vertexCount; ++i)
 	{
 		vertices[i] += delta;
 	}
 	aabb.Move(delta);
-#endif
 }
 }

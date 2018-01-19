@@ -10,7 +10,7 @@ public:
 	CCameraManager() = default;
 	virtual ~CCameraManager() {};
 
-	virtual void AddCamera(Cry::DefaultComponents::CCameraComponent* pComponent) override
+	virtual void AddCamera(ICameraComponent* pComponent) override
 	{
 		if (pComponent->GetEntity()->GetSimulationMode() != EEntitySimulationMode::Preview)
 		{
@@ -18,38 +18,43 @@ public:
 		}
 	}
 	
-	virtual void SwitchCameraToActive(Cry::DefaultComponents::CCameraComponent* pComponent) override
+	virtual void SwitchCameraToActive(ICameraComponent* pComponent) override
 	{
 		if (pComponent->GetEntity()->GetSimulationMode() == EEntitySimulationMode::Preview)
 			return;
 
-		if(m_pActive)
+		if (m_pActive)
 		{
-			m_pActive->UnregisterAudioListener();
+			m_pActive->DisableAudioListener();
 		}
 
 		m_pActive = pComponent;
 
-		for (const Cry::DefaultComponents::CCameraComponent* component : m_Cameras)
+		for (const ICameraComponent* component : m_Cameras)
 		{
 			component->GetEntity()->UpdateComponentEventMask(component);
 		}
 	}
-	virtual void RemvoeCamera(Cry::DefaultComponents::CCameraComponent* pComponent) override
+
+	virtual void RemoveCamera(ICameraComponent* pComponent) override
 	{
 		if (pComponent->GetEntity()->GetSimulationMode() != EEntitySimulationMode::Preview)
 		{
+			if (pComponent == m_pActive)
+			{
+				m_pActive = nullptr;
+			}
+
 			stl::find_and_erase(m_Cameras, pComponent);
 		}
 	}
 
-	virtual bool IsThisCameraActive(const Cry::DefaultComponents::CCameraComponent* pComponent) override
+	virtual bool IsThisCameraActive(const ICameraComponent* pComponent) override
 	{
 		return (pComponent == m_pActive);
 	}
 
 private:
-	std::vector<Cry::DefaultComponents::CCameraComponent*> m_Cameras;
-	Cry::DefaultComponents::CCameraComponent* m_pActive = nullptr;
-
+	std::vector<ICameraComponent*> m_Cameras;
+	ICameraComponent* m_pActive = nullptr;
 };

@@ -1,4 +1,6 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
+
+//! \cond INTERNAL
 
 //! Defines interfaces and macros for Cry Unit Tests.
 //! CRY_UNIT_TEST_SUITE:           A suite name to group tests locally together.
@@ -228,14 +230,26 @@ ILINE string FormatVar(int32 val)          { return string().Format("<int32> %d"
 ILINE string FormatVar(uint32 val)         { return string().Format("<uint32> %u (0x%x)", val, val); }
 ILINE string FormatVar(int64 val)          { return string().Format("<int64> %" PRId64, val); }
 ILINE string FormatVar(uint64 val)         { return string().Format("<uint64> %" PRIu64 " (0x" PRIx64 ")", val, val); }
-ILINE string FormatVar(const void* val)    { return string().Format("<pointer> %p", val); }
 ILINE string FormatVar(const char* val)    { return string().Format("\"%s\"", val); }
+ILINE string FormatVar(const wchar_t* val) { return string().Format("\"%ls\"", val); }
 ILINE string FormatVar(const string& val)  { return string().Format("\"%s\"", val.c_str()); }
 ILINE string FormatVar(const wstring& val) { return string().Format("\"%ls\"", val.c_str()); }
+ILINE string FormatVar(std::nullptr_t)     { return "nullptr"; }
+
+template<typename T>
+ILINE
+typename std::enable_if<std::is_pointer<T>::value, string>::type
+FormatVar(T val)
+{
+	return string().Format("<pointer> %p", val);
+}
+
 //! Fall-back overload for unsupported types: dump bytes
 //! Taking const reference because not all types can be copied or copied without side effect.
 template<typename T>
-ILINE string FormatVar(const T& val)
+ILINE 
+typename std::enable_if<!std::is_pointer<T>::value, string>::type
+FormatVar(const T& val)
 {
 	string result = "<unknown> ";
 	const char* separator = "";
@@ -356,3 +370,5 @@ ILINE bool AreInequal(const char(&str1)[M], const char(&str2)[N]) { return strcm
     }                                                                                                                 \
   } while (0)
 //The last line must exist to compile on gcc!
+
+//! \endcond

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 
@@ -21,7 +21,7 @@ inline Vec3 TriangleCenter(const Vec3& a, const Vec3& b, const Vec3& c)
 
 void MNM::PathfinderUtils::QueuedRequest::SetupDangerousLocationsData()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	dangerousAreas.clear();
 	if (requestParams.dangersToAvoidFlags == eMNMDangers_None)
@@ -257,6 +257,11 @@ void CMNMPathfinder::CancelResultDispatchingForRequest(MNM::QueuedPathID request
 
 bool CMNMPathfinder::CheckIfPointsAreOnStraightWalkableLine(const NavigationMeshID& meshID, const Vec3& source, const Vec3& destination, float heightOffset) const
 {
+	return CheckIfPointsAreOnStraightWalkableLine(meshID, source, destination, nullptr, heightOffset);
+}
+
+bool CMNMPathfinder::CheckIfPointsAreOnStraightWalkableLine(const NavigationMeshID& meshID, const Vec3& source, const Vec3& destination, const INavMeshQueryFilter* pFilter, float heightOffset) const
+{
 	if (meshID == 0)
 		return false;
 
@@ -270,15 +275,14 @@ bool CMNMPathfinder::CheckIfPointsAreOnStraightWalkableLine(const NavigationMesh
 	MNM::vector3_t endLoc = MNM::vector3_t(MNM::real_t(destination.x), MNM::real_t(destination.y), MNM::real_t(destination.z));
 
 	const MNM::real_t verticalRange(2.0f);
-	MNM::TriangleID triStart = navMesh.GetTriangleAt(startLoc, verticalRange, verticalRange);
-	MNM::TriangleID triEnd = navMesh.GetTriangleAt(endLoc, verticalRange, verticalRange);
+	MNM::TriangleID triStart = navMesh.GetTriangleAt(startLoc, verticalRange, verticalRange, pFilter);
+	MNM::TriangleID triEnd = navMesh.GetTriangleAt(endLoc, verticalRange, verticalRange, pFilter);
 
 	if (!triStart || !triEnd)
 		return false;
 
 	MNM::CNavMesh::RayCastRequest<512> raycastRequest;
-
-	if (navMesh.RayCast(startLoc, triStart, endLoc, triEnd, raycastRequest) != MNM::CNavMesh::eRayCastResult_NoHit)
+	if (navMesh.RayCast(startLoc, triStart, endLoc, triEnd, raycastRequest, pFilter) != MNM::CNavMesh::eRayCastResult_NoHit)
 		return false;
 
 	return true;
@@ -286,17 +290,16 @@ bool CMNMPathfinder::CheckIfPointsAreOnStraightWalkableLine(const NavigationMesh
 
 void CMNMPathfinder::SetupNewValidPathRequests()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	
 	const size_t freeAvailableSlotsToProcessNewRequests = m_processingContextsPool.GetFreeSlotsCount();
 
 	for (size_t i = 0; (i < freeAvailableSlotsToProcessNewRequests) && !m_requestedPathsQueue.empty(); ++i)
 	{
 		MNM::QueuedPathID idQueuedRequest = m_requestedPathsQueue.front_id();
-		MNM::PathfinderUtils::QueuedRequest requestToServe = m_requestedPathsQueue.front();
-		m_requestedPathsQueue.pop_front();
+		MNM::PathfinderUtils::QueuedRequest& requestToServe = m_requestedPathsQueue.front();
 
-		MNM::PathfinderUtils::ProcessingContextsPool::PoolIterator pProcessingContext;
-		MNM::PathfinderUtils::ProcessingContextId id;
-		id = m_processingContextsPool.GetFirstAvailableContextId();
+		MNM::PathfinderUtils::ProcessingContextId id = m_processingContextsPool.GetFirstAvailableContextId();
 		if (id != MNM::PathfinderUtils::kInvalidProcessingContextId)
 		{
 			MNM::PathfinderUtils::ProcessingContext& processingContext = m_processingContextsPool.GetContextAtPosition(id);
@@ -320,11 +323,15 @@ void CMNMPathfinder::SetupNewValidPathRequests()
 		{
 			CRY_ASSERT_MESSAGE(0, "Trying to setup new requests while not having available slots in the pool.");
 		}
+
+		m_requestedPathsQueue.pop_front();
 	}
 }
 
 void CMNMPathfinder::SpawnJobs()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+
 	const bool isPathfinderMultithreaded = gAIEnv.CVars.MNMPathfinderMT != 0;
 	if (isPathfinderMultithreaded)
 	{
@@ -384,7 +391,7 @@ void CMNMPathfinder::SpawnPathfinderProcessingJob(MNM::PathfinderUtils::Processi
 
 void CMNMPathfinder::WaitForJobsToFinish()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 	m_processingContextsPool.ExecuteFunctionOnElements(functor(*this, &CMNMPathfinder::WaitForJobToFinish));
 }
 
@@ -395,6 +402,8 @@ void CMNMPathfinder::WaitForJobToFinish(MNM::PathfinderUtils::ProcessingContext&
 
 void CMNMPathfinder::DispatchResults()
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	if(m_pathfindingFailedEventsToDispatch.size())
 	{
 		MNM::PathfinderUtils::PathfindingFailedEvent failedEvent;
 		while (m_pathfindingFailedEventsToDispatch.try_pop_back(failedEvent))
@@ -403,6 +412,7 @@ void CMNMPathfinder::DispatchResults()
 		}
 	}
 
+	if(m_pathfindingCompletedEventsToDispatch.size())
 	{
 		MNM::PathfinderUtils::PathfindingCompletedEvent succeeded;
 		while (m_pathfindingCompletedEventsToDispatch.try_pop_back(succeeded))
@@ -414,7 +424,7 @@ void CMNMPathfinder::DispatchResults()
 
 void CMNMPathfinder::Update()
 {
-	FUNCTION_PROFILER(gEnv->pSystem, PROFILE_AI);
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
 
 	if (gAIEnv.CVars.MNMPathFinderDebug)
 	{
@@ -432,6 +442,8 @@ void CMNMPathfinder::Update()
 
 void CMNMPathfinder::OnNavigationMeshChanged(const NavigationMeshID meshId, const MNM::TileID tileId)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	
 	const size_t maximumAmountOfSlotsToUpdate = m_processingContextsPool.GetOccupiedSlotsCount();
 	for (size_t i = 0; i < maximumAmountOfSlotsToUpdate; ++i)
 	{
@@ -439,10 +451,10 @@ void CMNMPathfinder::OnNavigationMeshChanged(const NavigationMeshID meshId, cons
 		MNM::PathfinderUtils::ProcessingRequest& processingRequest = processingContext.processingRequest;
 
 		if (!processingRequest.IsValid())
-			return;
+			continue;
 
 		if (processingRequest.meshID != meshId)
-			return;
+			continue;
 
 		if (!processingContext.workingSet.aStarOpenList.TileWasVisited(tileId))
 		{
@@ -463,7 +475,7 @@ void CMNMPathfinder::OnNavigationMeshChanged(const NavigationMeshID meshId, cons
 			}
 
 			if (!neighbourTileWasVisited)
-				return;
+				continue;
 		}
 
 		//////////////////////////////////////////////////////////////////////////
@@ -480,8 +492,10 @@ void CMNMPathfinder::OnNavigationMeshChanged(const NavigationMeshID meshId, cons
 	}
 }
 
-bool CMNMPathfinder::SetupForNextPathRequest(MNM::QueuedPathID requestID, MNM::PathfinderUtils::QueuedRequest& request, MNM::PathfinderUtils::ProcessingContext& processingContext)
+bool CMNMPathfinder::SetupForNextPathRequest(MNM::QueuedPathID requestID, const MNM::PathfinderUtils::QueuedRequest& request, MNM::PathfinderUtils::ProcessingContext& processingContext)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	
 	MNM::PathfinderUtils::ProcessingRequest& processingRequest = processingContext.processingRequest;
 	processingRequest.Reset();
 
@@ -502,64 +516,48 @@ bool CMNMPathfinder::SetupForNextPathRequest(MNM::QueuedPathID requestID, MNM::P
 	const MNM::CNavMesh::SGridParams& gridParams = navMesh.GetGridParams();
 	const MNM::vector3_t origin = MNM::vector3_t(MNM::real_t(gridParams.origin.x), MNM::real_t(gridParams.origin.y), MNM::real_t(gridParams.origin.z));
 
-	const uint16 agentRadiusUnits = gAIEnv.pNavigationSystem->GetAgentRadiusInVoxelUnits(request.agentTypeID);
-	const uint16 agentHeightUnits = gAIEnv.pNavigationSystem->GetAgentHeightInVoxelUnits(request.agentTypeID);
+	AgentType agentTypeProperties;
+	const bool arePropertiesValid = gAIEnv.pNavigationSystem->GetAgentTypeProperties(request.agentTypeID, agentTypeProperties);
+	CRY_ASSERT(arePropertiesValid);
 
 	const MNM::vector3_t startLocation(MNM::real_t(request.requestParams.startLocation.x), MNM::real_t(request.requestParams.startLocation.y),
 	                                   MNM::real_t(request.requestParams.startLocation.z));
 	const MNM::vector3_t endLocation(MNM::real_t(request.requestParams.endLocation.x), MNM::real_t(request.requestParams.endLocation.y),
 	                                 MNM::real_t(request.requestParams.endLocation.z));
-	const Vec3 voxelSize = navMesh.GetGridParams().voxelSize;
-	const MNM::real_t horizontalRange = MNMUtils::CalculateMinHorizontalRange(agentRadiusUnits, voxelSize.x);
-	const MNM::real_t verticalRange = MNMUtils::CalculateMinVerticalRange(agentHeightUnits, voxelSize.z);
 
-	AgentType agentTypeProperties;
-	const bool arePropertiesValid = gAIEnv.pNavigationSystem->GetAgentTypeProperties(request.agentTypeID, agentTypeProperties);
-	assert(arePropertiesValid);
+	const MNM::real_t horizontalRange = MNMUtils::CalculateMinHorizontalRange(agentTypeProperties.settings.agent.radius, gridParams.voxelSize.x);
+	const MNM::real_t verticalDownRange = MNMUtils::CalculateMinVerticalRange(agentTypeProperties.settings.agent.height, gridParams.voxelSize.z);
 	const uint16 zOffsetMultiplier = min(uint16(2), (uint16)agentTypeProperties.settings.agent.height);
-	const MNM::real_t verticalUpwardRange = arePropertiesValid ? MNM::real_t(zOffsetMultiplier * agentTypeProperties.settings.voxelSize.z) : MNM::real_t(.0f);
+	const MNM::real_t verticalUpRange = MNM::real_t(zOffsetMultiplier * gridParams.voxelSize.z);
 
-	Vec3 safeStartLocation(request.requestParams.startLocation);
+	const INavMeshQueryFilter* pFilter = request.pFilter.get();
+	const MNM::aabb_t aroundPositionAABB(MNM::vector3_t(-horizontalRange, -horizontalRange, -verticalDownRange), MNM::vector3_t(horizontalRange, horizontalRange, verticalUpRange));
+
 	MNM::TriangleID triangleStartID;
-	if (!(triangleStartID = navMesh.GetTriangleAt(startLocation - origin, verticalRange, verticalUpwardRange)))
+	MNM::vector3_t snappedPosition;
+	if (!navMesh.SnapPosition(startLocation - origin, aroundPositionAABB, request.requestParams.snappingRules, pFilter, snappedPosition, &triangleStartID))
 	{
-		MNM::vector3_t closest;
-		if (!(triangleStartID = navMesh.GetClosestTriangle(startLocation - origin, verticalRange, horizontalRange, NULL, &closest)))
-		{
-			const IEntity* pEntity = gEnv->pEntitySystem->GetEntity(request.requesterEntityId);
-			AIWarning("Navigation system couldn't find NavMesh triangle at path start point (%.2f, %2f, %2f) for agent '%s'.",
-				request.requestParams.startLocation.x, request.requestParams.startLocation.y, request.requestParams.startLocation.z,
-				pEntity ? pEntity->GetName() : "'missing entity'");
-			return false;
-		}
-		else
-		{
-			safeStartLocation = closest.GetVec3();
-		}
+		const IEntity* pEntity = gEnv->pEntitySystem->GetEntity(request.requesterEntityId);
+		AIWarning("Navigation system couldn't find NavMesh triangle at path start point (%.2f, %2f, %2f) for agent '%s'.",
+			request.requestParams.startLocation.x, request.requestParams.startLocation.y, request.requestParams.startLocation.z,
+			pEntity ? pEntity->GetName() : "'missing entity'");
+		return false;
+	}
+	const Vec3 safeStartLocation = snappedPosition.GetVec3();
+	
+	MNM::TriangleID triangleEndID;
+	if (!navMesh.SnapPosition(endLocation - origin, aroundPositionAABB, request.requestParams.snappingRules, pFilter, snappedPosition, &triangleEndID))
+	{
+		const IEntity* pEntity = gEnv->pEntitySystem->GetEntity(request.requesterEntityId);
+		AIWarning("Navigation system couldn't find NavMesh triangle at path destination point (%.2f, %.2f, %.2f) for agent '%s'.",
+			request.requestParams.endLocation.x, request.requestParams.endLocation.y, request.requestParams.endLocation.z,
+			pEntity ? pEntity->GetName() : "'missing entity'");
+		return false;
 	}
 
-	Vec3 safeEndLocation(request.requestParams.endLocation);
-	MNM::TriangleID triangleEndID = navMesh.GetTriangleAt(endLocation - origin, verticalRange, verticalRange);
-	if (!triangleEndID)
-	{
-		MNM::vector3_t closest;
-		triangleEndID = navMesh.GetClosestTriangle(endLocation - origin, verticalRange, horizontalRange, NULL, &closest);
-		if (triangleEndID)
-		{
-			safeEndLocation = closest.GetVec3();
-		}
-		else
-		{
-			const IEntity* pEntity = gEnv->pEntitySystem->GetEntity(request.requesterEntityId);
-			AIWarning("Navigation system couldn't find NavMesh triangle at path destination point (%.2f, %.2f, %.2f) for agent '%s'.",
-				request.requestParams.endLocation.x, request.requestParams.endLocation.y, request.requestParams.endLocation.z,
-				pEntity ? pEntity->GetName() : "'missing entity'");
-			return false;
-		}
-	}
+	const Vec3 safeEndLocation = snappedPosition.GetVec3();
 
 	// The data for MNM are good until this point so we can set up the path finding
-	processingRequest.requesterEntityId = request.requesterEntityId;
 	processingRequest.meshID = meshID;
 	processingRequest.fromTriangleID = triangleStartID;
 	processingRequest.toTriangleID = triangleEndID;
@@ -577,6 +575,8 @@ bool CMNMPathfinder::SetupForNextPathRequest(MNM::QueuedPathID requestID, MNM::P
 
 void CMNMPathfinder::ProcessPathRequest(MNM::PathfinderUtils::ProcessingContext& processingContext)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	
 	if (processingContext.status != MNM::PathfinderUtils::ProcessingContext::InProgress)
 		return;
 
@@ -592,10 +592,13 @@ void CMNMPathfinder::ProcessPathRequest(MNM::PathfinderUtils::ProcessingContext&
 	assert(offMeshNavigationManager);
 	const MNM::OffMeshNavigation& meshOffMeshNav = offMeshNavigationManager->GetOffMeshNavigationForMesh(processingRequest.meshID);
 
-	MNM::CNavMesh::WayQueryRequest inputParams(processingRequest.requesterEntityId, processingRequest.fromTriangleID,
-	                                           processingRequest.data.requestParams.startLocation - gridParams.origin, processingRequest.toTriangleID,
-	                                           processingRequest.data.requestParams.endLocation - gridParams.origin, meshOffMeshNav, *offMeshNavigationManager,
-	                                           processingRequest.data.GetDangersInfos());
+	MNM::CNavMesh::WayQueryRequest inputParams(
+		processingRequest.data.requesterEntityId, processingRequest.fromTriangleID,
+		processingRequest.data.requestParams.startLocation - gridParams.origin, processingRequest.toTriangleID,
+		processingRequest.data.requestParams.endLocation - gridParams.origin, meshOffMeshNav, *offMeshNavigationManager,
+		processingRequest.data.GetDangersInfos(),
+		processingRequest.data.pFilter.get(),
+		processingRequest.data.requestParams.pCustomPathCostComputer);
 
 	if (navMesh.FindWay(inputParams, processingContext.workingSet, processingContext.queryResult) == MNM::CNavMesh::eWQR_Continuing)
 		return;
@@ -612,6 +615,8 @@ bool CMNMPathfinder::ConstructPathFromFoundWay(
   const Vec3& endLocation,
   CPathHolder<PathPointDescriptor>& outputPath)
 {
+	CRY_PROFILE_FUNCTION(PROFILE_AI);
+	
 	const MNM::WayTriangleData* pWayData = way.GetWayData();
 	const size_t waySize = way.GetWaySize();
 
@@ -686,6 +691,8 @@ void CMNMPathfinder::ConstructPathIfWayWasFound(MNM::PathfinderUtils::Processing
 	if (processingContext.status != MNM::PathfinderUtils::ProcessingContext::FindWayCompleted)
 		return;
 
+	CRY_PROFILE_FUNCTION_ARG(PROFILE_AI, CryStringUtils::toString(static_cast<unsigned>(processingContext.queryResult.GetWaySize())));
+
 	MNM::PathfinderUtils::ProcessingRequest& processingRequest = processingContext.processingRequest;
 
 	const NavigationMesh& mesh = gAIEnv.pNavigationSystem->GetMesh(processingRequest.meshID);
@@ -710,7 +717,7 @@ void CMNMPathfinder::ConstructPathIfWayWasFound(MNM::PathfinderUtils::Processing
 		{
 			if (processingRequest.data.requestParams.beautify && gAIEnv.CVars.BeautifyPath)
 			{
-				outputPath.PullPathOnNavigationMesh(navMesh, gAIEnv.CVars.PathStringPullingIterations);
+				outputPath.PullPathOnNavigationMesh(navMesh, gAIEnv.CVars.PathStringPullingIterations, processingRequest.data.requestParams.pCustomPathCostComputer.get());
 			}
 		}
 	}

@@ -1,4 +1,6 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
+
+//! \cond INTERNAL
 
 #pragma once
 
@@ -275,8 +277,8 @@ struct SAudioTriggerKey : public STrackDurationKey
 
 		if (ar.isInput())
 		{
-			m_startTriggerId = CryAudio::StringToId_RunTime(m_startTriggerName.c_str());
-			m_stopTriggerId = CryAudio::StringToId_RunTime(m_stopTriggerName.c_str());
+			m_startTriggerId = CryAudio::StringToId(m_startTriggerName.c_str());
+			m_stopTriggerId = CryAudio::StringToId(m_stopTriggerName.c_str());
 		}
 	}
 
@@ -358,8 +360,8 @@ struct SAudioSwitchKey : public STrackKey
 
 		if (ar.isInput())
 		{
-			m_audioSwitchId = CryAudio::StringToId_RunTime(m_audioSwitchName.c_str());
-			m_audioSwitchStateId = CryAudio::StringToId_RunTime(m_audioSwitchStateName.c_str());
+			m_audioSwitchId = CryAudio::StringToId(m_audioSwitchName.c_str());
+			m_audioSwitchStateId = CryAudio::StringToId(m_audioSwitchStateName.c_str());
 		}
 
 		m_keyDescription.Format("%s : %s", m_audioSwitchName.c_str(), m_audioSwitchStateName.c_str());
@@ -404,7 +406,7 @@ struct SDynamicResponseSignalKey : public STrackKey
 struct SCharacterKey : public STimeRangeKey
 {
 	SCharacterKey()
-		: m_animDuration(0.0f)
+		: m_defaultAnimDuration(0.0f)
 		, m_bBlendGap(false)
 		, m_bUnload(false)
 		, m_bInPlace(false)
@@ -431,16 +433,39 @@ struct SCharacterKey : public STimeRangeKey
 
 	float GetMaxEndTime() const
 	{
-		if (m_endTime == 0.0f || (!m_bLoop && m_endTime > m_animDuration))
+		if (m_endTime == 0.0f || (!m_bLoop && m_endTime > GetAnimDuration()))
 		{
-			return m_animDuration;
+			return GetAnimDuration();
 		}
 
 		return m_endTime;
 	}
 
+	float GetCroppedAnimDuration() const
+	{
+		if ((m_startTime > 0.0f) && (m_endTime > 0.0f))
+		{
+			return (m_startTime < m_endTime) ? m_endTime - m_startTime : 0.0f;
+		}
+		else if (m_startTime > 0.0f)
+		{
+			return max(0.0f, m_defaultAnimDuration - m_startTime);
+		}
+		else if (m_endTime > 0.0f)
+		{
+			return min(m_defaultAnimDuration, m_endTime);
+		}
+
+		return m_defaultAnimDuration;
+	}
+
+	float GetAnimDuration() const
+	{
+		return m_defaultAnimDuration;
+	}
+
 	char  m_animation[64]; // Name of character animation needed for animation system.
-	float m_animDuration;  // Caches the duration of the referenced animation
+	float m_defaultAnimDuration;  // Caches the duration of the referenced animation
 	bool  m_bBlendGap;     // True if gap to next animation should be blended
 	bool  m_bUnload;       // Unload after sequence is finished
 	bool  m_bInPlace;      // Play animation in place (Do not move root).
@@ -1003,3 +1028,5 @@ inline bool Serialize(Serialization::IArchive& ar, _smart_ptr<IAnimKeyWrapper>& 
 #define SERIALIZATION_ANIM_KEY(type)                     \
   typedef SAnimKeyWrapper<type> SAnimKeyWrapper ## type; \
   REGISTER_IN_INTRUSIVE_FACTORY(IAnimKeyWrapper, SAnimKeyWrapper ## type);
+
+//! \endcond

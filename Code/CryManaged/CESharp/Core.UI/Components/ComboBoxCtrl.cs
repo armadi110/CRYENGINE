@@ -78,18 +78,27 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnAwake()
+		protected override void OnAwake()
 		{
-			_text = (Owner as ComboBox).BgPanel.AddComponent<Text>();
-			_text.Offset = new Point(5, 1);
+			var comboBox = Owner as ComboBox;
+			if(comboBox != null)
+			{
+				_text = comboBox.BgPanel.AddComponent<Text>();
+				_text.Offset = new Point(5, 1);
+			}
 
 			_choiceFrame = SceneObject.Instantiate<UIElement>(Owner);
 			_choiceFrame.RectTransform.Alignment = Alignment.TopHStretch;
 
 			_choiceRoot = SceneObject.Instantiate(null, "ChoiceRoot");
 			var canvas = SceneObject.Instantiate<Canvas>(_choiceRoot);
-			var pc = (Owner as UIElement).FindParentCanvas();
-			canvas.SetupTargetEntity(pc.TargetEntity, pc.TargetTexture);
+
+			var pc = Owner.GetParentWithType<Canvas>();
+			if(pc != null)
+			{	
+				canvas.SetupTargetEntity(pc.TargetEntity, pc.TargetTexture);
+			}
+
 			_choice = SceneObject.Instantiate<Panel>(canvas);
 			_choice.RectTransform.Alignment = Alignment.TopLeft;
 			_choice.Background.Source = ResourceManager.ImageFromFile(Path.Combine(UIElement.DataDirectory, "button.png"));
@@ -104,7 +113,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by framework. Do not call directly.
 		/// </summary>
-		public override void OnDestroy()
+		protected override void OnDestroy()
 		{
 			_choiceRoot.Destroy();
 		}
@@ -112,7 +121,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnEnterFocus()
+		protected override void OnEnterFocus()
 		{
 			
 			OnFocusEnter?.Invoke();
@@ -121,7 +130,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnLeaveFocus()
+		protected override void OnLeaveFocus()
 		{
 			
 			OnFocusLost?.Invoke();
@@ -131,7 +140,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnLeftMouseDown(int x, int y)
+		protected override void OnLeftMouseDown(int x, int y)
 		{
 			if(Items.Count > 0)
 			{
@@ -154,7 +163,7 @@ namespace CryEngine.UI.Components
 		/// <summary>
 		/// Called by Canvas. Do not call directly.
 		/// </summary>
-		public override void OnKey(InputEvent e)
+		protected override void OnKey(InputEvent e)
 		{
 			if(Items.Count > 0)
 			{

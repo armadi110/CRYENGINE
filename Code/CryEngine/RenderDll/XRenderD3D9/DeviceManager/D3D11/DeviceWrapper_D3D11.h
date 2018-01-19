@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 #if !defined(CRY_DEVICE_WRAPPER_H_)
@@ -25,7 +25,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////
 // convience macro for all device wrapper function
-#define CRY_DEVICE_WRAPPER_PROFILE() FRAME_PROFILER(__FUNC__, gEnv->pSystem, PROFILE_DEVICE)
+#define CRY_DEVICE_WRAPPER_PROFILE() CRY_PROFILE_FUNCTION(PROFILE_DEVICE)
 
 struct SRenderStatePassD3D;
 struct CRenderObjectD3D;

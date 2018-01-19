@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     06/04/2014 by Filipe amim
@@ -6,9 +6,6 @@
 // -------------------------------------------------------------------------
 //
 ////////////////////////////////////////////////////////////////////////////
-
-#ifndef PARTICLEEFFECT_H
-#define PARTICLEEFFECT_H
 
 #pragma once
 
@@ -41,6 +38,7 @@ public:
 	virtual void                   RemoveComponent(uint componentIdx) override;
 	virtual void                   SetChanged() override;
 	virtual Serialization::SStruct GetEffectOptionsSerializer() const override;
+	virtual TParticleAttributesPtr CreateAttributesInstance() const override;
 	// ~pfx2 IParticleEffect
 
 	// pfx1 IParticleEffect
@@ -65,10 +63,9 @@ public:
 	virtual void                  UnloadResources() override                                         {}
 	virtual void                  Serialize(XmlNodeRef node, bool bLoading, bool bChildren) override {}
 	virtual void                  Reload(bool bChildren) override                                    {}
-	virtual IParticleAttributes&  GetAttributes() override                                           { return m_attributeInstance; }
 	virtual bool                  IsSubstitutedPfx1() const override                                 { return m_substitutedPfx1; }
 	virtual void                  SetSubstitutedPfx1(bool b) override                                { m_substitutedPfx1 = b; }
-	// ~pfx1 IParticleEmitter
+	// pfx1 IParticleEffect
 
 	void                      Compile();
 	TComponents&              GetComponents()                                               { return m_components; }
@@ -79,14 +76,26 @@ public:
 	uint                      AddRenderObjectId();
 	uint                      GetNumRenderObjectIds() const;
 	float                     GetEquilibriumTime() const;
+	uint                      GetEnvironFlags() const                                       { return m_environFlags; }
+	void                      AddEnvironFlags(uint flags)                                   { m_environFlags |= flags; }
+	string                    GetShortName() const;
 	int                       GetEditVersion() const;
+
+	// Consolidated list of MainPreUpdate features, called per emitter
+	struct ComponentFeature
+	{
+		CParticleComponent* pComponent;
+		CParticleFeature*   pFeature;
+	};
+	using TComponentFeatures = std::vector<ComponentFeature>;
+	TComponentFeatures MainPreUpdate;
 
 private:
 	string             m_name;
 	TAttributeTablePtr m_pAttributes;
-	CAttributeInstance m_attributeInstance;
 	TComponents        m_components;
 	uint               m_numRenderObjects;
+	uint               m_environFlags;
 	int                m_editVersion;
 	bool               m_dirty;
 	bool               m_substitutedPfx1;
@@ -95,5 +104,3 @@ private:
 };
 
 }
-
-#endif // PARTICLEEFFECT_H

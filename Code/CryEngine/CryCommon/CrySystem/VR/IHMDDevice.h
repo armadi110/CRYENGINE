@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -192,6 +192,7 @@ protected:
 	virtual ~IHmdController() {}
 };
 
+//! Represents a head-mounted device (Virtual Reality) connected to the system
 struct IHmdDevice
 {
 	enum EInternalUpdate
@@ -244,7 +245,7 @@ struct IHmdDevice
 	virtual void DisableHMDTracking(bool disable) = 0;
 
 	// Assign a game side callback to be called asynchronously from any thread to update camera matrix
-	virtual void SetAsynCameraCallback(IAsyncCameraCallback* pCallback) {};
+	virtual void SetAsyncCameraCallback(IAsyncCameraCallback* pCallback) {};
 	// Can be called from any thread to retrieve most up to date camera transformation
 	virtual bool RequestAsyncCameraUpdate(AsyncCameraContext& context)  { return false; };
 protected:

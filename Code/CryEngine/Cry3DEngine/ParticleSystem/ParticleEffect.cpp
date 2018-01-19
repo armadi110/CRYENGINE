@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     23/09/2014 by Filipe amim
@@ -8,15 +8,12 @@
 ////////////////////////////////////////////////////////////////////////////
 
 #include "StdAfx.h"
+#include "ParticleEffect.h"
+#include "ParticleSystem.h"
 #include <CrySerialization/STL.h>
 #include <CrySerialization/IArchive.h>
 #include <CrySerialization/SmartPtr.h>
 #include <CryParticleSystem/ParticleParams.h>
-#include "ParticleEffect.h"
-#include "ParticleEmitter.h"
-#include "ParticleFeature.h"
-
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -40,18 +37,17 @@ cstr CParticleEffect::GetName() const
 
 void CParticleEffect::Compile()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PFX2_PROFILE_DETAIL;
 
 	if (!m_dirty)
 		return;
 
 	m_numRenderObjects = 0;
-	m_attributeInstance.Reset(m_pAttributes, EAttributeScope::PerEffect);
+	m_environFlags = 0;
 	for (auto& component : m_components)
 	{
 		component->m_pEffect = this;
 		component->SetChanged();
-		component->m_componentParams.Reset();
 		component->PreCompile();
 	}
 	for (auto& component : m_components)
@@ -60,10 +56,13 @@ void CParticleEffect::Compile()
 	Sort();
 
 	uint id = 0;
+	MainPreUpdate.clear();
 	for (auto& component : m_components)
 	{
-		component->Compile();
 		component->m_componentId = id++;
+		component->Compile();
+		for (auto feature : component->MainPreUpdate)
+			MainPreUpdate.push_back( {component, feature} );
 	}
 	for (auto& component : m_components)
 		component->FinalizeCompile();
@@ -94,12 +93,12 @@ void CParticleEffect::Sort()
 	};
 
 	SortedComponents sortedComponents(m_components);
-	m_components = sortedComponents;
+	std::swap(m_components, sortedComponents);
 }
 
 CParticleComponent* CParticleEffect::FindComponentByName(const char* name) const
 {
-	for (auto pComponent : m_components)
+	for (const auto& pComponent : m_components)
 	{
 		if (pComponent->m_name == name)
 			return pComponent;
@@ -146,7 +145,7 @@ uint CParticleEffect::GetNumRenderObjectIds() const
 float CParticleEffect::GetEquilibriumTime() const
 {
 	float maxEqTime = 0.0f;
-	for (auto pComponent : m_components)
+	for (const auto& pComponent : m_components)
 	{
 		// Iterate top-level components
 		auto const& params = pComponent->GetComponentParams();
@@ -159,10 +158,20 @@ float CParticleEffect::GetEquilibriumTime() const
 	return maxEqTime;
 }
 
+string CParticleEffect::GetShortName() const
+{
+	string name = m_name;
+	if (name.Right(4).MakeLower() == ".pfx")
+		name.resize(name.length() - 4);
+	if (name.Left(10).MakeLower() == "particles/")
+		name.erase(0, 10);
+	return name;
+}
+
 int CParticleEffect::GetEditVersion() const
 {
 	int version = m_editVersion + m_components.size();
-	for (auto pComponent : m_components)
+	for (const auto& pComponent : m_components)
 	{
 		const SComponentParams& params = pComponent->GetComponentParams();
 		const CMatInfo* pMatInfo = (CMatInfo*)params.m_pMaterial.get();
@@ -200,6 +209,7 @@ void CParticleEffect::Serialize(Serialization::IArchive& ar)
 	{
 		if (ar.isInput() && !ar.isEdit())
 			m_components.clear();
+		Serialization::SContext effectContext(ar, this);
 		ar(m_components, "Components", "+Components");
 	}
 
@@ -216,7 +226,7 @@ void CParticleEffect::Serialize(Serialization::IArchive& ar)
 
 IParticleEmitter* CParticleEffect::Spawn(const ParticleLoc& loc, const SpawnParams* pSpawnParams)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PFX2_PROFILE_DETAIL;
 
 	PParticleEmitter pEmitter = GetPSystem()->CreateEmitter(this);
 	CParticleEmitter* pCEmitter = static_cast<CParticleEmitter*>(pEmitter.get());
@@ -254,6 +264,11 @@ void CParticleEffect::SetChanged()
 Serialization::SStruct CParticleEffect::GetEffectOptionsSerializer() const
 {
 	return Serialization::SStruct(*m_pAttributes);
+}
+
+TParticleAttributesPtr CParticleEffect::CreateAttributesInstance() const
+{
+	return TParticleAttributesPtr(new CAttributeInstance(m_pAttributes));
 }
 
 const ParticleParams& CParticleEffect::GetDefaultParams() const

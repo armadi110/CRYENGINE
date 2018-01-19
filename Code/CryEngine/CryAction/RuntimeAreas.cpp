@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "RuntimeAreas.h"
@@ -87,14 +87,14 @@ void CRuntimeAreaManager::FillAudioControls()
 
 						if ((szTriggerName != nullptr) && (szTriggerName[0] != '\0'))
 						{
-							triggerId = CryAudio::StringToId_RunTime(szTriggerName);
+							triggerId = CryAudio::StringToId(szTriggerName);
 						}
 
 						char const* const szParameterName = pAudioNode->getAttr(SXMLTags::sATLRtpcAttribute);
 
 						if ((szParameterName != nullptr) && (szParameterName[0] != '\0'))
 						{
-							parameterId = CryAudio::StringToId_RunTime(szParameterName);
+							parameterId = CryAudio::StringToId(szParameterName);
 						}
 
 						if ((triggerId != CryAudio::InvalidControlId) && (parameterId != CryAudio::InvalidControlId))
@@ -166,7 +166,7 @@ void CRuntimeAreaManager::CreateAreas()
 					  cluster.boundary_points[j].y,
 					  areaSpawnParams.vPosition.z) - areaSpawnParams.vPosition;
 
-				pAreaProxy->SetPoints(&points[0], &abObstructSound[0], points.size(), cluster.extents.GetSize().z);
+				pAreaProxy->SetPoints(&points[0], &abObstructSound[0], points.size(), true, cluster.extents.GetSize().z);
 				pAreaProxy->SetID(11001100 + i);
 				pAreaProxy->SetPriority(100);
 				pAreaProxy->SetGroup(110011);

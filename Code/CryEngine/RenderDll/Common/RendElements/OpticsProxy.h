@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -47,6 +47,8 @@ public:
 #if defined(FLARES_SUPPORT_EDITING)
 	DynArray<FuncVariableGroup> GetEditorParamGroups();
 #endif
+
+	void                DeleteThis() override;
 
 public:
 

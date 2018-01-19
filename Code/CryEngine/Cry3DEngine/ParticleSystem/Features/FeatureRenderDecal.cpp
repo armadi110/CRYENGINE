@@ -1,10 +1,8 @@
-// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "ParticleSystem/ParticleRender.h"
 #include "ParticleSystem/ParticleEmitter.h"
-
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -24,7 +22,7 @@ public:
 
 	virtual void AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override;
 	virtual void Serialize(Serialization::IArchive& ar) override;
-	virtual void Render(CParticleEmitter* pEmitter, IParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext) override;
+	virtual void RenderDeferred(CParticleEmitter* pEmitter, CParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext) override;
 
 private:
 	SFloat m_thickness;
@@ -35,7 +33,7 @@ CRY_PFX2_IMPLEMENT_FEATURE(CParticleFeature, CFeatureRenderDecals, "Render", "De
 
 void CFeatureRenderDecals::AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams)
 {
-	pComponent->AddToUpdateList(EUL_RenderDeferred, this);
+	pComponent->RenderDeferred.add(this);
 	pComponent->AddParticleData(EPQF_Orientation);
 }
 
@@ -105,7 +103,7 @@ struct SDecalTiler
 	const bool hasAnimation;
 };
 
-void CFeatureRenderDecals::Render(CParticleEmitter* pEmitter, IParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext)
+void CFeatureRenderDecals::RenderDeferred(CParticleEmitter* pEmitter, CParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext)
 {
 	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
@@ -142,9 +140,12 @@ void CFeatureRenderDecals::Render(CParticleEmitter* pEmitter, IParticleComponent
 		if (!(state & ESB_Alive))
 			continue;
 
+		const float size = sizes.Load(particleId);
+		if (size <= 0.0f)
+			continue;
+
 		const Vec3 position = positions.Load(particleId);
 		const Quat orientation = orientations.Load(particleId);
-		const float size = sizes.Load(particleId);
 
 		Vec3 texBlend;
 		decalTiler.GetTextureRect(decal.rectTexture, texBlend, particleId);

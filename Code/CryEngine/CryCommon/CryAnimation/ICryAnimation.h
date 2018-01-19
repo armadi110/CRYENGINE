@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #pragma once
 
@@ -96,7 +96,6 @@ struct CryCharMorphParams;
 struct IMaterial;
 struct IStatObj;
 struct IRenderMesh;
-class CDLight;
 
 class CDefaultSkeleton;
 
@@ -136,7 +135,7 @@ class CLodValue;
 struct IAnimationSerializable :
 	public ICryUnknown
 {
-	CRYINTERFACE_DECLARE(IAnimationSerializable, 0x69b4f3ae61974bee, 0xba70d361b7975e69);
+	CRYINTERFACE_DECLARE_GUID(IAnimationSerializable, "69b4f3ae-6197-4bee-ba70-d361b7975e69"_cry_guid);
 
 	virtual void Serialize(Serialization::IArchive& ar) = 0;
 };
@@ -145,7 +144,7 @@ DECLARE_SHARED_POINTERS(IAnimationSerializable);
 
 struct IAnimationEngineModule : public Cry::IDefaultModule
 {
-	CRYINTERFACE_DECLARE(IAnimationEngineModule, 0xEA8FAA6F4EC948FB, 0x935DB54C09823B86);
+	CRYINTERFACE_DECLARE_GUID(IAnimationEngineModule, "ea8faa6f-4ec9-48fb-935d-b54c09823b86"_cry_guid);
 };
 
 //! This class is the main access point for any character animation required for a program which uses CRYENGINE.
@@ -328,6 +327,7 @@ struct ICharacterManager
 #endif
 };
 
+//! \cond INTERNAL
 //! This struct defines the interface for a class that listens to AnimLoaded, AnimUnloaded and AnimReloaded events
 struct IAnimationStreamingListener
 {
@@ -344,6 +344,7 @@ struct IAnimationStreamingListener
 	virtual void NotifyAnimReloaded(const int32 globalID) = 0;
 	// </interfuscator:shuffle>
 };
+//! \endcond
 
 struct SJointProperty
 {
@@ -369,6 +370,7 @@ struct SBoneShadowCapsule
 //////////////////////////////////////////////////////////////////////////
 typedef unsigned int LimbIKDefinitionHandle;
 
+//! Represents the skeleton tied to a character, and all the default properties it contains.
 struct IDefaultSkeleton
 {
 	// <interfuscator:shuffle>
@@ -400,6 +402,7 @@ struct IDefaultSkeleton
 	// All render-meshes will be removed from the CDefaultSkeleton-class.
 	// The following functions will become deprecated.
 	virtual const phys_geometry* GetJointPhysGeom(uint32 jointIndex) const = 0;                 //!< just for statistics of physics proxies.
+	virtual CryBonePhysics*      GetJointPhysInfo(uint32 jointIndex) = 0;
 	virtual int32                GetLimbDefinitionIdx(LimbIKDefinitionHandle handle) const = 0;
 	virtual void                 PrecacheMesh(bool bFullUpdate, int nRoundId, int nLod) = 0;
 	virtual IRenderMesh*         GetIRenderMesh() const = 0;
@@ -415,6 +418,7 @@ struct IDefaultSkeleton
 };
 
 //////////////////////////////////////////////////////////////////////////
+//! Represents a .skin mesh type
 struct ISkin
 {
 	// <interfuscator:shuffle>
@@ -515,11 +519,7 @@ struct ICharacterInstance : IMeshObj
 
 	//! Draw the character using specified rendering parameters.
 	//! \param RendParams Rendering parameters.
-	virtual void Render(const SRendParams& RendParams, const QuatTS& Offset, const SRenderingPassInfo& passInfo) = 0;
-	virtual void Render(const SRendParams& RendParams, const SRenderingPassInfo& passInfo) override
-	{
-		Render(RendParams, QuatTS(IDENTITY), passInfo);
-	}
+	virtual void Render(const SRendParams& RendParams, const SRenderingPassInfo& passInfo) = 0;
 
 	//! Set rendering flags defined in ECharRenderFlags for this character instance
 	//! \param nFlags Rendering flags
@@ -619,6 +619,7 @@ struct ICharacterInstance : IMeshObj
 #define SKELETON_ANIMATION_LAYER_COUNT 32
 #endif
 
+//! Main interface to handle low-level animation processing on a character instance
 struct ISkeletonAnim
 {
 	// <interfuscator:shuffle>
@@ -722,6 +723,7 @@ struct ISkeletonAnim
 
 struct IAnimationPoseBlenderDir;
 
+//! Interface for maintaining the physical state of a character's skeleton, for example to generate physical parts for each joint
 struct ISkeletonPhysics
 {
 	// <interfuscator:shuffle>
@@ -759,6 +761,7 @@ struct ISkeletonPhysics
 	// </interfuscator:shuffle>
 };
 
+//! Represents the current pose of a character instance, allowing retrieval of the latest animation pose.
 struct ISkeletonPose : public ISkeletonPhysics
 {
 	static const int32 kForceSkeletonUpdatesInfinitely = 0x8000;
@@ -833,6 +836,7 @@ struct ISkeletonPose : public ISkeletonPhysics
 	// </interfuscator:shuffle>
 };
 
+//! \cond INTERNAL
 //! Holds description of a set of animations.
 //! This interface holds a set of animations in which each animation is described as properties.
 struct IAnimationSet
@@ -933,6 +937,7 @@ struct IAnimationSet
 
 	// </interfuscator:shuffle>
 };
+//! \endcond
 
 struct IAnimationSetListener
 {
@@ -1059,6 +1064,7 @@ private:
 	#define ANIMATION_LIGHT_SYNC_PROFILER()
 #endif
 
+//! \cond INTERNAL
 //! Utility class to automatically start loading & lock a CAF file.
 //! Either it is 'empty' or it holds a reference to a CAF file.
 //! It asserts gEnv->pCharacterManager exists when it isn't empty.
@@ -1147,6 +1153,7 @@ private:
 
 	uint32 m_filePathCRC;
 };
+//! \endcond
 
 inline void ICharacterInstance::SpawnSkeletonEffect(int animID, const char* animName, const char* effectName, const char* boneName, const Vec3& offset, const Vec3& dir, const QuatTS& entityLoc)
 {

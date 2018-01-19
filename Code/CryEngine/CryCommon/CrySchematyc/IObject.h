@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // #SchematycTODO : Move IObjectDump to separate header?
 
@@ -151,6 +151,7 @@ struct IObject
 
 	virtual ObjectId                      GetId() const = 0;
 	virtual const IRuntimeClass&          GetClass() const = 0;
+	virtual const char*                   GetScriptFile() const = 0;
 	virtual void*                         GetCustomData() const = 0;
 	virtual ESimulationMode               GetSimulationMode() const = 0;
 

@@ -71,7 +71,6 @@ add_sources("CryLobby_uber_0.cpp"
 		"CryFriendsManagement.cpp"
 		"CryHostMigration.cpp"
 		"CryLobby.cpp"
-		"CryLobbyDLL.cpp"
 		"CryLobbyUI.cpp"
 		"CryMatchMaking.cpp"
 		"CryReward.cpp"
@@ -127,7 +126,7 @@ elseif(WIN32)
 endif()
 mark_as_advanced(FORCE SPEEX)
 
-if (OPTION_STEAM)
+if (EXISTS "${SDK_DIR}/Steamworks" AND WIN32)
 	target_link_libraries(${THIS_PROJECT} PRIVATE Steamworks)
 endif()
 

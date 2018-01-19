@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   ParticleEmitter.h
@@ -61,6 +61,7 @@ public:
 	}
 	ILINE float              GetViewDistRatioFloat() const { return m_fViewDistRatio; }
 	virtual float            GetMaxViewDist();
+	virtual void             UpdateStreamingPriority(const SUpdateStreamingPriorityContext& context);
 
 	virtual void             SetMatrix(Matrix34 const& mat)    { if (mat.IsValid()) SetLocation(QuatTS(mat)); }
 
@@ -103,7 +104,6 @@ public:
 	const SpawnParams&           GetSpawnParams() const                { return m_SpawnParams; }
 
 	virtual bool                 IsAlive() const;
-	virtual bool                 IsInstant() const;
 	virtual void                 Activate(bool bActive);
 	virtual void                 Kill();
 	virtual void                 Restart();
@@ -113,7 +113,6 @@ public:
 	virtual void                 SetEntity(IEntity* pEntity, int nSlot);
 	virtual void                 InvalidateCachedEntityData() final;
 	virtual void                 OffsetPosition(const Vec3& delta);
-	virtual bool                 UpdateStreamableComponents(float fImportance, const Matrix34A& objMatrix, IRenderNode* pRenderNode, float fEntDistance, bool bFullUpdate, int nLod);
 	virtual EntityId             GetAttachedEntityId();
 	virtual int                  GetAttachedEntitySlot()
 	{ return m_nEntitySlot; }
@@ -211,11 +210,14 @@ public:
 
 	void GetCounts(SParticleCounts& counts, bool bClear = false) const
 	{
-		FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+		CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
-		counts.emitters.alive += 1.f;
+		counts.emitters.alloc += 1.f;
 		if (IsActive())
+		{
+			counts.emitters.alive += 1.f;
 			counts.emitters.updated += 1.f;
+		}
 		if (TimeNotRendered() == 0.f)
 			counts.emitters.rendered += 1.f;
 
@@ -267,7 +269,6 @@ public:
 		m_Containers.clear();
 
 		// Release and remove external geom refs.
-		GeomRef::Release();
 		GeomRef::operator=(GeomRef());
 	}
 

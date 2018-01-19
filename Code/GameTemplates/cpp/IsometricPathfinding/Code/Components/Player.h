@@ -24,8 +24,14 @@ public:
 	virtual void Initialize() override;
 
 	virtual uint64 GetEventMask() const override;
-	virtual void ProcessEvent(SEntityEvent& event) override;
+	virtual void ProcessEvent(const SEntityEvent& event) override;
 	// ~IEntityComponent
+
+	// Reflect type to set a unique identifier for this component
+	static void ReflectType(Schematyc::CTypeDesc<CPlayerComponent>& desc)
+	{
+		desc.SetGUID("{63F4C0C6-32AF-4ACB-8FB0-57D45DD14725}"_cry_guid);
+	}
 
 	void Revive();
 
@@ -46,7 +52,6 @@ protected:
 	Cry::DefaultComponents::CInputComponent* m_pInputComponent = nullptr;
 	Cry::DefaultComponents::CPathfindingComponent* m_pPathfindingComponent = nullptr;
 
-	TagID m_rotateTagId;
 	TagID m_walkTagId;
 
 	IEntity* m_pCursorEntity = nullptr;

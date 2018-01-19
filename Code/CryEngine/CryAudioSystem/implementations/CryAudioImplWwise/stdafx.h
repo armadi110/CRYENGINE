@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -8,12 +8,19 @@
 #include <CryCore/StlUtils.h>
 #include <CryCore/Project/ProjectDefines.h>
 #include <CryString/CryPath.h> // need to include before AK includes windows.h
-#include <AudioLogger.h>
 
 #if CRY_PLATFORM_DURANGO
 	#define PROVIDE_WWISE_IMPL_SECONDARY_POOL
 // Memory Allocation
 	#include <CryMemory/CryPool/PoolAlloc.h>
+#endif
+
+#if !defined(_RELEASE)
+	#define INCLUDE_WWISE_IMPL_PRODUCTION_CODE
+#endif // _RELEASE
+
+#if CRY_PLATFORM_DURANGO
+	#define PROVIDE_WWISE_IMPL_SECONDARY_POOL
 #endif
 
 namespace CryAudio
@@ -22,17 +29,6 @@ namespace Impl
 {
 namespace Wwise
 {
-extern CryAudio::CLogger g_implLogger;
-
-#if !defined(_RELEASE)
-	#define INCLUDE_WWISE_IMPL_PRODUCTION_CODE
-	#define ENABLE_AUDIO_LOGGING
-#endif // _RELEASE
-
-#if CRY_PLATFORM_DURANGO
-	#define PROVIDE_WWISE_IMPL_SECONDARY_POOL
-#endif
-
 // Memory Allocation
 #if defined(PROVIDE_WWISE_IMPL_SECONDARY_POOL)
 typedef NCryPoolAlloc::CThreadSafe<NCryPoolAlloc::CBestFit<NCryPoolAlloc::CReferenced<NCryPoolAlloc::CMemoryDynamic, 4* 1024, true>, NCryPoolAlloc::CListItemReference>> MemoryPoolReferenced;

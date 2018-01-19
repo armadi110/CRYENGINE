@@ -121,47 +121,73 @@ namespace UQS
 
 		//===================================================================================
 		//
-		// specializations for CQueryFactory<>::GetShuttleTypeFromPrecedingSibling()
+		// specializations for CQueryFactory<>::GetShuttleTypeFromPrecedingQuery()
 		//
 		//===================================================================================
 
 		// specialization for CQuery_Regular: according to how GetTypeOfShuttledItemsToExpect() works, this method should never get called at all
 		template <>
-		const Shared::CTypeInfo* CQueryFactory<CQuery_Regular>::GetShuttleTypeFromPrecedingSibling(const CQueryBlueprint& childQueryBlueprint) const
+		const Shared::CTypeInfo* CQueryFactory<CQuery_Regular>::GetShuttleTypeFromPrecedingQuery(const CQueryBlueprint& childQueryBlueprint) const
 		{
 			assert(0);  // we should never get called
 			return nullptr;
 		}
 
-		// specialization for CQuery_Chained: given the child's query blueprint, this method will inspect its sibling for the type of potentially shuttled items
+		// specialization for CQuery_Chained:
+		// - given the child's query blueprint, this method will inspect its sibling for the type of potentially shuttled items
+		// - if the given child happens to be the first one, then the parent query blueprint will be asked about the shuttle type
 		template <>
-		const Shared::CTypeInfo* CQueryFactory<CQuery_Chained>::GetShuttleTypeFromPrecedingSibling(const CQueryBlueprint& childQueryBlueprint) const
+		const Shared::CTypeInfo* CQueryFactory<CQuery_Chained>::GetShuttleTypeFromPrecedingQuery(const CQueryBlueprint& childQueryBlueprint) const
 		{
-			const CQueryBlueprint* pParentQueryBlueprint = childQueryBlueprint.GetParent();
-			assert(pParentQueryBlueprint);
+			const CQueryBlueprint* pQueryBlueprintOfMyself = childQueryBlueprint.GetParent();
+			assert(pQueryBlueprintOfMyself);
+			assert(&pQueryBlueprintOfMyself->GetQueryFactory() == this);
 
-			int childIndex = pParentQueryBlueprint->GetChildIndex(&childQueryBlueprint);
+			int childIndex = pQueryBlueprintOfMyself->GetChildIndex(&childQueryBlueprint);
 			assert(childIndex != -1);
 
-			// if given child query blueprint is the first in the chain, then there cannot be a shuttle type (because there is no preceding query that could have generated items)
+			// If the given query blueprint is the first in the chain, then there is no preceding sibling from which the shuttled items can come, but: 
+			// they could then come from the potential parent (this is how CQuery_Fallbacks and CQuery_Chained handle propagation of their children's result set)
 			if (childIndex == 0)
 			{
-				// first in the chain => no shuttle type possible
-				return nullptr;
+				// first in the chain => there's no preceding sibling, but the shuttle type could come from the potential parent
+				if (const CQueryBlueprint* pParentQueryBlueprint = pQueryBlueprintOfMyself->GetParent())
+				{
+					const CQueryFactoryBase& parentQueryFactory = pParentQueryBlueprint->GetQueryFactory();
+					return parentQueryFactory.GetShuttleTypeFromPrecedingQuery(*pQueryBlueprintOfMyself);
+				}
+				else
+				{
+					return nullptr;
+				}
 			}
 			else
 			{
 				// the preceding one dictates the shuttle type
-				const CQueryBlueprint* pPrecedingQueryBlueprint = pParentQueryBlueprint->GetChild((size_t)childIndex - 1).get();
+				const CQueryBlueprint* pPrecedingQueryBlueprint = pQueryBlueprintOfMyself->GetChild((size_t)childIndex - 1).get();
 				return &pPrecedingQueryBlueprint->GetOutputType();
 			}
 		}
 
-		// specialization for CQuery_Fallbacks: fallback-queries never propagate the resulting items from one child to the next
+		// specialization for CQuery_Fallbacks:
+		// - fallback-queries don't propagate the resulting items from one *child* to its next sibling, but rather propagate
+		//   the shuttled items the *query* received among all children
 		template <>
-		const Shared::CTypeInfo* CQueryFactory<CQuery_Fallbacks>::GetShuttleTypeFromPrecedingSibling(const CQueryBlueprint& childQueryBlueprint) const
+		const Shared::CTypeInfo* CQueryFactory<CQuery_Fallbacks>::GetShuttleTypeFromPrecedingQuery(const CQueryBlueprint& childQueryBlueprint) const
 		{
-			return nullptr;
+			const CQueryBlueprint* pQueryBlueprintOfMyself = childQueryBlueprint.GetParent();
+			assert(pQueryBlueprintOfMyself);
+			assert(&pQueryBlueprintOfMyself->GetQueryFactory() == this);
+
+			if (const CQueryBlueprint* pParentQueryBlueprint = pQueryBlueprintOfMyself->GetParent())
+			{
+				const CQueryFactoryBase& parentQueryFactory = pParentQueryBlueprint->GetQueryFactory();
+				return parentQueryFactory.GetShuttleTypeFromPrecedingQuery(*pQueryBlueprintOfMyself);
+			}
+			else
+			{
+				return nullptr;
+			}
 		}
 
 		//===================================================================================
@@ -233,7 +259,7 @@ namespace UQS
 
 			const CQueryFactoryBase& parentQueryFactory = pParentQueryBlueprint->GetQueryFactory();
 
-			return parentQueryFactory.GetShuttleTypeFromPrecedingSibling(queryBlueprintAskingForThis);
+			return parentQueryFactory.GetShuttleTypeFromPrecedingQuery(queryBlueprintAskingForThis);
 		}
 
 		void CQueryFactoryBase::InstantiateFactories()
@@ -258,9 +284,9 @@ namespace UQS
 				"All child queries must return the same item type.\n"
 				"Needs at least 1 child query.";
 
-			static const CQueryFactory<CQuery_Regular> queryFactory_regular("Regular", "166b3a88-3cf3-45ea-bb4c-3eb6cb11d6de"_uqs_guid, szDescription_regular, true, true, true, 0, 0);
-			static const CQueryFactory<CQuery_Chained> queryFactory_chained("Chained", "89b926fb-a825-4de0-8817-ecef882efc0d"_uqs_guid, szDescription_chained, false, false, false, 1, IQueryFactory::kUnlimitedChildren);
-			static const CQueryFactory<CQuery_Fallbacks> queryFactory_fallbacks("Fallbacks", "a5ac314b-29a0-4bd0-82b6-c8ae3752371b"_uqs_guid, szDescription_fallbacks, false, false, false, 1, IQueryFactory::kUnlimitedChildren);
+			static const CQueryFactory<CQuery_Regular> queryFactory_regular("Regular", "166b3a88-3cf3-45ea-bb4c-3eb6cb11d6de"_cry_guid, szDescription_regular, true, true, true, 0, 0);
+			static const CQueryFactory<CQuery_Chained> queryFactory_chained("Chained", "89b926fb-a825-4de0-8817-ecef882efc0d"_cry_guid, szDescription_chained, false, false, false, 1, IQueryFactory::kUnlimitedChildren);
+			static const CQueryFactory<CQuery_Fallbacks> queryFactory_fallbacks("Fallbacks", "a5ac314b-29a0-4bd0-82b6-c8ae3752371b"_cry_guid, szDescription_fallbacks, false, false, false, 1, IQueryFactory::kUnlimitedChildren);
 
 			s_pDefaultQueryFactory = &queryFactory_regular;
 		}

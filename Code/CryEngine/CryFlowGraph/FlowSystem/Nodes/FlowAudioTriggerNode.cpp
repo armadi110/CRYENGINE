@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CryFlowGraph/IFlowBaseNode.h>
@@ -199,7 +199,7 @@ private:
 
 		if (!triggerName.empty())
 		{
-			outTriggerId = CryAudio::StringToId_RunTime(triggerName.c_str());
+			outTriggerId = CryAudio::StringToId(triggerName.c_str());
 		}
 	}
 

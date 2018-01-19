@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include "XInputDevice.h"
@@ -92,7 +92,7 @@ public:
 					g_bConnected[i] = r == ERROR_SUCCESS;
 				}
 			}
-			Sleep(1000);
+			CrySleep(1000);
 		}
 	}
 };
@@ -224,7 +224,7 @@ void FixDeadzone(Vec2& d)
 
 void CXInputDevice::Update(bool bFocus)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_INPUT);
+	CRY_PROFILE_FUNCTION(PROFILE_INPUT);
 
 	DEBUG_CONTROLLER_RENDER_BUTTON_ACTION;
 

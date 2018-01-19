@@ -7,6 +7,7 @@ class CManagedEntityComponent final : public IEntityComponent
 {
 public:
 	CManagedEntityComponent(const CManagedEntityComponentFactory& factory);
+	CManagedEntityComponent(CManagedEntityComponent&& other);
 
 	virtual ~CManagedEntityComponent() {}
 
@@ -14,16 +15,18 @@ public:
 	virtual void PreInit(const SInitParams& params) override;
 	virtual void Initialize() override;
 
-	virtual	void ProcessEvent(SEntityEvent &event) override;
+	virtual	void ProcessEvent(const SEntityEvent &event) override;
 	virtual uint64 GetEventMask() const override { return m_factory.m_eventMask; }
 	// ~IEntityComponent
 
-	CMonoObject* GetObject() const { return m_pMonoObject.get(); }
+	std::shared_ptr<CMonoObject> GetObject() const { return m_pMonoObject; }
 	const CManagedEntityComponentFactory& GetManagedFactory() const { return m_factory; }
 
 	void SendSignal(int signalId, MonoInternals::MonoArray* pParams);
+	uint16 GetPropertyCount() const { return m_numProperties; }
 
 protected:
 	const CManagedEntityComponentFactory& m_factory;
 	std::shared_ptr<CMonoObject> m_pMonoObject;
+	uint16 m_numProperties;
 };

@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 //
 //	File:CryPak.h
@@ -74,9 +74,9 @@ struct CCachedFileData : public _i_reference_target_t
 		pSizer->AddObject(m_pFileEntry);
 	}
 
-	// need to overload addref and release to prevent a race condition in
-	virtual void AddRef();
-	virtual void Release();
+	// override addref and release to prevent a race condition
+	virtual void AddRef() const override;
+	virtual void Release() const override;
 
 public:
 	void* m_pFileData;
@@ -305,8 +305,8 @@ private:
 
 	bool   m_bInstalledToHDD;
 
-	char m_szEngineRootDir[_MAX_PATH];
-	uint m_szEngineRootDirStrLen;
+	char m_szEngineRootDir[_MAX_PATH] = {};
+	size_t m_szEngineRootDirStrLen = 0;
 
 	// this is the list of MOD subdirectories that will be prepended to the actual relative file path
 	// they all have trailing forward slash. "" means the root dir
@@ -383,7 +383,7 @@ public:
 	static char* BeautifyPath(char* dst, bool bMakeLowercase);
 	static void  RemoveRelativeParts(char* dst);
 
-	CCryPak(IMiniLog* pLog, PakVars* pPakVars, const bool bLvlRes, const IGameStartup* pGameStartup);
+	CCryPak(IMiniLog* pLog, PakVars* pPakVars, const bool bLvlRes);
 	~CCryPak();
 
 	const PakVars* GetPakVars() const { return m_pPakVars; }
@@ -394,6 +394,8 @@ public:
 		m_pAssetManager = mgr;
 	}
 #endif
+
+	void SetDecryptionKey(const uint8* pKeyData, uint32 keyLength);
 
 public: // ---------------------------------------------------------------------------------------
 

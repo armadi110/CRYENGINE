@@ -2,9 +2,9 @@
 
 #include "StdAfx.h"
 #include "Domain.h"
+#include "../ParticleSystem.h"
+#include "../ParticleComponentRuntime.h"
 #include "TimeOfDay.h"
-
-CRY_PFX2_DBG
 
 namespace pfx2
 {
@@ -59,10 +59,11 @@ void CDomain::SerializeInplace(Serialization::IArchive& ar)
 	case EDomain::Speed:
 		if (m_sourceOwner == EDomainOwner::_None)
 			m_sourceOwner = EDomainOwner::Self;
-		ar(m_sourceOwner, "Owner", "Owner");
+		if (context.GetDomain() == EMD_PerParticle)
+			ar(m_sourceOwner, "Owner", "Owner");
 		break;
 	case EDomain::Attribute:
-		ar(m_attributeName, "AttributeName", "Attribute Name");
+		ar(m_attribute, "AttributeName", "Attribute Name");
 		m_sourceOwner = EDomainOwner::_None;
 		break;
 	case EDomain::Global:
@@ -119,7 +120,7 @@ string CDomain::GetSourceDescription() const
 		desc = "Parent ";
 
 	if (m_domain == EDomain::Attribute)
-		desc += "Attribute: ", desc += m_attributeName;
+		desc += "Attribute: ", desc += m_attribute.Name().c_str();
 	else if (m_domain == EDomain::Field)
 		desc += Serialization::getEnumLabel(m_fieldSource);
 	else
@@ -148,5 +149,13 @@ float CDomain::GetGlobalValue(EDomainGlobal source) const
 	return 0.0f;
 }
 
+namespace detail
+{
+	CAttributeSampler::CAttributeSampler(const SUpdateContext& context, const CAttributeReference& attr)
+	{
+		const CAttributeInstance& attributes = context.m_runtime.GetEmitter()->GetAttributeInstance();
+		m_attributeValue = ToFloatv(attr.GetValueAs(attributes, 1.0f));
+	}
+}
 
 }

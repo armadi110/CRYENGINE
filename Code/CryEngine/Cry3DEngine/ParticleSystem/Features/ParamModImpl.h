@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  Created:     25/03/2015 by Filipe amim
@@ -66,7 +66,8 @@ void CParamMod<TParamModContext, T >::AddToComponent(CParticleComponent* pCompon
 	auto it = std::remove_if(m_modifiers.begin(), m_modifiers.end(), [](const PModifier& ptr) { return !ptr; });
 	m_modifiers.erase(it, m_modifiers.end());
 
-	pComponent->AddToUpdateList(EUL_InitUpdate, pFeature);
+	if (Context().GetDomain() == EMD_PerParticle)
+		pComponent->InitParticles.add(pFeature);
 
 	for (auto& pModifier : m_modifiers)
 	{
@@ -84,7 +85,8 @@ void CParamMod<TParamModContext, T >::AddToComponent(CParticleComponent* pCompon
 	if (dataType.info().hasInit && !m_modUpdate.empty())
 	{
 		pComponent->AddParticleData(InitType(dataType));
-		pComponent->AddToUpdateList(EUL_Update, pFeature);
+		if (Context().GetDomain() == EMD_PerParticle)
+			pComponent->UpdateParticles.add(pFeature);
 	}
 }
 

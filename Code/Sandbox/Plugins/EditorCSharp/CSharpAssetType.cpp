@@ -1,4 +1,5 @@
 // Copyright 2001-2016 Crytek GmbH. All rights reserved.
+
 #include <StdAfx.h>
 #include "CSharpAssetType.h"
 
@@ -17,14 +18,31 @@ CryIcon CSharpSourcefileAssetType::GetIconInternal() const
 	return CryIcon("icons:csharp/assettype.ico");
 }
 
+string CSharpSourcefileAssetType::GetCleanName(const string& name) const
+{
+	string cleanName;
+	cleanName.reserve(name.size());
+	for (int c : name)
+	{
+		if (std::isalpha(c) != 0)
+		{
+			cleanName += c;
+		}
+		else if (std::isdigit(c) != 0)
+		{
+			cleanName += c;
+		}
+	}
+	return cleanName;
+}
+
 CAssetEditor* CSharpSourcefileAssetType::Edit(CAsset* pAsset) const
 {
 #if CRY_PLATFORM_WINDOWS
 	if (pAsset->GetFilesCount() > 0)
 	{
 		string filePath = PathUtil::Make(gEnv->pSystem->GetIProjectManager()->GetCurrentAssetDirectoryAbsolute(), pAsset->GetFile(0));
-
-		ShellExecute(0, 0, filePath.c_str(), 0, 0, SW_SHOW);
+		CCSharpEditorPlugin::GetInstance()->OpenCSharpFile(filePath, 10);
 	}
 #endif
 
@@ -39,30 +57,33 @@ bool CSharpSourcefileAssetType::OnCreate(CEditableAsset& editAsset, const void* 
 
 	string projectName = gEnv->pSystem->GetIProjectManager()->GetCurrentProjectName();
 
-	string cleanProjectName;
-	cleanProjectName.reserve(projectName.size());
-	for (int c : projectName)
+	string cleanProjectName = GetCleanName(projectName);
+	string cleanAssetName = GetCleanName(assetName);
+	CryGUID guid = CryGUID::Create();
+
+	CCryFile assetFile(csFilePath.c_str(), "wb", ICryPak::FLAGS_NO_LOWCASE);
+	if (assetFile.GetHandle() != nullptr)
 	{
-		if (std::isalpha(c) != 0)
+		string assetContents = gEnv->pSystem->GetIProjectManager()->LoadTemplateFile("%ENGINE%/EngineAssets/Templates/ManagedAsset.cs.txt", [this, cleanProjectName, cleanAssetName, guid](const char* szAlias) -> string
 		{
-			cleanProjectName += c;
-		}
-	}
+			if (!strcmp(szAlias, "namespace"))
+			{
+				return cleanProjectName;
+			}
+			else if (!strcmp(szAlias, "guid"))
+			{
+				return guid.ToString();
+			}
+			else if (!strcmp(szAlias, "class_name"))
+			{
+				return cleanAssetName;
+			}
 
-	string sourceContents = string().Format(
-		"using System;\n"
-		"using CryEngine;\n\n"
-		"namespace %s\n"
-		"{\n"
-		"	public class %s : EntityComponent\n"
-		"	{\n"
-		"	}\n"
-		"}", cleanProjectName.c_str(), assetName.c_str());
+			CRY_ASSERT_MESSAGE(false, "Unhandled alias!");
+			return "";
+		});
 
-	CCryFile file(csFilePath.c_str(), "wt");
-	if (file.GetHandle() != nullptr)
-	{
-		if (file.Write(sourceContents.c_str(), sourceContents.size()) != 0)
+		if (assetFile.Write(assetContents.data(), assetContents.size()))
 		{
 			editAsset.SetFiles("", { csFilePath });
 		}

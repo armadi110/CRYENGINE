@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   ParticleManager.cpp
@@ -30,7 +30,6 @@
 
 #define LIBRARY_PATH    "Libs/"
 #define EFFECTS_SUBPATH LIBRARY_PATH "Particles/"
-#define LEVEL_PATH      "Levels/"
 
 using namespace minigui;
 
@@ -640,7 +639,7 @@ void CParticleManager::Update()
 		PARTICLE_LIGHT_PROFILER();
 
 		{
-			FRAME_PROFILER("SyncComputeVerticesJobs", GetSystem(), PROFILE_PARTICLE);
+			CRY_PROFILE_REGION(PROFILE_PARTICLE, "SyncComputeVerticesJobs");
 			GetRenderer()->SyncComputeVerticesJobs();
 		}
 
@@ -703,7 +702,7 @@ void CParticleManager::Update()
 CParticleEmitter* CParticleManager::CreateEmitter(const ParticleLoc& loc, const IParticleEffect* pEffect, const SpawnParams* pSpawnParams)
 {
 	PARTICLE_LIGHT_PROFILER();
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	if (!pEffect)
 		return NULL;
@@ -729,7 +728,7 @@ CParticleEmitter* CParticleManager::CreateEmitter(const ParticleLoc& loc, const 
 IParticleEmitter* CParticleManager::CreateEmitter(const ParticleLoc& loc, const ParticleParams& Params, const SpawnParams* pSpawnParams)
 {
 	PARTICLE_LIGHT_PROFILER();
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	if (!m_bEnabled)
 		return NULL;
@@ -933,8 +932,8 @@ class CLibPathIterator
 {
 public:
 
-	CLibPathIterator(cstr sLevelPath = "")
-		: sPath(*sLevelPath ? sLevelPath : LEVEL_PATH), bDone(false)
+	CLibPathIterator(cstr sLevelPath)
+		: sPath(sLevelPath), bDone(false)
 	{}
 	operator bool() const
 	{ return !bDone; }
@@ -1247,7 +1246,7 @@ void CParticleManager::RenderDebugInfo()
 	if ((GetCVars()->e_ParticlesDebug & AlphaBit('b')) || gEnv->IsEditing() || bRefractivePartialResolveDebugView)
 	{
 		// Debug particle BBs.
-		FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+		CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 		for (auto& e : m_Emitters)
 			if (!e.GetSpawnParams().bNowhere)
 				e.RenderDebugInfo();
@@ -1374,7 +1373,7 @@ void CParticleManager::ListEffects()
 	for (auto& me : mapEffectStats)
 	{
 		SParticleCounts const& counts = me.second;
-		float fPixToScreen = 1.f / ((float)GetRenderer()->GetWidth() * (float)GetRenderer()->GetHeight());
+		float fPixToScreen = 1.f / ((float)GetRenderer()->GetOverlayWidth() * (float)GetRenderer()->GetOverlayHeight());
 		CryLogAlways(
 		  "%s, "
 		  "%.0f, %.0f, %.0f, "
@@ -1408,6 +1407,10 @@ void CParticleManager::CreatePerfHUDWidget()
 	}
 }
 
+#ifndef _RELEASE //Debugging code for specific issue CE-10725			
+extern volatile int g_allocCounter;
+#endif
+
 void CParticleManager::DumpAndResetVertexIndexPoolUsage()
 {
 #if defined(PARTICLE_COLLECT_VERT_IND_POOL_USAGE)
@@ -1415,8 +1418,17 @@ void CParticleManager::DumpAndResetVertexIndexPoolUsage()
 	if (GetCVars()->e_ParticlesProfile == 2)
 		return;
 
+#ifndef _RELEASE //Debugging code for specific issue CE-10725
+	// If you hit this debugbreak, please create a full dump of the process
+	if (g_allocCounter != 0) __debugbreak();
+#endif
+	// This line can occasionally cause an assert to be triggered. The surrounding debug code is intended to help us track down the issue.
+	// See http://jira.cryengine.com/browse/CE-10725 for details on the bug.
 	const stl::SPoolMemoryUsage memParticles = ParticleObjectAllocator().GetTotalMemory();
-
+#ifndef _RELEASE //Debugging code for specific issue CE-10725			
+	// If you hit this debugbreak, please create a full dump of the process
+	if (g_allocCounter != 0) __debugbreak();
+#endif
 	bool bOutOfMemory = m_bOutOfVertexIndexPoolMemory || ((GetCVars()->e_ParticlesPoolSize * 1024) - memParticles.nUsed) == 0;
 	// dump information if we are out of memory or if dumping is enabled
 	if (bOutOfMemory || GetCVars()->e_ParticlesProfile == 1)
@@ -1427,7 +1439,7 @@ void CParticleManager::DumpAndResetVertexIndexPoolUsage()
 		float fTextColorOutOfMemory[] = { 1.0f, 0.0f, 0.0f, 1.0f };
 		float fTextColor[] = { 1.0f, 1.0f, 1.0f, 1.0f };
 		float* pColor = bOutOfMemory ? fTextColorOutOfMemory : fTextColor;
-		float fScreenPix = (float)(GetRenderer()->GetWidth() * GetRenderer()->GetHeight());
+		float fScreenPix = (float)(GetRenderer()->GetOverlayWidth() * GetRenderer()->GetOverlayHeight());
 
 		SParticleCounts CurCounts;
 		m_pPartManager->GetCounts(CurCounts);
@@ -1576,7 +1588,7 @@ bool CParticleWidget::ShouldUpdate()
 
 void CParticleWidget::Update()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	m_pTable->ClearTable();
 
@@ -1636,6 +1648,32 @@ CParticleManager::SEffectsKey::SEffectsKey(const cstr& sName)
 	pZLib->MD5Init(&context);
 	pZLib->MD5Update(&context, (const char*)lowerName.c_str(), lowerName.size());
 	pZLib->MD5Final(&context, c16);
+}
+
+//////////////////////////////////////////////////////////////////////////
+void CParticleManager::OnPhysAreaChange(const EventPhys* pEvent)
+{
+	m_PhysEnv.OnPhysAreaChange();
+
+	auto const& event = static_cast<const EventPhysAreaChange&>(*pEvent);
+	EventPhysAreaChange* pepac = (EventPhysAreaChange*)&event;
+
+	SAreaChangeRecord rec;
+	rec.boxAffected = AABB(pepac->boxAffected[0], pepac->boxAffected[1]);
+	rec.uPhysicsMask = Area_Other;
+
+	// Determine area medium types
+	if (pepac->pEntity)
+	{
+		pe_simulation_params psim;
+		if (pepac->pEntity->GetParams(&psim) && !is_unused(psim.gravity))
+			rec.uPhysicsMask |= Area_Gravity;
+
+		pe_params_buoyancy pbuoy;
+		if (pepac->pEntity->GetParams(&pbuoy) && pbuoy.iMedium >= 0 && pbuoy.iMedium < 14)
+			rec.uPhysicsMask |= 1 << pbuoy.iMedium;
+	}
+	AddUpdatedPhysArea(rec);
 }
 
 //////////////////////////////////////////////////////////////////////////

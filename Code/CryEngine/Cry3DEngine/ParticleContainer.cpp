@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 // -------------------------------------------------------------------------
 //  File name:   ParticleContainer.h
@@ -153,7 +153,7 @@ CParticleSubEmitter* CParticleContainer::AddEmitter(CParticleSource* pSource)
 
 CParticle* CParticleContainer::AddParticle(SParticleUpdateContext& context, const CParticle& part)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	const ResourceParticleParams& params = GetParams();
 
@@ -265,7 +265,7 @@ void CParticleContainer::EmitParticle(const EmitParticleData* pData)
 
 void CParticleContainer::ComputeStaticBounds(AABB& bb, bool bWithSize, float fMaxLife)
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	const ResourceParticleParams& params = GetParams();
 
@@ -319,7 +319,7 @@ void CParticleContainer::ComputeStaticBounds(AABB& bb, bool bWithSize, float fMa
 
 void CParticleContainer::UpdateState()
 {
-	FUNCTION_PROFILER(GetISystem(), PROFILE_PARTICLE);
+	CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
 	UpdateContainerLife();
 
@@ -788,8 +788,8 @@ void CParticleContainer::Render(SRendParams const& RenParams, SPartRenderParams 
 
 		pOD->m_LightVolumeId = PRParams.m_nDeferredLightVolumeId;
 
-		if (GetMain().m_pTempData)
-			*((Vec4f*)&pOD->m_fTempVars[0]) = (const Vec4f&)(GetMain().m_pTempData->userData.vEnvironmentProbeMults);
+		if (const auto pTempData = GetMain().m_pTempData.load())
+			*((Vec4f*)&pOD->m_fTempVars[0]) = Vec4f(pTempData->userData.vEnvironmentProbeMults);
 		else
 			*((Vec4f*)&pOD->m_fTempVars[0]) = Vec4f(1.0f, 1.0f, 1.0f, 1.0f);
 		;
@@ -815,6 +815,8 @@ void CParticleContainer::Render(SRendParams const& RenParams, SPartRenderParams 
 
 		passInfo.GetIRenderView()->AddPermanentObject(
 			pRenderObject,
+			IRenderView::SInstanceUpdateInfo{ pRenderObject->m_II.m_Matrix },
+			pRenderObject->m_bInstanceDataDirty,
 			passInfo);
 	}
 }
@@ -1022,7 +1024,9 @@ void CParticleContainer::Reset()
 // Stat functions.
 void CParticleContainer::GetCounts(SParticleCounts& counts) const
 {
-	counts.components.alive += 1.f;
+	counts.components.alloc += 1.f;
+	counts.components.alive += GetContainerLife() <= GetAge();
+	counts.particles.alloc += m_Particles.size();
 	counts.particles.alive += m_Particles.size();
 
 	if (GetTimeToUpdate() == 0.f)

@@ -1,11 +1,9 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved. 
 
 #include "StdAfx.h"
 #include <CrySerialization/Decorators/Resources.h>
 #include <CrySerialization/Math.h>
-#include "ParticleSystem/ParticleFeature.h"
-
-CRY_PFX2_DBG
+#include "ParticleSystem/ParticleSystem.h"
 
 namespace pfx2
 {
@@ -65,11 +63,16 @@ public:
 
 	virtual void         AddToComponent(CParticleComponent* pComponent, SComponentParams* pParams) override
 	{
-		pParams->m_pMesh = m_pStaticObject = Get3DEngine()->LoadStatObj(m_meshName.c_str(), NULL, NULL, m_piecesMode == EPiecesMode::Whole);
+		if (!(m_pStaticObject = Get3DEngine()->FindStatObjectByFilename(m_meshName)))
+		{
+			GetPSystem()->CheckFileAccess(m_meshName);
+			m_pStaticObject = Get3DEngine()->LoadStatObj(m_meshName, NULL, NULL, m_piecesMode == EPiecesMode::Whole);
+		}
+		pParams->m_pMesh = m_pStaticObject;
 		pParams->m_meshCentered = m_originMode == EOriginMode::Center;
 		if (m_pStaticObject)
 		{
-			pComponent->AddToUpdateList(EUL_RenderDeferred, this);
+			pComponent->RenderDeferred.add(this);
 			pComponent->AddParticleData(EPVF_Position);
 			pComponent->AddParticleData(EPQF_Orientation);
 
@@ -92,7 +95,7 @@ public:
 				{
 					// Require per-particle sub-objects
 					assert(m_aSubObjects.size() < 256);
-					pComponent->AddToUpdateList(EUL_InitUpdate, this);
+					pComponent->InitParticles.add(this);
 					pComponent->AddParticleData(EPDT_MeshGeometry);
 					if (m_piecesMode == EPiecesMode::AllPieces)
 					{
@@ -163,7 +166,7 @@ public:
 		}
 	}
 
-	virtual void Render(CParticleEmitter* pEmitter, IParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext) override
+	virtual void RenderDeferred(CParticleEmitter* pEmitter, CParticleComponentRuntime* pCommonComponentRuntime, CParticleComponent* pComponent, const SRenderContext& renderContext) override
 	{
 		CRY_PROFILE_FUNCTION(PROFILE_PARTICLE);
 
