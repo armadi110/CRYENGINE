@@ -29,6 +29,7 @@ class CParticleComponentRuntime : public _i_reference_target_t, public IParticle
 {
 public:
 	CParticleComponentRuntime(CParticleEmitter* pEmitter, CParticleComponent* pComponent);
+	~CParticleComponentRuntime();
 
 	CParticleComponentRuntime*    GetCpuRuntime()      { return !m_pGpuRuntime ? this : nullptr; }
 	gpu_pfx2::IParticleComponentRuntime* GetGpuRuntime()      { return m_pGpuRuntime; }
@@ -81,7 +82,7 @@ private:
 	void UpdateLocalSpace(SUpdateRange range);
 	void DebugStabilityCheck();
 
-	CParticleComponent*                             m_pComponent;
+	_smart_ptr<CParticleComponent>                  m_pComponent;
 	CParticleEmitter*                               m_pEmitter;
 	CParticleContainer                              m_container;
 	TDynArray<SInstance>                            m_subInstances;

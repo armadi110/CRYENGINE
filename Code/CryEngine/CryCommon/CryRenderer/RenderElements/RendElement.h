@@ -25,7 +25,6 @@ enum EDataType
 	eDATA_SkyZone,
 	eDATA_Mesh,
 	eDATA_LensOptics,
-	eDATA_FarTreeSprites,
 	eDATA_OcclusionQuery,
 	eDATA_Particle,
 	eDATA_HDRSky,
@@ -89,7 +88,7 @@ public:
 
 	//! Compile is called on a non mesh render elements, must be called only in rendering thread
 	//! Returns false if compile failed, and render element must not be rendered
-	virtual bool          Compile(CRenderObject* pObj, CRenderView *pRenderView) = 0;
+	virtual bool          Compile(CRenderObject* pObj, CRenderView *pRenderView, bool updateInstanceDataOnly) = 0;
 
 	//! Custom Drawing for the non mesh render elements.
 	//! Must be thread safe for the parallel recording
@@ -213,7 +212,7 @@ public:
 	virtual int                mfGetMatId();
 	virtual void               mfReset();
 	virtual bool               mfIsHWSkinned() { return false; }
-	virtual CRenderElement*      mfCopyConstruct(void);
+	virtual CRenderElement*    mfCopyConstruct(void);
 	virtual void               mfCenter(Vec3& centr, CRenderObject* pObj);
 	virtual void               mfGetBBox(Vec3& vMins, Vec3& vMaxs)
 	{
@@ -240,7 +239,7 @@ public:
 
 	//! Compile is called on a non mesh render elements, must be called only in rendering thread
 	//! Returns false if compile failed, and render element must not be rendered
-	virtual bool          Compile(CRenderObject* pObj, CRenderView *pRenderView)  { return false; };
+	virtual bool          Compile(CRenderObject* pObj, CRenderView *pRenderView, bool updateInstanceDataOnly)  { return false; };
 
 	//! Custom Drawing for the non mesh render elements.
 	//! Must be thread safe for the parallel recording

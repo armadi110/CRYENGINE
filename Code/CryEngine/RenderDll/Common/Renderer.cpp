@@ -1187,7 +1187,7 @@ IDynTextureSource* CRenderer::EF_LoadDynTexture(const char* dynsourceName, bool 
 
 bool SShaderItem::Update()
 {
-	if (!(m_pShader->GetFlags() & EF_LOADED))
+	if (!m_pShader || !(m_pShader->GetFlags() & EF_LOADED))
 		return false;
 	if ((uint32)m_nTechnique > 1000 && m_nTechnique != -1) // HACK HACK HACK
 	{
@@ -1311,10 +1311,6 @@ CRenderElement* CRenderer::EF_CreateRE(EDataType edt)
 
 	case eDATA_HDRSky:
 		re = new CREHDRSky;
-		break;
-
-	case eDATA_FarTreeSprites:
-		assert( 0 && "eDATA_FarTreeSprites not supported" );
 		break;
 
 	case eDATA_FogVolume:
@@ -1884,7 +1880,7 @@ void CRenderer::EF_QueryImpl(ERenderQueryTypes eQuery, void* pInOut0, uint32 nIn
 
 	case EFQ_GetAllTextures:
 	{
-		AUTO_LOCK(CBaseResource::s_cResLock);
+		CryAutoReadLock<CryRWLock> lock(CBaseResource::s_cResLock);
 
 		SRendererQueryGetAllTexturesParam* pParam = (SRendererQueryGetAllTexturesParam*)(pInOut0);
 		pParam->pTextures   = NULL;
@@ -2096,7 +2092,7 @@ void CRenderer::EF_QueryImpl(ERenderQueryTypes eQuery, void* pInOut0, uint32 nIn
 				stats->nRequiredStreamedTexturesCount = 0;
 				stats->nRequiredStreamedTexturesSize  = 0;
 
-				AUTO_LOCK(CBaseResource::s_cResLock);
+				CryAutoReadLock<CryRWLock> lock(CBaseResource::s_cResLock);
 
 				// compute all sizes
 				SResourceContainer* pRL = CBaseResource::GetResourcesForClass(CTexture::mfGetClassName());

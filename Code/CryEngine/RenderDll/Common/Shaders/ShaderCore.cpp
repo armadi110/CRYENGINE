@@ -31,7 +31,6 @@ CShader* CShaderMan::s_ShaderFPEmu;
 CShader* CShaderMan::s_ShaderFallback;
 CShader* CShaderMan::s_ShaderScaleForm;
 CShader* CShaderMan::s_ShaderStars;
-CShader* CShaderMan::s_ShaderTreeSprites;
 CShader* CShaderMan::s_ShaderShadowBlur;
 CShader* CShaderMan::s_ShaderShadowMaskGen;
 #if defined(FEATURE_SVO_GI)
@@ -543,7 +542,8 @@ void CShaderMan::mfReleaseShaders()
 {
 	CCryNameTSCRC Name = CShader::mfGetClassName();
 
-	AUTO_LOCK(CBaseResource::s_cResLock);
+	// TODO: If Release() doesn't manipulate the resource-library, make it a RLock
+	CryAutoWriteLock<CryRWLock> lock(CBaseResource::s_cResLock);
 
 	SResourceContainer* pRL = CBaseResource::GetResourcesForClass(Name);
 	if (pRL)
@@ -1403,7 +1403,6 @@ void CShaderMan::mfReleaseSystemShaders()
 	SAFE_RELEASE_FORCE(s_ShaderFallback);
 	SAFE_RELEASE_FORCE(s_ShaderScaleForm);
 	SAFE_RELEASE_FORCE(s_ShaderStars);
-	SAFE_RELEASE_FORCE(s_ShaderTreeSprites);
 	SAFE_RELEASE_FORCE(s_ShaderShadowBlur);
 	SAFE_RELEASE_FORCE(s_ShaderShadowMaskGen);
 #if defined(FEATURE_SVO_GI)
@@ -1485,7 +1484,6 @@ void CShaderMan::mfLoadDefaultSystemShaders()
 		mfRefreshSystemShader("DeferredShading", CShaderMan::s_shDeferredShading);
 		mfRefreshSystemShader("DepthOfField", CShaderMan::s_shPostDepthOfField);
 		mfRefreshSystemShader("DXTCompress", CShaderMan::s_ShaderDXTCompress);
-		mfRefreshSystemShader("FarTreeSprites", CShaderMan::s_ShaderTreeSprites);
 		mfRefreshSystemShader("LensOptics", CShaderMan::s_ShaderLensOptics);
 		mfRefreshSystemShader("SoftOcclusionQuery", CShaderMan::s_ShaderSoftOcclusionQuery);
 		mfRefreshSystemShader("MotionBlur", CShaderMan::s_shPostMotionBlur);
@@ -2880,7 +2878,7 @@ void CShaderMan::mfSortResources()
 	iLog->Log("--- %u Resources, %d Resource groups.", CShader::s_ShaderResources_known.Num(), nGroups - 20000);
 
 	{
-		AUTO_LOCK(CBaseResource::s_cResLock);
+		CryAutoReadLock<CryRWLock> lock(CBaseResource::s_cResLock);
 
 		SResourceContainer* pRL = CShaderMan::s_pContainer;
 		assert(pRL);

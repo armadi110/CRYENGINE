@@ -1,4 +1,4 @@
-// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioObject.h"
@@ -322,8 +322,8 @@ ERequestStatus CObjectBase::ExecuteTrigger(ITrigger const* const pITrigger, IEve
 				fmodResult = pEvent->GetInstance()->set3DAttributes(&m_attributes);
 				ASSERT_FMOD_OK;
 
-				CRY_ASSERT(pEvent->GetEventPathId() == InvalidCRC32);
-				pEvent->SetEventPathId(pTrigger->GetEventPathId());
+				CRY_ASSERT(pEvent->GetId() == InvalidCRC32);
+				pEvent->SetId(pTrigger->GetId());
 				pEvent->SetObject(this);
 
 				CRY_ASSERT_MESSAGE(std::find(m_pendingEvents.begin(), m_pendingEvents.end(), pEvent) == m_pendingEvents.end(), "Event was already in the pending list");
@@ -333,7 +333,7 @@ ERequestStatus CObjectBase::ExecuteTrigger(ITrigger const* const pITrigger, IEve
 		}
 		else
 		{
-			StopEvent(pTrigger->GetEventPathId());
+			StopEvent(pTrigger->GetId());
 			requestResult = ERequestStatus::SuccessfullyStopped;
 		}
 	}
@@ -406,13 +406,13 @@ ERequestStatus CObjectBase::SetName(char const* const szName)
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CObjectBase::StopEvent(uint32 const eventPathId)
+void CObjectBase::StopEvent(uint32 const id)
 {
 	FMOD_RESULT fmodResult = FMOD_ERR_UNINITIALIZED;
 
 	for (auto const pEvent : m_events)
 	{
-		if (pEvent->GetEventPathId() == eventPathId)
+		if (pEvent->GetId() == id)
 		{
 			fmodResult = pEvent->GetInstance()->stop(FMOD_STUDIO_STOP_ALLOWFADEOUT);
 			ASSERT_FMOD_OK;
@@ -551,28 +551,54 @@ ERequestStatus CObject::SetParameter(IParameter const* const pIParameter, float 
 
 	if (pParameter != nullptr)
 	{
-		uint32 const parameterId = pParameter->GetId();
-		FMOD_RESULT fmodResult = FMOD_ERR_UNINITIALIZED;
+		EParameterType const type = pParameter->GetType();
 
-		for (auto const pEvent : m_events)
+		if (type == EParameterType::Parameter)
 		{
-			FMOD::Studio::EventInstance* const pEventInstance = pEvent->GetInstance();
-			CRY_ASSERT_MESSAGE(pEventInstance != nullptr, "Event instance doesn't exist.");
-			CTrigger const* const pTrigger = pEvent->GetTrigger();
-			CRY_ASSERT_MESSAGE(pTrigger != nullptr, "Trigger doesn't exist.");
+			uint32 const parameterId = pParameter->GetId();
+			FMOD_RESULT fmodResult = FMOD_ERR_UNINITIALIZED;
 
-			FMOD::Studio::EventDescription* pEventDescription = nullptr;
-			fmodResult = pEventInstance->getDescription(&pEventDescription);
-			ASSERT_FMOD_OK;
-
-			if (g_triggerToParameterIndexes.find(pTrigger) != g_triggerToParameterIndexes.end())
+			for (auto const pEvent : m_events)
 			{
-				ParameterIdToIndex& parameters = g_triggerToParameterIndexes[pTrigger];
+				FMOD::Studio::EventInstance* const pEventInstance = pEvent->GetInstance();
+				CRY_ASSERT_MESSAGE(pEventInstance != nullptr, "Event instance doesn't exist.");
+				CTrigger const* const pTrigger = pEvent->GetTrigger();
+				CRY_ASSERT_MESSAGE(pTrigger != nullptr, "Trigger doesn't exist.");
 
-				if (parameters.find(parameterId) != parameters.end())
+				FMOD::Studio::EventDescription* pEventDescription = nullptr;
+				fmodResult = pEventInstance->getDescription(&pEventDescription);
+				ASSERT_FMOD_OK;
+
+				if (g_triggerToParameterIndexes.find(pTrigger) != g_triggerToParameterIndexes.end())
 				{
-					fmodResult = pEventInstance->setParameterValueByIndex(parameters[parameterId], pParameter->GetValueMultiplier() * value + pParameter->GetValueShift());
-					ASSERT_FMOD_OK;
+					ParameterIdToIndex& parameters = g_triggerToParameterIndexes[pTrigger];
+
+					if (parameters.find(parameterId) != parameters.end())
+					{
+						fmodResult = pEventInstance->setParameterValueByIndex(parameters[parameterId], pParameter->GetValueMultiplier() * value + pParameter->GetValueShift());
+						ASSERT_FMOD_OK;
+					}
+					else
+					{
+						int parameterCount = 0;
+						fmodResult = pEventInstance->getParameterCount(&parameterCount);
+						ASSERT_FMOD_OK;
+
+						for (int index = 0; index < parameterCount; ++index)
+						{
+							FMOD_STUDIO_PARAMETER_DESCRIPTION parameterDescription;
+							fmodResult = pEventDescription->getParameterByIndex(index, &parameterDescription);
+							ASSERT_FMOD_OK;
+
+							if (parameterId == StringToId(parameterDescription.name))
+							{
+								parameters.emplace(parameterId, index);
+								fmodResult = pEventInstance->setParameterValueByIndex(index, pParameter->GetValueMultiplier() * value + pParameter->GetValueShift());
+								ASSERT_FMOD_OK;
+								break;
+							}
+						}
+					}
 				}
 				else
 				{
@@ -588,7 +614,7 @@ ERequestStatus CObject::SetParameter(IParameter const* const pIParameter, float 
 
 						if (parameterId == StringToId(parameterDescription.name))
 						{
-							parameters.emplace(parameterId, index);
+							g_triggerToParameterIndexes[pTrigger].emplace(std::make_pair(parameterId, index));
 							fmodResult = pEventInstance->setParameterValueByIndex(index, pParameter->GetValueMultiplier() * value + pParameter->GetValueShift());
 							ASSERT_FMOD_OK;
 							break;
@@ -596,38 +622,23 @@ ERequestStatus CObject::SetParameter(IParameter const* const pIParameter, float 
 					}
 				}
 			}
+
+			auto const iter(m_parameters.find(pParameter));
+
+			if (iter != m_parameters.end())
+			{
+				iter->second = value;
+			}
 			else
 			{
-				int parameterCount = 0;
-				fmodResult = pEventInstance->getParameterCount(&parameterCount);
-				ASSERT_FMOD_OK;
-
-				for (int index = 0; index < parameterCount; ++index)
-				{
-					FMOD_STUDIO_PARAMETER_DESCRIPTION parameterDescription;
-					fmodResult = pEventDescription->getParameterByIndex(index, &parameterDescription);
-					ASSERT_FMOD_OK;
-
-					if (parameterId == StringToId(parameterDescription.name))
-					{
-						g_triggerToParameterIndexes[pTrigger].emplace(std::make_pair(parameterId, index));
-						fmodResult = pEventInstance->setParameterValueByIndex(index, pParameter->GetValueMultiplier() * value + pParameter->GetValueShift());
-						ASSERT_FMOD_OK;
-						break;
-					}
-				}
+				m_parameters.emplace(pParameter, value);
 			}
 		}
-
-		auto const iter(m_parameters.find(pParameter));
-
-		if (iter != m_parameters.end())
+		else if (type == EParameterType::VCA)
 		{
-			iter->second = value;
-		}
-		else
-		{
-			m_parameters.emplace(pParameter, value);
+			auto const pVca = static_cast<CVcaParameter const* const>(pParameter);
+			FMOD_RESULT const fmodResult = pVca->GetVca()->setVolume(pVca->GetValueMultiplier() * value + pVca->GetValueShift());
+			ASSERT_FMOD_OK;
 		}
 	}
 	else
@@ -647,28 +658,54 @@ ERequestStatus CObject::SetSwitchState(ISwitchState const* const pISwitchState)
 
 	if (pSwitchState != nullptr)
 	{
-		uint32 const parameterId = pSwitchState->GetId();
-		FMOD_RESULT fmodResult = FMOD_ERR_UNINITIALIZED;
+		EStateType const type = pSwitchState->GetType();
 
-		for (auto const pEvent : m_events)
+		if (type == EStateType::State)
 		{
-			FMOD::Studio::EventInstance* const pEventInstance = pEvent->GetInstance();
-			CRY_ASSERT_MESSAGE(pEventInstance != nullptr, "Event instance doesn't exist.");
-			CTrigger const* const pTrigger = pEvent->GetTrigger();
-			CRY_ASSERT_MESSAGE(pTrigger != nullptr, "Trigger doesn't exist.");
+			uint32 const parameterId = pSwitchState->GetId();
+			FMOD_RESULT fmodResult = FMOD_ERR_UNINITIALIZED;
 
-			FMOD::Studio::EventDescription* pEventDescription = nullptr;
-			fmodResult = pEventInstance->getDescription(&pEventDescription);
-			ASSERT_FMOD_OK;
-
-			if (g_triggerToParameterIndexes.find(pTrigger) != g_triggerToParameterIndexes.end())
+			for (auto const pEvent : m_events)
 			{
-				ParameterIdToIndex& parameters = g_triggerToParameterIndexes[pTrigger];
+				FMOD::Studio::EventInstance* const pEventInstance = pEvent->GetInstance();
+				CRY_ASSERT_MESSAGE(pEventInstance != nullptr, "Event instance doesn't exist.");
+				CTrigger const* const pTrigger = pEvent->GetTrigger();
+				CRY_ASSERT_MESSAGE(pTrigger != nullptr, "Trigger doesn't exist.");
 
-				if (parameters.find(parameterId) != parameters.end())
+				FMOD::Studio::EventDescription* pEventDescription = nullptr;
+				fmodResult = pEventInstance->getDescription(&pEventDescription);
+				ASSERT_FMOD_OK;
+
+				if (g_triggerToParameterIndexes.find(pTrigger) != g_triggerToParameterIndexes.end())
 				{
-					fmodResult = pEventInstance->setParameterValueByIndex(parameters[parameterId], pSwitchState->GetValue());
-					ASSERT_FMOD_OK;
+					ParameterIdToIndex& parameters = g_triggerToParameterIndexes[pTrigger];
+
+					if (parameters.find(parameterId) != parameters.end())
+					{
+						fmodResult = pEventInstance->setParameterValueByIndex(parameters[parameterId], pSwitchState->GetValue());
+						ASSERT_FMOD_OK;
+					}
+					else
+					{
+						int parameterCount = 0;
+						fmodResult = pEventInstance->getParameterCount(&parameterCount);
+						ASSERT_FMOD_OK;
+
+						for (int index = 0; index < parameterCount; ++index)
+						{
+							FMOD_STUDIO_PARAMETER_DESCRIPTION parameterDescription;
+							fmodResult = pEventDescription->getParameterByIndex(index, &parameterDescription);
+							ASSERT_FMOD_OK;
+
+							if (parameterId == StringToId(parameterDescription.name))
+							{
+								parameters.emplace(parameterId, index);
+								fmodResult = pEventInstance->setParameterValueByIndex(index, pSwitchState->GetValue());
+								ASSERT_FMOD_OK;
+								break;
+							}
+						}
+					}
 				}
 				else
 				{
@@ -684,7 +721,7 @@ ERequestStatus CObject::SetSwitchState(ISwitchState const* const pISwitchState)
 
 						if (parameterId == StringToId(parameterDescription.name))
 						{
-							parameters.emplace(parameterId, index);
+							g_triggerToParameterIndexes[pTrigger].emplace(std::make_pair(parameterId, index));
 							fmodResult = pEventInstance->setParameterValueByIndex(index, pSwitchState->GetValue());
 							ASSERT_FMOD_OK;
 							break;
@@ -692,38 +729,23 @@ ERequestStatus CObject::SetSwitchState(ISwitchState const* const pISwitchState)
 					}
 				}
 			}
+
+			auto const iter(m_switches.find(pSwitchState->GetId()));
+
+			if (iter != m_switches.end())
+			{
+				iter->second = pSwitchState;
+			}
 			else
 			{
-				int parameterCount = 0;
-				fmodResult = pEventInstance->getParameterCount(&parameterCount);
-				ASSERT_FMOD_OK;
-
-				for (int index = 0; index < parameterCount; ++index)
-				{
-					FMOD_STUDIO_PARAMETER_DESCRIPTION parameterDescription;
-					fmodResult = pEventDescription->getParameterByIndex(index, &parameterDescription);
-					ASSERT_FMOD_OK;
-
-					if (parameterId == StringToId(parameterDescription.name))
-					{
-						g_triggerToParameterIndexes[pTrigger].emplace(std::make_pair(parameterId, index));
-						fmodResult = pEventInstance->setParameterValueByIndex(index, pSwitchState->GetValue());
-						ASSERT_FMOD_OK;
-						break;
-					}
-				}
+				m_switches.emplace(pSwitchState->GetId(), pSwitchState);
 			}
 		}
-
-		auto const iter(m_switches.find(pSwitchState->GetId()));
-
-		if (iter != m_switches.end())
+		else if (type == EStateType::VCA)
 		{
-			iter->second = pSwitchState;
-		}
-		else
-		{
-			m_switches.emplace(pSwitchState->GetId(), pSwitchState);
+			auto const pVca = static_cast<CVcaState const* const>(pSwitchState);
+			FMOD_RESULT const fmodResult = pVca->GetVca()->setVolume(pVca->GetValue());
+			ASSERT_FMOD_OK;
 		}
 	}
 	else

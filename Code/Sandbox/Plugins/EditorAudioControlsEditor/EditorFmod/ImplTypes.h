@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -12,10 +12,12 @@ enum class EImpltemType
 	Bank,
 	Snapshot,
 	Return,
+	VCA,
 	Parameter,
 	Event,
-	Group,
+	MixerGroup,
 	Folder,
+	EditorFolder,
 };
 } // namespace Fmod
 } // namespace ACE

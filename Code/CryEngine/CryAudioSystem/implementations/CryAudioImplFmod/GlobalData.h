@@ -1,4 +1,4 @@
-// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -15,12 +15,12 @@ static constexpr char* s_szSnapshotTag = "Snapshot";
 static constexpr char* s_szParameterTag = "Parameter";
 static constexpr char* s_szFileTag = "File";
 static constexpr char* s_szBusTag = "Bus";
+static constexpr char* s_szVcaTag = "VCA";
 
 // XML attributes
 static constexpr char* s_szValueAttribute = "value";
 static constexpr char* s_szMutiplierAttribute = "value_multiplier";
 static constexpr char* s_szShiftAttribute = "value_shift";
-static constexpr char* s_szPathAttribute = "path";
 static constexpr char* s_szLocalizedAttribute = "localized";
 
 // XML values

@@ -545,9 +545,9 @@ HRESULT CD3D9Renderer::AdjustWindowForChange(const int displayWidth, const int d
 	}
 	else
 	{
-		const ICVar* disableResizeableWindow = gEnv->pConsole->GetCVar("r_disableResizableWindow");
+		const ICVar* pResizeableWindow = gEnv->pConsole->GetCVar("r_resizableWindow");
 		auto windowedStyle = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-		if (disableResizeableWindow && disableResizeableWindow->GetIVal() != 0)
+		if (pResizeableWindow && pResizeableWindow->GetIVal() == 0)
 		{
 			windowedStyle &= ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
 		}
@@ -559,12 +559,13 @@ HRESULT CD3D9Renderer::AdjustWindowForChange(const int displayWidth, const int d
 		RECT windowRect;
 		GetWindowRect(m_hWnd, &windowRect);
 
+		const int x = windowRect.left;
+		const int y = windowRect.top;
+
 		windowRect.right = windowRect.left + displayWidth;
 		windowRect.bottom = windowRect.top + displayHeight;
 		AdjustWindowRectEx(&windowRect, windowedStyle, FALSE, WS_EX_APPWINDOW);
 
-		const int x = windowRect.left;
-		const int y = windowRect.top;
 		const int width = windowRect.right - windowRect.left;
 		const int height = windowRect.bottom - windowRect.top;
 		SetWindowPos(m_hWnd, HWND_NOTOPMOST, x, y, width, height, SWP_SHOWWINDOW);
@@ -1032,8 +1033,8 @@ bool CD3D9Renderer::SetWindow(int width, int height)
 	{
 		exstyle = WS_EX_APPWINDOW;
 		style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
-		const ICVar* disableResizeableWindow = gEnv->pConsole->GetCVar("r_disableResizableWindow");
-		if (disableResizeableWindow && disableResizeableWindow->GetIVal() != 0)
+		const ICVar* pResizeableWindow = gEnv->pConsole->GetCVar("r_resizableWindow");
+		if (pResizeableWindow && pResizeableWindow->GetIVal() == 0)
 		{
 			style &= ~(WS_MAXIMIZEBOX | WS_THICKFRAME);
 		}
@@ -1373,7 +1374,7 @@ WIN_HWND CD3D9Renderer::Init(int x, int y, int width, int height, unsigned int c
 	                   SetMouseCursorIconCVar);
 #endif
 
-	REGISTER_INT("r_disableResizableWindow", 0, VF_NULL, "Turn off resizable window borders. Changes are only applied after changing the window style once.");
+	REGISTER_INT("r_resizableWindow", 1, VF_NULL, "Turn on resizable window borders. Changes are only applied after changing the window style once.");
 
 #if (CRY_RENDERER_OPENGL || CRY_RENDERER_OPENGLES) && !DXGL_FULL_EMULATION
 	#if OGL_SINGLE_CONTEXT
@@ -2374,6 +2375,20 @@ bool CD3D9Renderer::HandleMessage(HWND hWnd, UINT message, WPARAM wParam, LPARAM
 			{
 				m_CVWidth->Set(LOWORD(lParam));
 				m_CVHeight->Set(HIWORD(lParam));
+			}
+		}
+		break;
+
+	case WM_ACTIVATE:
+		{
+			// Toggle DXGI fullscreen state when user alt-tabs out
+			// This is required since we explicitly set the DXGI_MWA_NO_WINDOW_CHANGES, forbidding DXGI from handling this itself
+			if (IsFullscreen())
+			{
+				gcpRendD3D->ExecuteRenderThreadCommand([wParam]()
+				{
+					gcpRendD3D->GetBaseDisplayContext()->SetFullscreenState(wParam != 0);
+				}, ERenderCommandFlags::FlushAndWait);
 			}
 		}
 		break;

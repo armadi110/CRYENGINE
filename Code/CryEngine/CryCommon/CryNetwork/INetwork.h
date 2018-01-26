@@ -1051,6 +1051,8 @@ struct INetContext
 	//! \param id The id of a *bound* object to change authority for.
 	//! \param pControlling	Channel who will now control the object (or NULL if we wish to take control).
 	//! \note Only those aspects marked as eAF_Delegatable are passed on.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/AspectDelegation.cpp
 	virtual void DelegateAuthority(EntityId id, INetChannel* pControlling) = 0;
 
 	//! Changes the game context.
@@ -1584,6 +1586,8 @@ struct SRMIBenchmarkParams
 
 #endif
 
+//! Main interface for a connection to another engine instance
+//! i.e. The server has one net channel per client, each client has a single net channel for the server.
 struct INetChannel : public INetMessageSink
 {
 	//! \note See CNetCVars - net_defaultChannel<xxx> for defaults.

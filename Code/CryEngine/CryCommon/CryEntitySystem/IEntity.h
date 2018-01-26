@@ -270,6 +270,7 @@ struct IEntityLink
 };
 
 //! Parameters used to determine how an entity should be physicalized when IEntity::Physicalize is called
+//! \see IEntity::Physicalize
 struct SEntityPhysicalizeParams
 {
 	//////////////////////////////////////////////////////////////////////////
@@ -384,17 +385,24 @@ struct SEntitySlotInfo
 	IMaterial* pMaterial;
 };
 
-//! Parameters passed to the IEntity::PreviewRender
+//! Parameters passed to the preview render function
+//! \see IEntity::PreviewRender
 struct SEntityPreviewContext
 {
 	SEntityPreviewContext(SGeometryDebugDrawInfo& debugDrawInfo_) : debugDrawInfo(debugDrawInfo_) {}
 
+	//! Defines if the entity has any render nodes
 	bool                             bNoRenderNodes = false;
+	//! Is the entity currently selected in the sandbox
 	bool                             bSelected = false;
+	//! Defines if the render slots should get previewed too
 	bool                             bRenderSlots = true;
 
+	//! \see I3DEngine::SGeometryDebugDrawInfo
 	SGeometryDebugDrawInfo&          debugDrawInfo;
+	//! \see IRenderer::SRendParams
 	const struct SRendParams*        pRenderParams = nullptr;
+	//! \see IRenderer::SRenderingPassInfo
 	const struct SRenderingPassInfo* pPassInfo = nullptr;
 };
 
@@ -971,6 +979,9 @@ public:
 	// Physics.
 	//////////////////////////////////////////////////////////////////////////
 	//! Physicalize entity by creating a PhysicalEntity based on a specified physical parameters
+	//! \see IEntity::PhysicalizeSlot
+	//! \par Example
+	//! \include CryEntitySystem/Examples/PhysicalizeEntity.cpp
 	virtual void Physicalize(SEntityPhysicalizeParams& params) = 0;
 
 	//! Enable/Disable physics by flag.
@@ -987,6 +998,11 @@ public:
 	virtual IPhysicalEntity* GetPhysics() const = 0;
 	IPhysicalEntity*         GetPhysicalEntity() const { return GetPhysics(); };
 
+	//! Adds physical geometry to the physical entity tied to this entity, based on the slot (if present)
+	//! Entity has to have been physicalized with IEntity::Physicalize first.
+	//! \see IEntity::Physicalize
+	//! \par Example
+	//! \include CryEntitySystem/Examples/PhysicalizeEntitySlot.cpp
 	virtual int              PhysicalizeSlot(int slot, SEntityPhysicalizeParams& params) = 0;
 	virtual void             UnphysicalizeSlot(int slot) = 0;
 	virtual void             UpdateSlotPhysics(int slot) = 0;
@@ -1155,12 +1171,16 @@ public:
 	//! \param nLoadFlags See ELoadFlags
 	//! \see ELoadFlags
 	//! \return Slot id where the object was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadGeometry.cpp
 	virtual int LoadGeometry(int nSlot, const char* sFilename, const char* sGeomName = NULL, int nLoadFlags = 0) = 0;
 
 	//! Loads character to the specified slot, or to next available slot.
 	//! If same character is already loaded in this slot, operation is ignored.
 	//! If this slot number is occupied by different kind of object it is overwritten.
 	//! \return Slot id where the object was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadCharacter.cpp
 	virtual int LoadCharacter(int nSlot, const char* sFilename, int nLoadFlags = 0) = 0;
 
 #if defined(USE_GEOM_CACHES)
@@ -1168,6 +1188,8 @@ public:
 	//! If same geometry cache is already loaded in this slot, operation is ignored.
 	//! If this slot number is occupied by different kind of object it is overwritten.
 	//! \return Slot id where the object was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadGeomCache.cpp
 	virtual int LoadGeomCache(int nSlot, const char* sFilename) = 0;
 #endif
 
@@ -1187,6 +1209,8 @@ public:
 	//! Loads a new particle emitter to the specified slot, or to next available slot.
 	//! If this slot number is occupied by different kind of object it is overwritten.
 	//! \return Slot id where the particle emitter was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadParticleEmitter.cpp
 	virtual int LoadParticleEmitter(int nSlot, IParticleEffect* pEffect, SpawnParams const* params = NULL, bool bPrime = false, bool bSerialize = false) = 0;
 	//! Sets an existing particle emitter to the specified slot, or the next available slot.
 	//! If this slot number is occupied by different kind of object it is overwritten.
@@ -1195,10 +1219,14 @@ public:
 
 	//! Loads a light source to the specified slot, or to next available slot.
 	//! \return Slot id where the light source was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadLight.cpp
 	virtual int LoadLight(int nSlot, SRenderLight* pLight) = 0;
 
 	//! Loads a fog volume to the specified slot, or to the next available slot.
 	//! \return Slot id where the fog volume was loaded, or -1 if loading failed.
+	//! \par Example
+	//! \include CryEntitySystem/Examples/LoadFogVolume.cpp
 	virtual int LoadFogVolume(int nSlot, const SFogVolumeProperties& properties) = 0;
 
 	//! Invalidates the entity's and all its children's transformation matrices!
