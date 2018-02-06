@@ -718,7 +718,7 @@ public:
 	virtual void RT_PresentFast() = 0;
 
 	virtual int  CurThreadList() override;
-	virtual void RT_BeginFrame(CryDisplayContextHandle hWnd) = 0;
+	virtual void RT_BeginFrame(const IRenderer::SDisplayContextKey& displayContextKey) = 0;
 	virtual void RT_EndFrame() = 0;
 
 	virtual void RT_Init() = 0;
@@ -734,7 +734,7 @@ public:
 	virtual void RT_PrecacheDefaultShaders() = 0;
 	virtual bool RT_ReadTexture(void* pDst, int destinationWidth, int destinationHeight, EReadTextureFormat dstFormat, CTexture* pSrc) = 0;
 	virtual bool RT_StoreTextureToFile(const char* szFilePath, CTexture* pSrc) = 0;
-	virtual void FlashRender(IFlashPlayer_RenderProxy* pPlayer, bool stereo) override;
+	virtual void FlashRender(IFlashPlayer_RenderProxy* pPlayer, bool stereo, int textureId=0) override;
 	virtual void FlashRenderPlaybackLockless(IFlashPlayer_RenderProxy* pPlayer, int cbIdx, bool stereo, bool finalPlayback) override;
 	virtual void FlashRemoveTexture(ITexture* pTexture) override;
 
@@ -742,6 +742,7 @@ public:
 
 	virtual void RT_FlashRenderInternal(IFlashPlayer_RenderProxy* pPlayer, bool stereo, bool doRealRender) = 0;
 	virtual void RT_FlashRenderPlaybackLocklessInternal(IFlashPlayer_RenderProxy* pPlayer, int cbIdx, bool stereo, bool finalPlayback, bool doRealRender) = 0;
+
 	virtual bool FlushRTCommands(bool bWait, bool bImmediatelly, bool bForce) override;
 	virtual bool ForceFlushRTCommands();
 	virtual void WaitForParticleBuffer() = 0;
@@ -791,7 +792,7 @@ public:
 	virtual void         FreeSystemResources(int nFlags) override;
 	virtual void         InitSystemResources(int nFlags) override;
 
-	virtual void         BeginFrame(CryDisplayContextHandle hWnd) override = 0;
+	virtual void         BeginFrame(const IRenderer::SDisplayContextKey& displayContextKey) override = 0;
 	virtual void         FillFrame(ColorF clearColor) override = 0;
 	virtual void         RenderDebug(bool bRenderStats = true) override = 0;
 	virtual void         EndFrame() override = 0;
@@ -907,7 +908,7 @@ public:
 	Vec4&   GetHighlightParams()        { return m_highlightParams; }
 
 	//misc
-	virtual bool                ScreenShot(const char* filename = NULL, CryDisplayContextHandle displayContext = 0) override = 0;
+	virtual bool                ScreenShot(const char* filename = NULL, const IRenderer::SDisplayContextKey& displayContextKey = {}) override = 0;
 	virtual bool                ReadFrameBuffer(uint32* pDstRGBA8, int destinationWidth, int destinationHeight) override = 0;
 
 	virtual int                 GetColorBpp() override   { return m_cbpp; }

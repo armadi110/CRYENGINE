@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "StdAfx.h"
 #include "FileLoader.h"
@@ -16,6 +16,8 @@
 #include <QtUtil.h>
 #include <IEditor.h>
 #include <ConfigurationManager.h>
+#include <CryGame/IGameFramework.h>
+#include <ILevelSystem.h>
 
 #include <QRegularExpression>
 
@@ -191,7 +193,7 @@ CSystemAsset* CFileLoader::AddUniqueFolderPath(CSystemAsset* pParent, QString co
 //////////////////////////////////////////////////////////////////////////
 void CFileLoader::LoadControlsLibrary(XmlNodeRef const pRoot, string const& filepath, string const& level, string const& filename, uint32 const version)
 {
-  // Always create a library file, even if no proper formatting is present.
+	// Always create a library file, even if no proper formatting is present.
 	CSystemLibrary* const pLibrary = m_assetsManager.CreateLibrary(filename);
 
 	if (pLibrary != nullptr)
@@ -260,7 +262,7 @@ CSystemControl* CFileLoader::LoadControl(XmlNodeRef const pNode, Scope const sco
 							LoadControl(pNode->getChild(i), scope, version, pControl);
 						}
 					}
-				break;
+					break;
 				case ESystemItemType::Preload:
 					LoadPreloadConnections(pNode, pControl, version);
 					break;
@@ -280,45 +282,17 @@ CSystemControl* CFileLoader::LoadControl(XmlNodeRef const pNode, Scope const sco
 //////////////////////////////////////////////////////////////////////////
 void CFileLoader::LoadScopes()
 {
-	string levelsFolder = CryAudio::s_szLevelsFolderName;
-	levelsFolder += CRY_NATIVE_PATH_SEPSTR;
-	LoadScopesImpl(levelsFolder);
-}
+	ILevelSystem* const pLevelSystem = gEnv->pGameFramework->GetILevelSystem();
 
-//////////////////////////////////////////////////////////////////////////
-void CFileLoader::LoadScopesImpl(string const& sLevelsFolder)
-{
-	// TODO: consider moving the file enumeration to a background thread to speed up the editor startup time.
-
-	_finddata_t fd;
-	ICryPak* const pCryPak = gEnv->pCryPak;
-	intptr_t const handle = pCryPak->FindFirst(sLevelsFolder + CRY_NATIVE_PATH_SEPSTR "*.*", &fd);
-
-	if (handle != -1)
+	if (pLevelSystem != nullptr)
 	{
-		do
+		int const levelCount = pLevelSystem->GetLevelCount();
+
+		for (int i = 0; i < levelCount; ++i)
 		{
-			string name = fd.name;
-
-			if ((name != ".") && (name != "..") && !name.empty())
-			{
-				if (fd.attrib & _A_SUBDIR)
-				{
-					LoadScopesImpl(sLevelsFolder + CRY_NATIVE_PATH_SEPSTR + name);
-				}
-				else
-				{
-					if (strcmp(PathUtil::GetExt(name), "level") == 0)
-					{
-						PathUtil::RemoveExtension(name);
-						m_assetsManager.AddScope(name);
-					}
-				}
-			}
+			string const& name = pLevelSystem->GetLevelInfo(i)->GetName();
+			m_assetsManager.AddScope(name);
 		}
-		while (pCryPak->FindNext(handle, &fd) >= 0);
-
-		pCryPak->FindClose(handle);
 	}
 }
 
@@ -333,7 +307,7 @@ void CFileLoader::CreateInternalControls()
 {
 	// Create internal default controls.
 	// These controls are hidden in the ACE and don't get written to XML!
-	CSystemAsset* const pLibrary = static_cast<CSystemAsset*>(m_assetsManager.CreateLibrary(s_szDefaultLibraryName));
+	CSystemAsset* const pLibrary = static_cast<CSystemAsset*>(m_assetsManager.CreateLibrary(CryAudio::s_szDefaultLibraryName));
 
 	if (pLibrary != nullptr)
 	{
@@ -341,10 +315,14 @@ void CFileLoader::CreateInternalControls()
 
 		CreateInternalControl(pLibrary, CryAudio::s_szDoNothingTriggerName, ESystemItemType::Trigger);
 
-		SwitchStates const occlStates{ CryAudio::s_szIgnoreStateName, CryAudio::s_szAdaptiveStateName, CryAudio::s_szLowStateName, CryAudio::s_szMediumStateName, CryAudio::s_szHighStateName };
+		SwitchStates const occlStates {
+			CryAudio::s_szIgnoreStateName, CryAudio::s_szAdaptiveStateName, CryAudio::s_szLowStateName, CryAudio::s_szMediumStateName, CryAudio::s_szHighStateName
+		};
 		CreateInternalSwitch(pLibrary, CryAudio::s_szOcclCalcSwitchName, occlStates);
 
-		SwitchStates const onOffStates{ CryAudio::s_szOnStateName, CryAudio::s_szOffStateName };
+		SwitchStates const onOffStates {
+			CryAudio::s_szOnStateName, CryAudio::s_szOffStateName
+		};
 		CreateInternalSwitch(pLibrary, CryAudio::s_szAbsoluteVelocityTrackingSwitchName, onOffStates);
 		CreateInternalSwitch(pLibrary, CryAudio::s_szRelativeVelocityTrackingSwitchName, onOffStates);
 	}
@@ -385,7 +363,7 @@ void CFileLoader::CreateDefaultControls()
 	// Create default controls if they don't exist.
 	// These controls need to always exist in your project!
 	bool wasModified = false;
-	CSystemAsset* const pLibrary = static_cast<CSystemAsset*>(m_assetsManager.CreateLibrary(s_szDefaultLibraryName));
+	CSystemAsset* const pLibrary = static_cast<CSystemAsset*>(m_assetsManager.CreateLibrary(CryAudio::s_szDefaultLibraryName));
 
 	if (pLibrary != nullptr)
 	{
@@ -395,6 +373,8 @@ void CFileLoader::CreateDefaultControls()
 		m_assetsManager.CreateDefaultControl(CryAudio::s_szLoseFocusTriggerName, ESystemItemType::Trigger, pLibrary, wasModified);
 		m_assetsManager.CreateDefaultControl(CryAudio::s_szMuteAllTriggerName, ESystemItemType::Trigger, pLibrary, wasModified);
 		m_assetsManager.CreateDefaultControl(CryAudio::s_szUnmuteAllTriggerName, ESystemItemType::Trigger, pLibrary, wasModified);
+		m_assetsManager.CreateDefaultControl(CryAudio::s_szPauseAllTriggerName, ESystemItemType::Trigger, pLibrary, wasModified);
+		m_assetsManager.CreateDefaultControl(CryAudio::s_szResumeAllTriggerName, ESystemItemType::Trigger, pLibrary, wasModified);
 		m_assetsManager.CreateDefaultControl(CryAudio::s_szAbsoluteVelocityParameterName, ESystemItemType::Parameter, pLibrary, wasModified);
 		m_assetsManager.CreateDefaultControl(CryAudio::s_szRelativeVelocityParameterName, ESystemItemType::Parameter, pLibrary, wasModified);
 
@@ -586,7 +566,7 @@ void CFileLoader::LoadControlsEditorData(XmlNodeRef const pParentNode)
 
 		if ((controlType != ESystemItemType::Invalid) && !description.IsEmpty())
 		{
-			 CSystemControl* const pControl = m_assetsManager.FindControl(pParentNode->getAttr(CryAudio::s_szNameAttribute), controlType);
+			CSystemControl* const pControl = m_assetsManager.FindControl(pParentNode->getAttr(CryAudio::s_szNameAttribute), controlType);
 
 			if (pControl != nullptr)
 			{

@@ -1,4 +1,4 @@
-// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioImpl.h"
@@ -38,6 +38,7 @@ CImpl::CImpl()
 	, m_pLowLevelSystem(nullptr)
 	, m_pMasterBank(nullptr)
 	, m_pStringsBank(nullptr)
+	, m_isMuted(false)
 {
 	m_constructedObjects.reserve(256);
 }
@@ -193,25 +194,53 @@ ERequestStatus CImpl::Release()
 ///////////////////////////////////////////////////////////////////////////
 ERequestStatus CImpl::OnLoseFocus()
 {
-	return MuteMasterBus(true);
+	if (!m_isMuted)
+	{
+		MuteMasterBus(true);
+	}
+
+	return ERequestStatus::Success;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 ERequestStatus CImpl::OnGetFocus()
 {
-	return MuteMasterBus(false);
+	if (!m_isMuted)
+	{
+		MuteMasterBus(false);
+	}
+
+	return ERequestStatus::Success;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 ERequestStatus CImpl::MuteAll()
 {
-	return MuteMasterBus(true);
+	MuteMasterBus(true);
+	m_isMuted = true;
+	return ERequestStatus::Success;
 }
 
 ///////////////////////////////////////////////////////////////////////////
 ERequestStatus CImpl::UnmuteAll()
 {
-	return MuteMasterBus(false);
+	MuteMasterBus(false);
+	m_isMuted = false;
+	return ERequestStatus::Success;
+}
+
+///////////////////////////////////////////////////////////////////////////
+ERequestStatus CImpl::PauseAll()
+{
+	PauseMasterBus(true);
+	return ERequestStatus::Success;
+}
+
+///////////////////////////////////////////////////////////////////////////
+ERequestStatus CImpl::ResumeAll()
+{
+	PauseMasterBus(false);
+	return ERequestStatus::Success;
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -491,9 +520,20 @@ ITrigger const* CImpl::ConstructTrigger(XmlNodeRef const pRootNode)
 			EEventType eventType = EEventType::Start;
 			char const* const szEventType = pRootNode->getAttr(s_szTypeAttribute);
 
-			if ((szEventType != nullptr) && (szEventType[0] != '\0') && (_stricmp(szEventType, s_szStopValue) == 0))
+			if ((szEventType != nullptr) && (szEventType[0] != '\0'))
 			{
-				eventType = EEventType::Stop;
+				if (_stricmp(szEventType, s_szStopValue) == 0)
+				{
+					eventType = EEventType::Stop;
+				}
+				else if (_stricmp(szEventType, s_szPauseValue) == 0)
+				{
+					eventType = EEventType::Pause;
+				}
+				else if (_stricmp(szEventType, s_szResumeValue) == 0)
+				{
+					eventType = EEventType::Resume;
+				}
 			}
 
 			pTrigger = new CTrigger(StringToId(path.c_str()), eventType, nullptr, guid);
@@ -681,30 +721,23 @@ IEnvironment const* CImpl::ConstructEnvironment(XmlNodeRef const pRootNode)
 			FMOD::Studio::Bus* pBus = nullptr;
 			FMOD_RESULT const fmodResult = m_pSystem->getBusByID(&guid, &pBus);
 			ASSERT_FMOD_OK;
-			pEnvironment = new CEnvironment(nullptr, pBus);
+			pEnvironment = new CEnvironmentBus(nullptr, pBus);
 		}
 		else
 		{
 			Cry::Audio::Log(ELogType::Warning, "Unknown Fmod bus: %s", path.c_str());
 		}
 	}
-	else if (_stricmp(szTag, s_szSnapshotTag) == 0)
+	else if (_stricmp(szTag, s_szParameterTag) == 0)
 	{
-		stack_string path(s_szSnapshotPrefix);
-		path += pRootNode->getAttr(s_szNameAttribute);
-		FMOD_GUID guid = { 0 };
 
-		if (m_pSystem->lookupID(path.c_str(), &guid) == FMOD_OK)
-		{
-			FMOD::Studio::EventDescription* pEventDescription = nullptr;
-			FMOD_RESULT const fmodResult = m_pSystem->getEventByID(&guid, &pEventDescription);
-			ASSERT_FMOD_OK;
-			pEnvironment = new CEnvironment(pEventDescription, nullptr);
-		}
-		else
-		{
-			Cry::Audio::Log(ELogType::Warning, "Unknown Fmod snapshot: %s", path.c_str());
-		}
+		char const* const szName = pRootNode->getAttr(s_szNameAttribute);
+		float multiplier = 1.0f;
+		float shift = 0.0f;
+		pRootNode->getAttr(s_szMutiplierAttribute, multiplier);
+		pRootNode->getAttr(s_szShiftAttribute, shift);
+
+		pEnvironment = new CEnvironmentParameter(StringToId(szName), multiplier, shift, szName);
 	}
 	else
 	{
@@ -1004,7 +1037,7 @@ void CImpl::UnloadMasterBanks()
 }
 
 //////////////////////////////////////////////////////////////////////////
-ERequestStatus CImpl::MuteMasterBus(bool const bMute)
+void CImpl::MuteMasterBus(bool const shouldMute)
 {
 	FMOD::Studio::Bus* pMasterBus = nullptr;
 	FMOD_RESULT fmodResult = m_pSystem->getBus(s_szBusPrefix, &pMasterBus);
@@ -1012,11 +1045,23 @@ ERequestStatus CImpl::MuteMasterBus(bool const bMute)
 
 	if (pMasterBus != nullptr)
 	{
-		fmodResult = pMasterBus->setMute(bMute);
+		fmodResult = pMasterBus->setMute(shouldMute);
 		ASSERT_FMOD_OK;
 	}
+}
 
-	return (fmodResult == FMOD_OK) ? ERequestStatus::Success : ERequestStatus::Failure;
+//////////////////////////////////////////////////////////////////////////
+void CImpl::PauseMasterBus(bool const shouldPause)
+{
+	FMOD::Studio::Bus* pMasterBus = nullptr;
+	FMOD_RESULT fmodResult = m_pSystem->getBus(s_szBusPrefix, &pMasterBus);
+	ASSERT_FMOD_OK;
+
+	if (pMasterBus != nullptr)
+	{
+		fmodResult = pMasterBus->setPaused(shouldPause);
+		ASSERT_FMOD_OK;
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////

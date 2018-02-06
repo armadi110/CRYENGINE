@@ -2884,12 +2884,6 @@ bool CSystem::Initialize(SSystemInitParams& startupParams)
 
 		//here we should be good to ask Crypak to do something
 
-		//notify test system to init logs (since file system is setup).
-		if (m_pTestSystem)
-		{
-			m_pTestSystem->InitLog();
-		}
-
 		//#define GEN_PAK_CDR_CRC
 #ifdef GEN_PAK_CDR_CRC
 
@@ -2911,11 +2905,6 @@ bool CSystem::Initialize(SSystemInitParams& startupParams)
 		// Check hard minimum CPU requirements
 		if (!CheckCPURequirements(m_pCpu, this))
 			return false;
-
-		if (m_env.pConsole != nullptr)
-		{
-			CTestSystemLegacy::InitCommands();
-		}
 
 		m_env.pLog->RegisterConsoleVariables();
 
@@ -2943,6 +2932,17 @@ bool CSystem::Initialize(SSystemInitParams& startupParams)
 
 		InitFileSystem_LoadEngineFolders();
 		//////////////////////////////////////////////////////////////////////////
+
+		//notify test system to init logs (since file system is setup).
+		if (m_pTestSystem)
+		{
+			m_pTestSystem->InitLog();
+		}
+
+		if (m_env.pConsole != nullptr)
+		{
+			CTestSystemLegacy::InitCommands();
+		}
 
 		// Initialise after pLog and CPU feature initialization
 		// AND after console creation (Editor only)
@@ -3376,7 +3376,7 @@ bool CSystem::Initialize(SSystemInitParams& startupParams)
 					// make sure it's rendered in full screen mode when triple buffering is enabled as well
 					for (size_t n = 0; n < 3; n++)
 					{
-						m_env.pRenderer->BeginFrame(0);
+						m_env.pRenderer->BeginFrame({});
 						IRenderAuxImage::Draw2dImage(x, y, w, h, pTex->GetTextureID(), 0.0f, 1.0f, 1.0f, 0.0f);
 						m_env.pRenderer->EndFrame();
 					}

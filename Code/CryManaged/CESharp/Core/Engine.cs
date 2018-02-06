@@ -80,6 +80,7 @@ namespace CryEngine
 				Input.Initialize();
 				Renderer.Instance = new Renderer();
 				Mouse.Instance = new Mouse();
+				AudioManager.Initialize();
 			}
 
 			CryEngine.GameFramework.Instance = new GameFramework();
@@ -186,7 +187,6 @@ namespace CryEngine
 			else
 			{
 				Console.ExecuteString("ed_disable_game_mode", false, true);
-				OnUnloadStart();
 			}
 		}
 

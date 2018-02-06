@@ -1,4 +1,4 @@
-// Copyright 2001-2017 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "stdafx.h"
 #include "AudioImpl.h"
@@ -701,7 +701,6 @@ ERequestStatus CImpl::OnGetFocus()
 ERequestStatus CImpl::MuteAll()
 {
 	// With Wwise we drive this via events.
-	// Note: Still, make sure to return eARS_SUCCESS to signal the ATL.
 	return ERequestStatus::Success;
 }
 
@@ -709,7 +708,20 @@ ERequestStatus CImpl::MuteAll()
 ERequestStatus CImpl::UnmuteAll()
 {
 	// With Wwise we drive this via events.
-	// Note: Still, make sure to return eARS_SUCCESS to signal the ATL.
+	return ERequestStatus::Success;
+}
+
+///////////////////////////////////////////////////////////////////////////
+ERequestStatus CImpl::PauseAll()
+{
+	// With Wwise we drive this via events.
+	return ERequestStatus::Success;
+}
+
+///////////////////////////////////////////////////////////////////////////
+ERequestStatus CImpl::ResumeAll()
+{
+	// With Wwise we drive this via events.
 	return ERequestStatus::Success;
 }
 
@@ -1103,7 +1115,7 @@ ISwitchState const* CImpl::ConstructSwitchState(XmlNodeRef const pRootNode)
 			pSwitchState = new SSwitchState(ESwitchType::SwitchGroup, stateOrSwitchGroupId, stateOrSwitchId);
 		}
 	}
-	else if (_stricmp(szTag, s_szParameterSwitchTag) == 0)
+	else if (_stricmp(szTag, s_szParameterTag) == 0)
 	{
 		pSwitchState = ParseWwiseRtpcSwitch(pRootNode);
 	}
