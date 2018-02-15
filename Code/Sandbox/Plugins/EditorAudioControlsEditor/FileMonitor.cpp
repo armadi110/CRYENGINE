@@ -1,12 +1,13 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "StdAfx.h"
 #include "FileMonitor.h"
 
-#include "IEditorImpl.h"
 #include "SystemAssetsManager.h"
 #include "AudioControlsEditorPlugin.h"
+#include "ImplementationManager.h"
 
+#include <IEditorImpl.h>
 #include <CryString/CryPath.h>
 
 namespace ACE
@@ -44,7 +45,6 @@ void CFileMonitor::Disable()
 //////////////////////////////////////////////////////////////////////////
 CFileMonitorSystem::CFileMonitorSystem(int const delay, CSystemAssetsManager const& assetsManager, QObject* const pParent)
 	: CFileMonitor(delay, assetsManager, pParent)
-	, m_monitorFolder (assetsManager.GetConfigFolderPath())
 	, m_delayTimer(new QTimer(this))
 {
 	m_delayTimer->setSingleShot(true);
@@ -55,6 +55,7 @@ CFileMonitorSystem::CFileMonitorSystem(int const delay, CSystemAssetsManager con
 //////////////////////////////////////////////////////////////////////////
 void CFileMonitorSystem::Enable()
 {
+	m_monitorFolder = m_assetsManager.GetConfigFolderPath();
 	GetIEditor()->GetFileMonitor()->RegisterListener(this, m_monitorFolder, "xml");
 }
 
@@ -74,11 +75,9 @@ CFileMonitorMiddleware::CFileMonitorMiddleware(int const delay, CSystemAssetsMan
 //////////////////////////////////////////////////////////////////////////
 void CFileMonitorMiddleware::Enable()
 {
-	IEditorImpl* const pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
-
-	if (pEditorImpl != nullptr)
+	if (g_pEditorImpl != nullptr)
 	{
-		IImplSettings const* const pImplSettings = pEditorImpl->GetSettings();
+		IImplSettings const* const pImplSettings = g_pEditorImpl->GetSettings();
 
 		if (pImplSettings != nullptr)
 		{
@@ -86,21 +85,12 @@ void CFileMonitorMiddleware::Enable()
 			m_monitorFolders.clear();
 			GetIEditor()->GetFileMonitor()->UnregisterListener(this);
 
-			int const gameFolderPathLength = (PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR).GetLength();
+			m_monitorFolders.emplace_back(pImplSettings->GetAssetsPath());
+			m_monitorFolders.emplace_back(PathUtil::GetLocalizationFolder().c_str());
 
-			string const& soundBanksPath = pImplSettings->GetAssetsPath();
-			string const& soundBanksPathSubstr = (soundBanksPath).substr(gameFolderPathLength);
-			m_monitorFolders.emplace_back(soundBanksPathSubstr.c_str());
-
-			string const& localizationPath = PathUtil::GetLocalizationFolder();
-			m_monitorFolders.emplace_back(localizationPath.c_str());
-
-			string const& projectPath = pImplSettings->GetProjectPath();
-
-			if (projectPath != soundBanksPath)
+			if (pImplSettings->SupportsProjects())
 			{
-				string const& projectPathSubstr = projectPath.substr(gameFolderPathLength);
-				m_monitorFolders.emplace_back(projectPathSubstr.c_str());
+				m_monitorFolders.emplace_back(pImplSettings->GetProjectPath());
 			}
 
 			for (auto const& folder : m_monitorFolders)

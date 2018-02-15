@@ -108,7 +108,7 @@ void CATLAudioObject::ReportStartedTriggerInstance(
 void CATLAudioObject::ReportStartedEvent(CATLEvent* const pEvent)
 {
 	m_activeEvents.insert(pEvent);
-	m_triggerImplStates.insert(std::make_pair(pEvent->m_audioTriggerImplId, SAudioTriggerImplState()));
+	m_triggerImplStates.emplace(pEvent->m_audioTriggerImplId, SAudioTriggerImplState());
 
 	// Update the radius where events playing in this audio object are audible
 	if (pEvent->m_pTrigger)
@@ -666,6 +666,10 @@ ERequestStatus CATLAudioObject::HandleSetTransformation(CObjectTransformation co
 	{
 		m_attributes.transformation = transformation;
 		m_flags |= EObjectFlags::MovingOrDecaying;
+
+		// Immediately propagate the new transformation down to the middleware to prevent executing a trigger before its transformation was set.
+		// Calculation of potentially tracked absolute and relative velocities can be safely delayed to next audio frame.
+		m_pImplData->Set3DAttributes(m_attributes);
 	}
 
 	return ERequestStatus::Success;
@@ -963,7 +967,7 @@ void CATLAudioObject::DrawDebugInfo(
 
 	if (IRenderer* const pRenderer = gEnv->pRenderer)
 	{
-		auto& camera = GetISystem()->GetViewCamera();
+		auto const& camera = GetISystem()->GetViewCamera();
 		pRenderer->ProjectToScreen(position.x, position.y, position.z, &screenPos.x, &screenPos.y, &screenPos.z);
 
 		screenPos.x = screenPos.x * 0.01f * camera.GetViewSurfaceX();
@@ -1127,7 +1131,7 @@ void CATLAudioObject::DrawDebugInfo(
 									bStateSwitchMatchesFilter = true;
 								}
 
-								switchStateInfo.insert(std::make_pair(pSwitch, pSwitchState));
+								switchStateInfo.emplace(pSwitch, pSwitchState);
 							}
 						}
 					}
@@ -1155,7 +1159,7 @@ void CATLAudioObject::DrawDebugInfo(
 							bParameterMatchesFilter = true;
 						}
 
-						parameterInfo.insert(std::make_pair(szParameterName, parameterPair.second));
+						parameterInfo.emplace(szParameterName, parameterPair.second);
 					}
 				}
 			}
@@ -1181,7 +1185,7 @@ void CATLAudioObject::DrawDebugInfo(
 							bEnvironmentMatchesFilter = true;
 						}
 
-						environmentInfo.insert(std::make_pair(szEnvironmentName, environmentPair.second));
+						environmentInfo.emplace(szEnvironmentName, environmentPair.second);
 					}
 				}
 			}
@@ -1483,9 +1487,8 @@ void CATLAudioObject::ForceImplementationRefresh(
 	}
 
 	// Last re-execute its active triggers and standalone files.
-	ObjectTriggerStates& triggerStates = m_triggerStates;
-	auto it = triggerStates.cbegin();
-	auto end = triggerStates.cend();
+	auto it = m_triggerStates.cbegin();
+	auto end = m_triggerStates.cend();
 
 	while (it != end)
 	{
@@ -1536,8 +1539,8 @@ void CATLAudioObject::ForceImplementationRefresh(
 		}
 		else
 		{
-			it = triggerStates.erase(it);
-			end = triggerStates.cend();
+			it = m_triggerStates.erase(it);
+			end = m_triggerStates.cend();
 			continue;
 		}
 

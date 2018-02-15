@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "StdAfx.h"
 #include "AudioControlsEditorPlugin.h"
@@ -13,8 +13,6 @@
 #include <CryAudio/IAudioSystem.h>
 #include <CryAudio/IObject.h>
 #include <CryMath/Cry_Camera.h>
-#include <CrySystem/File/CryFile.h>
-#include <CryString/CryPath.h>
 #include <CryCore/Platform/platform_impl.inl>
 #include <IUndoManager.h>
 #include <QtViewPane.h>
@@ -69,11 +67,10 @@ CAudioControlsEditorPlugin::~CAudioControlsEditorPlugin()
 void CAudioControlsEditorPlugin::SaveModels()
 {
 	SignalAboutToSave();
-	IEditorImpl* pEditorImpl = s_implementationManager.GetImplementation();
 
-	if (pEditorImpl != nullptr)
+	if (g_pEditorImpl != nullptr)
 	{
-		CFileWriter writer(s_assetsManager, pEditorImpl, s_currentFilenames);
+		CFileWriter writer(s_assetsManager, s_currentFilenames);
 		writer.WriteAll();
 	}
 
@@ -87,16 +84,14 @@ void CAudioControlsEditorPlugin::ReloadModels(bool const reloadImplementation)
 	// Do not call signalAboutToLoad and signalLoaded in here!
 	GetIEditor()->GetIUndoManager()->Suspend();
 
-	IEditorImpl* const pEditorImpl = s_implementationManager.GetImplementation();
-
 	s_assetsManager.UpdateFolderPaths();
 	s_assetsManager.Clear();
 
-	if (pEditorImpl != nullptr)
+	if (g_pEditorImpl != nullptr)
 	{
 		if (reloadImplementation)
 		{
-			pEditorImpl->Reload();
+			g_pEditorImpl->Reload();
 		}
 
 		CFileLoader loader(s_assetsManager);
@@ -139,12 +134,6 @@ void CAudioControlsEditorPlugin::ReloadScopes()
 CSystemAssetsManager* CAudioControlsEditorPlugin::GetAssetsManager()
 {
 	return &s_assetsManager;
-}
-
-//////////////////////////////////////////////////////////////////////////
-IEditorImpl* CAudioControlsEditorPlugin::GetImplEditor()
-{
-	return s_implementationManager.GetImplementation();
 }
 
 //////////////////////////////////////////////////////////////////////////

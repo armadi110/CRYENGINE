@@ -11,7 +11,6 @@
 #include <CrySystem/File/CryFile.h>
 #include <CrySystem/ISystem.h>
 #include <CrySystem/ILocalizationManager.h>
-#include <CryString/CryPath.h>
 
 namespace ACE
 {
@@ -29,24 +28,39 @@ string const g_returnsPath = "/metadata/return/";
 string const g_vcasPath = "/metadata/vca/";
 
 //////////////////////////////////////////////////////////////////////////
-CProjectLoader::CProjectLoader(string const& projectPath, string const& soundbanksPath, CImplItem& root)
-	: m_root(root)
+CProjectLoader::CProjectLoader(string const& projectPath, string const& soundbanksPath, CImplItem& rootItem, ItemCache& itemCache, CEditorImpl& editorImpl)
+	: m_rootItem(rootItem)
+	, m_itemCache(itemCache)
 	, m_projectPath(projectPath)
+	, m_editorImpl(editorImpl)
 {
-	CImplItem* const pSoundBanks = CreateItem(g_soundBanksFolderName, EImplItemType::EditorFolder, &m_root);
-	LoadBanks(soundbanksPath, false, *pSoundBanks);
+	CImplItem* const pSoundBanksFolder = CreateItem(g_soundBanksFolderName, EImplItemType::EditorFolder, &m_rootItem);
+	LoadBanks(soundbanksPath, false, *pSoundBanksFolder);
 
-	ParseFolder(projectPath + g_eventFoldersPath, g_eventsFolderName, root);          // Event folders
-	ParseFolder(projectPath + g_parametersFoldersPath, g_parametersFolderName, root); // Parameter folders
-	ParseFolder(projectPath + g_snapshotGroupsPath, g_snapshotsFolderName, root);     // Snapshot groups
-	ParseFolder(projectPath + g_mixerGroupsPath, g_returnsFolderName, root);          // Mixer groups
-	ParseFolder(projectPath + g_eventsPath, g_eventsFolderName, root);                // Events
-	ParseFolder(projectPath + g_parametersPath, g_parametersFolderName, root);        // Parameters
-	ParseFolder(projectPath + g_snapshotsPath, g_snapshotsFolderName, root);          // Snapshots
-	ParseFolder(projectPath + g_returnsPath, g_returnsFolderName, root);              // Returns
-	ParseFolder(projectPath + g_vcasPath, g_vcasFolderName, root);                    // VCAs
+	CImplItem* const pEventsFolder = CreateItem(g_eventsFolderName, EImplItemType::EditorFolder, &m_rootItem);
+	CImplItem* const pParametersFolder = CreateItem(g_parametersFolderName, EImplItemType::EditorFolder, &m_rootItem);
+	CImplItem* const pSnapshotsFolder = CreateItem(g_snapshotsFolderName, EImplItemType::EditorFolder, &m_rootItem);
+	CImplItem* const pReturnsFolder = CreateItem(g_returnsFolderName, EImplItemType::EditorFolder, &m_rootItem);
+	CImplItem* const pVcasFolder = CreateItem(g_vcasFolderName, EImplItemType::EditorFolder, &m_rootItem);
+
+	ParseFolder(projectPath + g_eventFoldersPath, *pEventsFolder, rootItem);          // Event folders
+	ParseFolder(projectPath + g_parametersFoldersPath, *pParametersFolder, rootItem); // Parameter folders
+	ParseFolder(projectPath + g_snapshotGroupsPath, *pSnapshotsFolder, rootItem);     // Snapshot groups
+	ParseFolder(projectPath + g_mixerGroupsPath, *pReturnsFolder, rootItem);          // Mixer groups
+	ParseFolder(projectPath + g_eventsPath, *pEventsFolder, rootItem);                // Events
+	ParseFolder(projectPath + g_parametersPath, *pParametersFolder, rootItem);        // Parameters
+	ParseFolder(projectPath + g_snapshotsPath, *pSnapshotsFolder, rootItem);          // Snapshots
+	ParseFolder(projectPath + g_returnsPath, *pReturnsFolder, rootItem);              // Returns
+	ParseFolder(projectPath + g_vcasPath, *pVcasFolder, rootItem);                    // VCAs
 
 	RemoveEmptyMixerGroups();
+
+	RemoveEmptyEditorFolders(pSoundBanksFolder);
+	RemoveEmptyEditorFolders(pEventsFolder);
+	RemoveEmptyEditorFolders(pParametersFolder);
+	RemoveEmptyEditorFolders(pSnapshotsFolder);
+	RemoveEmptyEditorFolders(pReturnsFolder);
+	RemoveEmptyEditorFolders(pVcasFolder);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -88,8 +102,7 @@ void CProjectLoader::LoadBanks(string const& folderPath, bool const isLocalized,
 		{
 			if (filename.compare(0, masterBankName.length(), masterBankName) != 0)
 			{
-				CImplItem* const pSoundBank = CreateItem(filename, EImplItemType::Bank, &parent);
-				pSoundBank->SetFilePath(folderPath + CRY_NATIVE_PATH_SEPSTR + filename);
+				CImplItem* const pSoundBank = CreateItem(filename, EImplItemType::Bank, &parent, folderPath + "/" + filename);
 			}
 		}
 
@@ -98,7 +111,7 @@ void CProjectLoader::LoadBanks(string const& folderPath, bool const isLocalized,
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CProjectLoader::ParseFolder(string const& folderPath, string const& folderName, CImplItem& parent)
+void CProjectLoader::ParseFolder(string const& folderPath, CImplItem& editorFolder, CImplItem& parent)
 {
 	_finddata_t fd;
 	ICryPak* const pCryPak = gEnv->pCryPak;
@@ -106,15 +119,13 @@ void CProjectLoader::ParseFolder(string const& folderPath, string const& folderN
 
 	if (handle != -1)
 	{
-		CImplItem* const pEditorFolder = CreateItem(folderName, EImplItemType::EditorFolder, &parent);
-
 		do
 		{
 			string const filename = fd.name;
 
 			if ((filename != ".") && (filename != "..") && !filename.empty())
 			{
-				ParseFile(folderPath + filename, *pEditorFolder);
+				ParseFile(folderPath + filename, editorFolder);
 			}
 		}
 		while (pCryPak->FindNext(handle, &fd) >= 0);
@@ -436,10 +447,10 @@ CImplItem* CProjectLoader::LoadVca(XmlNodeRef const pNode, CImplItem& parent)
 }
 
 //////////////////////////////////////////////////////////////////////////
-CImplItem* CProjectLoader::CreateItem(string const& name, EImplItemType const type, CImplItem* const pParent)
+CImplItem* CProjectLoader::CreateItem(string const& name, EImplItemType const type, CImplItem* const pParent, string const& filePath /*= ""*/)
 {
-	CID const id = Utils::GetId(type, name, pParent, m_root);
-	CImplItem* pImplItem = GetControl(id);
+	CID const id = Utils::GetId(type, name, pParent, m_rootItem);
+	auto pImplItem = static_cast<CImplItem*>(m_editorImpl.GetImplItem(id));
 
 	if (pImplItem != nullptr)
 	{
@@ -451,28 +462,27 @@ CImplItem* CProjectLoader::CreateItem(string const& name, EImplItemType const ty
 			while (pParentItem != nullptr)
 			{
 				pParentItem->SetPlaceholder(false);
-				pParentItem = pParentItem->GetParent();
+				pParentItem = static_cast<CImplItem*>(pParentItem->GetParent());
 			}
 		}
 	}
 	else
 	{
-		if (type == EImplItemType::Folder)
+		if (type == EImplItemType::Bank)
 		{
-			pImplItem = new CImplFolder(name, id);
+			pImplItem = new CImplItem(name, id, static_cast<ItemType>(type), EImplItemFlags::None, filePath);
 		}
-		else if (type == EImplItemType::MixerGroup)
+		else if (type == EImplItemType::EditorFolder)
 		{
-			pImplItem = new CImplMixerGroup(name, id);
-			m_emptyMixerGroups.emplace_back(static_cast<CImplMixerGroup*>(pImplItem));
+			pImplItem = new CImplItem(name, id, static_cast<ItemType>(type), EImplItemFlags::IsContainer);
 		}
 		else
 		{
 			pImplItem = new CImplItem(name, id, static_cast<ItemType>(type));
 
-			if (type == EImplItemType::EditorFolder)
+			if (type == EImplItemType::MixerGroup)
 			{
-				pImplItem->SetContainer(true);
+				m_emptyMixerGroups.push_back(pImplItem);
 			}
 		}
 
@@ -482,24 +492,11 @@ CImplItem* CProjectLoader::CreateItem(string const& name, EImplItemType const ty
 		}
 		else
 		{
-			m_root.AddChild(pImplItem);
+			m_rootItem.AddChild(pImplItem);
 		}
 
-		m_controlsCache[id] = pImplItem;
+		m_itemCache[id] = pImplItem;
 
-	}
-
-	return pImplItem;
-}
-
-//////////////////////////////////////////////////////////////////////////
-CImplItem* CProjectLoader::GetControl(CID const id) const
-{
-	CImplItem* pImplItem = nullptr;
-
-	if (id >= 0)
-	{
-		pImplItem = stl::find_in_map(m_controlsCache, id, nullptr);
 	}
 
 	return pImplItem;
@@ -517,27 +514,35 @@ void CProjectLoader::RemoveEmptyMixerGroups()
 
 		if (pMixerGroup != nullptr)
 		{
-			auto const pParent = pMixerGroup->GetParent();
+			auto const pParent = static_cast<CImplItem* const>(pMixerGroup->GetParent());
 
 			if (pParent != nullptr)
 			{
 				pParent->RemoveChild(pMixerGroup);
 			}
 
-			size_t const childCount = pMixerGroup->ChildCount();
+			size_t const numChildren = pMixerGroup->GetNumChildren();
 
-			for (size_t i = 0; i < childCount; ++i)
+			for (size_t i = 0; i < numChildren; ++i)
 			{
-				auto const pChild = pMixerGroup->GetChildAt(i);
+				auto const pChild = static_cast<CImplItem* const>(pMixerGroup->GetChildAt(i));
 
 				if (pChild != nullptr)
 				{
 					pMixerGroup->RemoveChild(pChild);
 				}
 			}
-		}
 
-		delete pMixerGroup;
+			auto const id = pMixerGroup->GetId();
+			auto const cacheIter = m_itemCache.find(id);
+
+			if (cacheIter != m_itemCache.end())
+			{
+				m_itemCache.erase(cacheIter);
+			}
+
+			delete pMixerGroup;
+		}
 
 		if (iter != (iterEnd - 1))
 		{
@@ -547,6 +552,25 @@ void CProjectLoader::RemoveEmptyMixerGroups()
 		m_emptyMixerGroups.pop_back();
 		iter = m_emptyMixerGroups.begin();
 		iterEnd = m_emptyMixerGroups.end();
+	}
+
+	m_emptyMixerGroups.clear();
+}
+
+//////////////////////////////////////////////////////////////////////////
+void CProjectLoader::RemoveEmptyEditorFolders(CImplItem* const pEditorFolder)
+{
+	if (pEditorFolder->GetNumChildren() == 0)
+	{
+		m_rootItem.RemoveChild(pEditorFolder);
+		ItemCache::const_iterator const it(m_itemCache.find(pEditorFolder->GetId()));
+
+		if (it != m_itemCache.end())
+		{
+			m_itemCache.erase(it);
+		}
+
+		delete pEditorFolder;
 	}
 }
 } // namespace Fmod

@@ -1720,7 +1720,7 @@ bool CTacticalPointSystem::GenerateInternal(TTacticalPointQuery query, const Que
 				{
 					const size_t maxCenterLocationCount = 512;
 					Vec3 centerLocations[maxCenterLocationCount];
-					if (size_t locationCount = gAIEnv.pNavigationSystem->GetTriangleCenterLocationsInMesh(meshID, objPos, searchAABB, centerLocations, maxCenterLocationCount))
+					if (size_t locationCount = gAIEnv.pNavigationSystem->GetTriangleCenterLocationsInMesh(meshID, objPos, searchAABB, centerLocations, maxCenterLocationCount, nullptr))
 					{
 						for (size_t i = 0; i < locationCount; ++i)
 						{
@@ -1857,7 +1857,7 @@ bool CTacticalPointSystem::BoolPropertyInternal(TTacticalPointQuery query, const
 				if (pAIActor)
 				{
 					const Vec3 testPosition(point.GetPos());
-					result = pNavigationSystem->IsLocationValidInNavigationMesh(pAIActor->GetNavigationTypeID(), testPosition);
+					result = pNavigationSystem->IsLocationValidInNavigationMesh(pAIActor->GetNavigationTypeID(), testPosition, nullptr);
 				}
 			}
 		}
@@ -2434,7 +2434,7 @@ bool CTacticalPointSystem::RealPropertyInternal(TTacticalPointQuery query, const
 			fY *= fHeight * 0.01f;
 
 			// [2/5/2009 evgeny] Reject points that are behind the frustrum near plane
-			CCamera& camera = GetISystem()->GetViewCamera();
+			const CCamera& camera = GetISystem()->GetViewCamera();
 			Vec3 vCameraNormalizedDirection = camera.GetViewdir().normalize();
 			Vec3 vPointRelativeToCameraNearPlane =
 			  point.GetPos() - camera.GetPosition() - camera.GetNearPlane() * vCameraNormalizedDirection;

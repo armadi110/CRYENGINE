@@ -76,8 +76,9 @@ typedef uint32 vtx_idx;
 
 #if CRY_PLATFORM_WINDOWS || CRY_PLATFORM_APPLE || CRY_PLATFORM_LINUX || CRY_PLATFORM_ANDROID
 	#if defined(DEDICATED_SERVER)
-//! Enable/disable map load slicing functionality from the build.
-		#define MAP_LOADING_SLICING
+		//! Map Loading Slicing is by default disabled.
+		//! Enable/disable map load slicing functionality from the ProjectDefinesInclude.h.
+		//#define MAP_LOADING_SLICING
 	#endif
 #endif
 
@@ -109,7 +110,9 @@ extern void SliceAndSleep(const char* pFunc, int line);
 	#define USE_HTTP_WEBSOCKETS 0
 #endif
 
-#if (CRY_PLATFORM_WINDOWS || CRY_PLATFORM_ORBIS || CRY_PLATFORM_DURANGO) && !defined(RESOURCE_COMPILER)
+#if (CRY_PLATFORM_WINDOWS || CRY_PLATFORM_ORBIS || CRY_PLATFORM_DURANGO) && \
+	!defined(RESOURCE_COMPILER) &&											\
+	!defined(NOT_USE_CRY_MEMORY_MANAGER)
 	#define CAPTURE_REPLAY_LOG 1
 #endif
 
@@ -322,7 +325,7 @@ extern void SliceAndSleep(const char* pFunc, int line);
 #include "ProjectDefinesInclude.h"
 
 #ifdef RELEASE
-// Forces the .cryproject and system.cfg file to be read from a .pak file instead of directly from disk.
+// Forces the .cryproject file to be read from a .pak file instead of directly from disk.
 #define CRY_FORCE_CRYPROJECT_IN_PAK
 #endif
 

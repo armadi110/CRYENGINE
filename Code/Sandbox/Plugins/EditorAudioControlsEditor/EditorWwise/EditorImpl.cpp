@@ -124,45 +124,38 @@ char const* TypeToTag(EImpltemType const type)
 }
 
 //////////////////////////////////////////////////////////////////////////
-CImplItem* SearchForControl(CImplItem* const pImplItem, string const& name, ItemType const type)
+CImplItem* SearchForItem(CImplItem* const pImplItem, string const& name, ItemType const type)
 {
-	CImplItem* pImplControl = nullptr;
+	CImplItem* pSearchedImplItem = nullptr;
 
 	if ((pImplItem->GetName() == name) && (pImplItem->GetType() == type))
 	{
-		pImplControl = pImplItem;
+		pSearchedImplItem = pImplItem;
 	}
 	else
 	{
-		int const count = pImplItem->ChildCount();
+		int const count = pImplItem->GetNumChildren();
 
 		for (int i = 0; i < count; ++i)
 		{
-			CImplItem* const pFoundImplControl = SearchForControl(pImplItem->GetChildAt(i), name, type);
+			CImplItem* const pFoundImplItem = SearchForItem(static_cast<CImplItem* const>(pImplItem->GetChildAt(i)), name, type);
 
-			if (pFoundImplControl != nullptr)
+			if (pFoundImplItem != nullptr)
 			{
-				pImplControl = pFoundImplControl;
+				pSearchedImplItem = pFoundImplItem;
 				break;
 			}
 		}
 	}
 
-	return pImplControl;
+	return pSearchedImplItem;
 }
 
 //////////////////////////////////////////////////////////////////////////
 CImplSettings::CImplSettings()
-	: m_projectPath(PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR "wwise_project")
-	, m_assetsPath(PathUtil::GetGameFolder() +
-	               CRY_NATIVE_PATH_SEPSTR
-	               AUDIO_SYSTEM_DATA_ROOT
-	               CRY_NATIVE_PATH_SEPSTR +
-	               CryAudio::Impl::Wwise::s_szImplFolderName +
-	               CRY_NATIVE_PATH_SEPSTR +
-	               CryAudio::s_szAssetsFolderName)
-{
-}
+	: m_projectPath(AUDIO_SYSTEM_DATA_ROOT "/wwise_project")
+	, m_assetsPath(AUDIO_SYSTEM_DATA_ROOT "/" + string(CryAudio::Impl::Wwise::s_szImplFolderName) + "/" + string(CryAudio::s_szAssetsFolderName))
+{}
 
 //////////////////////////////////////////////////////////////////////////
 void CImplSettings::SetProjectPath(char const* szPath)
@@ -197,9 +190,7 @@ void CEditorImpl::Reload(bool const preserveConnectionStatus)
 {
 	Clear();
 
-	CProjectLoader(GetSettings()->GetProjectPath(), GetSettings()->GetAssetsPath(), m_rootControl);
-
-	CreateControlCache(&m_rootControl);
+	CProjectLoader(GetSettings()->GetProjectPath(), GetSettings()->GetAssetsPath(), m_rootItem, m_itemCache);
 
 	if (preserveConnectionStatus)
 	{
@@ -207,11 +198,11 @@ void CEditorImpl::Reload(bool const preserveConnectionStatus)
 		{
 			if (connection.second > 0)
 			{
-				CImplItem* const pImplControl = GetControl(connection.first);
+				auto const pImplItem = static_cast<CImplItem* const>(GetImplItem(connection.first));
 
-				if (pImplControl != nullptr)
+				if (pImplItem != nullptr)
 				{
-					pImplControl->SetConnected(true);
+					pImplItem->SetConnected(true);
 				}
 			}
 		}
@@ -223,20 +214,20 @@ void CEditorImpl::Reload(bool const preserveConnectionStatus)
 }
 
 //////////////////////////////////////////////////////////////////////////
-CImplItem* CEditorImpl::GetControl(CID const id) const
+IImplItem* CEditorImpl::GetImplItem(CID const id) const
 {
-	CImplItem* pImplItem = nullptr;
+	IImplItem* pImplItem = nullptr;
 
 	if (id >= 0)
 	{
-		pImplItem = stl::find_in_map(m_controlsCache, id, nullptr);
+		pImplItem = stl::find_in_map(m_itemCache, id, nullptr);
 	}
 
 	return pImplItem;
 }
 
 //////////////////////////////////////////////////////////////////////////
-char const* CEditorImpl::GetTypeIcon(CImplItem const* const pImplItem) const
+char const* CEditorImpl::GetTypeIcon(IImplItem const* const pImplItem) const
 {
 	char const* szIconPath = "icons:Dialogs/dialog-error.ico";
 	auto const type = static_cast<EImpltemType>(pImplItem->GetType());
@@ -297,7 +288,7 @@ string const& CEditorImpl::GetFolderName() const
 }
 
 //////////////////////////////////////////////////////////////////////////
-bool CEditorImpl::IsTypeCompatible(ESystemItemType const systemType, CImplItem const* const pImplItem) const
+bool CEditorImpl::IsTypeCompatible(ESystemItemType const systemType, IImplItem const* const pImplItem) const
 {
 	bool isCompatible = false;
 	auto const implType = static_cast<EImpltemType>(pImplItem->GetType());
@@ -328,7 +319,7 @@ bool CEditorImpl::IsTypeCompatible(ESystemItemType const systemType, CImplItem c
 }
 
 //////////////////////////////////////////////////////////////////////////
-ESystemItemType CEditorImpl::ImplTypeToSystemType(CImplItem const* const pImplItem) const
+ESystemItemType CEditorImpl::ImplTypeToSystemType(IImplItem const* const pImplItem) const
 {
 	ESystemItemType systemType = ESystemItemType::Invalid;
 	auto const itemType = static_cast<EImpltemType>(pImplItem->GetType());
@@ -364,7 +355,7 @@ ESystemItemType CEditorImpl::ImplTypeToSystemType(CImplItem const* const pImplIt
 }
 
 //////////////////////////////////////////////////////////////////////////
-ConnectionPtr CEditorImpl::CreateConnectionToControl(ESystemItemType const controlType, CImplItem* const pImplItem)
+ConnectionPtr CEditorImpl::CreateConnectionToControl(ESystemItemType const controlType, IImplItem* const pImplItem)
 {
 	ConnectionPtr pConnection = nullptr;
 
@@ -423,19 +414,19 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 #endif    // USE_BACKWARDS_COMPATIBILITY
 			bool const isLocalized = (localizedAttribute.compareNoCase(CryAudio::Impl::Wwise::s_szTrueValue) == 0);
 
-			CImplItem* pImplControl = SearchForControl(&m_rootControl, name, static_cast<ItemType>(type));
+			CImplItem* pImplItem = SearchForItem(&m_rootItem, name, static_cast<ItemType>(type));
 
-			// If control not found, create a placeholder.
+			// If item not found, create a placeholder.
 			// We want to keep that connection even if it's not in the middleware.
 			// The user could be using the engine without the wwise project
-			if (pImplControl == nullptr)
+			if (pImplItem == nullptr)
 			{
-				CID const id = GenerateID(name, isLocalized, &m_rootControl);
-				pImplControl = new CImplControl(name, id, static_cast<ItemType>(type));
-				pImplControl->SetLocalised(isLocalized);
-				pImplControl->SetPlaceholder(true);
+				CID const id = GenerateID(name, isLocalized, &m_rootItem);
+				EImplItemFlags const flags = isLocalized ? (EImplItemFlags::IsPlaceHolder | EImplItemFlags::IsLocalized) : EImplItemFlags::IsPlaceHolder;
 
-				m_controlsCache[id] = pImplControl;
+				pImplItem = new CImplItem(name, id, static_cast<ItemType>(type), flags);
+
+				m_itemCache[id] = pImplItem;
 			}
 
 			// If it's a switch we actually connect to one of the states within the switch
@@ -456,32 +447,29 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 						}
 #endif          // USE_BACKWARDS_COMPATIBILITY
 
-						CImplItem* pStateControl = nullptr;
-						size_t const count = pImplControl->ChildCount();
+						CImplItem* pStateItem = nullptr;
+						size_t const count = pImplItem->GetNumChildren();
 
 						for (size_t i = 0; i < count; ++i)
 						{
-							CImplItem* const pChild = pImplControl->GetChildAt(i);
+							auto const pChild = static_cast<CImplItem* const>(pImplItem->GetChildAt(i));
 
 							if ((pChild != nullptr) && (pChild->GetName() == childName))
 							{
-								pStateControl = pChild;
+								pStateItem = pChild;
 							}
 						}
 
-						if (pStateControl == nullptr)
+						if (pStateItem == nullptr)
 						{
 							CID const id = GenerateID(childName);
-							pStateControl = new CImplControl(childName, id, static_cast<ItemType>(type == EImpltemType::SwitchGroup ? EImpltemType::Switch : EImpltemType::State));
-							pStateControl->SetLocalised(false);
-							pStateControl->SetPlaceholder(true);
-							pImplControl->AddChild(pStateControl);
-							pStateControl->SetParent(pImplControl);
+							pStateItem = new CImplItem(childName, id, static_cast<ItemType>(type == EImpltemType::SwitchGroup ? EImpltemType::Switch : EImpltemType::State), EImplItemFlags::IsPlaceHolder);
+							pImplItem->AddChild(pStateItem);
 
-							m_controlsCache[id] = pStateControl;
+							m_itemCache[id] = pStateItem;
 						}
 
-						pImplControl = pStateControl;
+						pImplItem = pStateItem;
 					}
 				}
 				else
@@ -490,7 +478,7 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 				}
 			}
 
-			if (pImplControl != nullptr)
+			if (pImplItem != nullptr)
 			{
 				if (type == EImpltemType::Parameter)
 				{
@@ -499,7 +487,7 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 					case ESystemItemType::Parameter:
 					case ESystemItemType::Environment:
 						{
-							ParameterConnectionPtr const pConnection = std::make_shared<CParameterConnection>(pImplControl->GetId());
+							ParameterConnectionPtr const pConnection = std::make_shared<CParameterConnection>(pImplItem->GetId());
 							float mult = pConnection->GetMultiplier();
 							float shift = pConnection->GetShift();
 
@@ -523,7 +511,7 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 						break;
 					case ESystemItemType::State:
 						{
-							StateConnectionPtr const pConnection = std::make_shared<CStateToParameterConnection>(pImplControl->GetId());
+							StateConnectionPtr const pConnection = std::make_shared<CStateToParameterConnection>(pImplItem->GetId());
 							float value = pConnection->GetValue();
 
 							pNode->getAttr(CryAudio::Impl::Wwise::s_szValueAttribute, value);
@@ -539,13 +527,13 @@ ConnectionPtr CEditorImpl::CreateConnectionFromXMLNode(XmlNodeRef pNode, ESystem
 						}
 						break;
 					default:
-						pConnectionPtr = std::make_shared<CImplConnection>(pImplControl->GetId());
+						pConnectionPtr = std::make_shared<CImplConnection>(pImplItem->GetId());
 						break;
 					}
 				}
 				else
 				{
-					pConnectionPtr = std::make_shared<CImplConnection>(pImplControl->GetId());
+					pConnectionPtr = std::make_shared<CImplConnection>(pImplItem->GetId());
 				}
 			}
 		}
@@ -559,20 +547,20 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 {
 	XmlNodeRef pNode = nullptr;
 
-	CImplItem const* const pImplControl = GetControl(pConnection->GetID());
+	auto const pImplItem = static_cast<CImplItem const* const>(GetImplItem(pConnection->GetID()));
 
-	if (pImplControl != nullptr)
+	if (pImplItem != nullptr)
 	{
-		auto const itemType = static_cast<EImpltemType>(pImplControl->GetType());
+		auto const itemType = static_cast<EImpltemType>(pImplItem->GetType());
 
-		switch (static_cast<EImpltemType>(pImplControl->GetType()))
+		switch (static_cast<EImpltemType>(pImplItem->GetType()))
 		{
 		case EImpltemType::Switch:
 		case EImpltemType::SwitchGroup:
 		case EImpltemType::State:
 		case EImpltemType::StateGroup:
 			{
-				CImplItem const* const pParent = pImplControl->GetParent();
+				IImplItem const* const pParent = pImplItem->GetParent();
 
 				if (pParent != nullptr)
 				{
@@ -580,7 +568,7 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 					pSwitchNode->setAttr(CryAudio::s_szNameAttribute, pParent->GetName());
 
 					XmlNodeRef const pStateNode = pSwitchNode->createNode(CryAudio::Impl::Wwise::s_szValueTag);
-					pStateNode->setAttr(CryAudio::s_szNameAttribute, pImplControl->GetName());
+					pStateNode->setAttr(CryAudio::s_szNameAttribute, pImplItem->GetName());
 					pSwitchNode->addChild(pStateNode);
 
 					pNode = pSwitchNode;
@@ -591,7 +579,7 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 			{
 				XmlNodeRef pConnectionNode;
 				pConnectionNode = GetISystem()->CreateXmlNode(TypeToTag(itemType));
-				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplControl->GetName());
+				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplItem->GetName());
 
 				if ((controlType == ESystemItemType::Parameter) || (controlType == ESystemItemType::Environment))
 				{
@@ -625,7 +613,7 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 			{
 				XmlNodeRef pConnectionNode;
 				pConnectionNode = GetISystem()->CreateXmlNode(TypeToTag(itemType));
-				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplControl->GetName());
+				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplItem->GetName());
 				pNode = pConnectionNode;
 			}
 			break;
@@ -633,16 +621,16 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 			{
 				XmlNodeRef pConnectionNode;
 				pConnectionNode = GetISystem()->CreateXmlNode(TypeToTag(itemType));
-				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplControl->GetName());
+				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplItem->GetName());
 				pNode = pConnectionNode;
 			}
 			break;
 		case EImpltemType::SoundBank:
 			{
 				XmlNodeRef pConnectionNode = GetISystem()->CreateXmlNode(TypeToTag(itemType));
-				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplControl->GetName());
+				pConnectionNode->setAttr(CryAudio::s_szNameAttribute, pImplItem->GetName());
 
-				if (pImplControl->IsLocalised())
+				if (pImplItem->IsLocalized())
 				{
 					pConnectionNode->setAttr(CryAudio::Impl::Wwise::s_szLocalizedAttribute, CryAudio::Impl::Wwise::s_szTrueValue);
 				}
@@ -659,72 +647,52 @@ XmlNodeRef CEditorImpl::CreateXMLNodeFromConnection(ConnectionPtr const pConnect
 //////////////////////////////////////////////////////////////////////////
 void CEditorImpl::EnableConnection(ConnectionPtr const pConnection)
 {
-	CImplItem* const pImplControl = GetControl(pConnection->GetID());
+	auto const pImplItem = static_cast<CImplItem* const>(GetImplItem(pConnection->GetID()));
 
-	if (pImplControl != nullptr)
+	if (pImplItem != nullptr)
 	{
-		++m_connectionsByID[pImplControl->GetId()];
-		pImplControl->SetConnected(true);
+		++m_connectionsByID[pImplItem->GetId()];
+		pImplItem->SetConnected(true);
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
 void CEditorImpl::DisableConnection(ConnectionPtr const pConnection)
 {
-	CImplItem* const pImplControl = GetControl(pConnection->GetID());
+	auto const pImplItem = static_cast<CImplItem* const>(GetImplItem(pConnection->GetID()));
 
-	if (pImplControl != nullptr)
+	if (pImplItem != nullptr)
 	{
-		int connectionCount = m_connectionsByID[pImplControl->GetId()] - 1;
+		int connectionCount = m_connectionsByID[pImplItem->GetId()] - 1;
 
 		if (connectionCount <= 0)
 		{
 			connectionCount = 0;
-			pImplControl->SetConnected(false);
+			pImplItem->SetConnected(false);
 		}
 
-		m_connectionsByID[pImplControl->GetId()] = connectionCount;
+		m_connectionsByID[pImplItem->GetId()] = connectionCount;
 	}
 }
 
 //////////////////////////////////////////////////////////////////////////
 void CEditorImpl::Clear()
 {
-	// Delete all the controls
-	for (auto const& controlPair : m_controlsCache)
+	// Delete all the items
+	for (auto const& itemPair : m_itemCache)
 	{
-		CImplItem const* const pImplControl = controlPair.second;
+		CImplItem const* const pImplItem = itemPair.second;
 
-		if (pImplControl != nullptr)
+		if (pImplItem != nullptr)
 		{
-			delete pImplControl;
+			delete pImplItem;
 		}
 	}
 
-	m_controlsCache.clear();
+	m_itemCache.clear();
 
-	// Clean up the root control
-	m_rootControl = CImplItem();
-}
-
-//////////////////////////////////////////////////////////////////////////
-void CEditorImpl::CreateControlCache(CImplItem const* const pParent)
-{
-	if (pParent != nullptr)
-	{
-		size_t const count = pParent->ChildCount();
-
-		for (size_t i = 0; i < count; ++i)
-		{
-			CImplItem* const pChild = pParent->GetChildAt(i);
-
-			if (pChild != nullptr)
-			{
-				m_controlsCache[pChild->GetId()] = pChild;
-				CreateControlCache(pChild);
-			}
-		}
-	}
+	// Clean up the root item
+	m_rootItem.Clear();
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -734,13 +702,13 @@ CID CEditorImpl::GenerateID(string const& fullPathName) const
 }
 
 //////////////////////////////////////////////////////////////////////////
-CID CEditorImpl::GenerateID(string const& controlName, bool isLocalized, CImplItem* pParent) const
+CID CEditorImpl::GenerateID(string const& name, bool isLocalized, CImplItem* pParent) const
 {
-	string pathName = (pParent != nullptr && !pParent->GetName().empty()) ? pParent->GetName() + CRY_NATIVE_PATH_SEPSTR + controlName : controlName;
+	string pathName = (pParent != nullptr && !pParent->GetName().empty()) ? pParent->GetName() + "/" + name : name;
 
 	if (isLocalized)
 	{
-		pathName = PathUtil::GetLocalizationFolder() + CRY_NATIVE_PATH_SEPSTR + pathName;
+		pathName = PathUtil::GetLocalizationFolder() + "/" + pathName;
 	}
 
 	return GenerateID(pathName);

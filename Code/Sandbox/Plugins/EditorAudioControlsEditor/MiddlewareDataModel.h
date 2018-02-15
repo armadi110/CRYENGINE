@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #pragma once
 
@@ -8,8 +8,7 @@ class CItemModelAttribute;
 
 namespace ACE
 {
-struct IEditorImpl;
-class CImplItem;
+struct IImplItem;
 
 class CMiddlewareDataModel final : public QAbstractItemModel
 {
@@ -59,10 +58,8 @@ protected:
 private:
 
 	void        ConnectSignals();
-	CImplItem*  ItemFromIndex(QModelIndex const& index) const;
-	QModelIndex IndexFromItem(CImplItem const* const pImplItem) const;
-
-	IEditorImpl* m_pEditorImpl;
+	IImplItem*  ItemFromIndex(QModelIndex const& index) const;
+	QModelIndex IndexFromItem(IImplItem const* const pImplItem) const;
 };
 
 class CMiddlewareFilterProxyModel final : public QAttributeFilterProxyModel

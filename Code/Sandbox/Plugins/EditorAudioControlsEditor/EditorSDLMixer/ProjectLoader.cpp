@@ -1,4 +1,4 @@
-// Copyright 2001-2016 Crytek GmbH / Crytek Group. All rights reserved.
+// Copyright 2001-2018 Crytek GmbH / Crytek Group. All rights reserved.
 
 #include "StdAfx.h"
 #include "ProjectLoader.h"
@@ -7,7 +7,6 @@
 
 #include <CrySystem/File/CryFile.h>
 #include <CrySystem/ISystem.h>
-#include <CryString/CryPath.h>
 #include <CryCore/CryCrc32.h>
 
 namespace ACE
@@ -26,7 +25,7 @@ void CProjectLoader::LoadFolder(string const& folderPath, CImplItem& parent)
 {
 	_finddata_t fd;
 	ICryPak* const pCryPak = gEnv->pCryPak;
-	intptr_t const handle = pCryPak->FindFirst(m_assetsPath + CRY_NATIVE_PATH_SEPSTR + folderPath + CRY_NATIVE_PATH_SEPSTR + "*.*", &fd);
+	intptr_t const handle = pCryPak->FindFirst(m_assetsPath + "/" + folderPath + "/*.*", &fd);
 
 	if (handle != -1)
 	{
@@ -44,7 +43,7 @@ void CProjectLoader::LoadFolder(string const& folderPath, CImplItem& parent)
 					}
 					else
 					{
-						LoadFolder(folderPath + CRY_NATIVE_PATH_SEPSTR + name, *CreateItem(name, folderPath, EImpltemType::Folder, parent));
+						LoadFolder(folderPath + "/" + name, *CreateItem(name, folderPath, EImpltemType::Folder, parent));
 					}
 				}
 				else
@@ -54,8 +53,8 @@ void CProjectLoader::LoadFolder(string const& folderPath, CImplItem& parent)
 					if (posExtension != string::npos)
 					{
 						if ((stricmp(name.data() + posExtension, ".mp3") == 0) ||
-							(stricmp(name.data() + posExtension, ".ogg") == 0) ||
-							(stricmp(name.data() + posExtension, ".wav") == 0))
+						    (stricmp(name.data() + posExtension, ".ogg") == 0) ||
+						    (stricmp(name.data() + posExtension, ".wav") == 0))
 						{
 							// Create the event with the same name as the file
 							CreateItem(name, folderPath, EImpltemType::Event, parent);
@@ -74,7 +73,7 @@ void CProjectLoader::LoadFolder(string const& folderPath, CImplItem& parent)
 CImplItem* CProjectLoader::CreateItem(string const& name, string const& path, EImpltemType const type, CImplItem& rootItem)
 {
 	CID id;
-	string filePath = m_assetsPath + CRY_NATIVE_PATH_SEPSTR;
+	string filePath = m_assetsPath + "/";
 
 	if (path.empty())
 	{
@@ -83,20 +82,15 @@ CImplItem* CProjectLoader::CreateItem(string const& name, string const& path, EI
 	}
 	else
 	{
-		id = CryAudio::StringToId(path + CRY_NATIVE_PATH_SEPSTR + name);
-		filePath += (path + CRY_NATIVE_PATH_SEPSTR + name);
+		id = CryAudio::StringToId(path + "/" + name);
+		filePath += (path + "/" + name);
 	}
 
-	CImplControl* const pControl = new CImplControl(name, id, static_cast<ItemType>(type));
-	pControl->SetFilePath(filePath);
+	EImplItemFlags const flags = type == EImpltemType::Folder ? EImplItemFlags::IsContainer : EImplItemFlags::None;
+	auto const pImplItem = new CImplItem(name, id, static_cast<ItemType>(type), flags, filePath);
 
-	if (type == EImpltemType::Folder)
-	{
-		pControl->SetContainer(true);
-	}
-
-	rootItem.AddChild(pControl);
-	return pControl;
+	rootItem.AddChild(pImplItem);
+	return pImplItem;
 }
 } // namespace SDLMixer
 } // namespace ACE

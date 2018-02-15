@@ -54,7 +54,7 @@ CHardwareMouse::CHardwareMouse(bool bVisibleByDefault)
 #else
 	, m_allowConfine(true)
 #endif // !defined(_RELEASE)
-	, m_shouldUseSystemCursor(gEnv->IsEditor())
+	, m_shouldUseSystemCursor(false)
 	, m_usingSystemCursor(true)
 	, m_confinedWnd(nullptr)
 #if CRY_PLATFORM_WINDOWS
@@ -64,6 +64,19 @@ CHardwareMouse::CHardwareMouse(bool bVisibleByDefault)
 {
 #if CRY_PLATFORM_WINDOWS
 	atexit(ReleaseCursor);
+
+	if (gEnv->IsEditor())
+	{
+		m_shouldUseSystemCursor = true;
+	}
+	else if (gEnv->pConsole)
+	{
+		ICVar* pUseSystemCursorCVar = gEnv->pConsole->GetCVar("r_MouseUseSystemCursor");
+		if (pUseSystemCursorCVar)
+		{
+			m_shouldUseSystemCursor = pUseSystemCursorCVar->GetIVal() != 0;
+		}
+	}
 #endif
 
 	if (gEnv->pConsole)
@@ -71,7 +84,11 @@ CHardwareMouse::CHardwareMouse(bool bVisibleByDefault)
 		ICVar* pCursorTexturePath = gEnv->pConsole->GetCVar("r_MouseCursorTexture");
 		if (pCursorTexturePath)
 		{
-			SetCursor(pCursorTexturePath->GetString());
+			const char* szCursorTexturePath = pCursorTexturePath->GetString();
+			if (szCursorTexturePath && *szCursorTexturePath)
+			{
+				SetCursor(pCursorTexturePath->GetString());
+			}
 		}
 	}
 
@@ -178,6 +195,7 @@ void CHardwareMouse::ShowHardwareMouse(bool bShow)
 	{
 		pInput->ShowCursor(bShow);
 		pInput->SetExclusiveMode(eIDT_Mouse, false);
+		m_bPrevShowState = bShow;
 	}
 
 	m_calledShowHWMouse = true;
@@ -535,6 +553,11 @@ void CHardwareMouse::DecrementCounter()
 	EvaluateCursorConfinement();
 }
 
+bool CHardwareMouse::IsCursorVisible() const
+{
+	return m_iReferenceCounter > 0;
+}
+
 //-----------------------------------------------------------------------------------------------------
 
 void CHardwareMouse::GetHardwareMousePosition(float* pfX, float* pfY)
@@ -697,6 +720,12 @@ bool CHardwareMouse::SetCursor(const char* path)
 
 	// Update the CVar value to match, in case this function was not called through CVar-change-callback
 	gEnv->pConsole->GetCVar("r_MouseCursorTexture")->Set(path);
+
+	if (strlen(path) == 0)
+	{
+		// Empty cursor texture disables custom image cursor.
+		return true;
+	}
 
 	// Load cursor
 	if (m_shouldUseSystemCursor)

@@ -774,10 +774,10 @@ void CAttachmentSKIN::DrawAttachment(SRendParams& RendParams, const SRenderingPa
 				}
 			}
 
-#ifdef EDITOR_PCDEBUGCODE
-			if (Console::GetInst().ca_DebugSWSkinning)
-				DrawVertexDebug(pRenderMesh, QuatT(RenderMat34), pVertexAnimation, vertexSkinData);
-#endif
+			if ((Console::GetInst().ca_DebugSWSkinning > 0) || (pMaster->m_CharEditMode & CA_CharacterTool))
+			{
+				m_vertexAnimation.DrawVertexDebug(pRenderMesh, QuatT(RenderMat34), pVertexAnimation);
+			}
 
 			pRenderMesh->UnLockForThreadAccess();
 		}
@@ -797,23 +797,22 @@ void CAttachmentSKIN::DrawAttachment(SRendParams& RendParams, const SRenderingPa
 #endif
 		pRenderMesh->Render(pObj, passInfo);
 
-		//------------------------------------------------------------------
-		//---       render debug-output (only PC in CharEdit mode)       ---
-		//------------------------------------------------------------------
 #if EDITOR_PCDEBUGCODE
-		if (pMaster->m_CharEditMode&CA_CharacterTool) 
+		// Draw debug for vertex/compute skinning shaders.
+		// CPU skinning is handled natively by CVertexAnimation::DrawVertexDebug().
+		if (!bUseCPUDeformation && (pMaster->m_CharEditMode & CA_CharacterTool))
 		{
 			const Console& rConsole = Console::GetInst();
 
-			uint32 tang = rConsole.ca_DrawTangents;
-			uint32 bitang = rConsole.ca_DrawBinormals;
-			uint32 norm = rConsole.ca_DrawNormals;
-			uint32 wire = rConsole.ca_DrawWireframe; 
+			const bool tang = (rConsole.ca_DrawTangents != 0);
+			const bool bitang = (rConsole.ca_DrawBinormals != 0);
+			const bool norm = (rConsole.ca_DrawNormals != 0);
+			const bool wire = (rConsole.ca_DrawWireframe != 0);
 			if (tang || bitang || norm || wire) 
 			{
 				CModelMesh* pModelMesh = m_pModelSkin->GetModelMesh(nRenderLOD);
-				gEnv->pJobManager->WaitForJob( *pD->m_pSkinningData->pAsyncJobs );
-				SoftwareSkinningDQ_VS_Emulator(pModelMesh, pObj->m_II.m_Matrix,   tang,bitang,norm,wire, pD->m_pSkinningData->pBoneQuatsS);
+				gEnv->pJobManager->WaitForJob(*pD->m_pSkinningData->pAsyncJobs);
+				SoftwareSkinningDQ_VS_Emulator(pModelMesh, pObj->m_II.m_Matrix, tang, bitang, norm, wire, pD->m_pSkinningData->pBoneQuatsS);
 			}
 		}
 #endif
@@ -1014,152 +1013,6 @@ void CAttachmentSKIN::HideInShadow( uint32 x )
 #ifdef EDITOR_PCDEBUGCODE
 //These functions are need only for the Editor on PC
 
-void CAttachmentSKIN::DrawVertexDebug(	IRenderMesh* pRenderMesh, const QuatT& location,	const SVertexAnimationJob* pVertexAnimation,	const SVertexSkinData& vertexSkinData)
-{
-	static const ColorB SKINNING_COLORS[8] =
-	{
-		ColorB(0x40, 0x40, 0xff, 0xff),
-		ColorB(0x40, 0x80, 0xff, 0xff),
-		ColorB(0x40, 0xff, 0x40, 0xff),
-		ColorB(0x80, 0xff, 0x40, 0xff),
-
-		ColorB(0xff, 0x80, 0x40, 0xff),
-		ColorB(0xff, 0x80, 0x80, 0xff),
-		ColorB(0xff, 0xc0, 0xc0, 0xff),
-		ColorB(0xff, 0xff, 0xff, 0xff),
-	};
-
-	// wait till the SW-Skinning jobs have finished
-	while(*pVertexAnimation->pRenderMeshSyncVariable)				
-		CrySleep(1);				
-
-	IRenderMesh* pIRenderMesh = pRenderMesh;
-	strided_pointer<Vec3> parrDstPositions = pVertexAnimation->vertexData.pPositions;
-	strided_pointer<SPipTangents> parrDstTangents;
-	parrDstTangents.data = (SPipTangents*)pVertexAnimation->vertexData.pTangents.data; 
-	parrDstTangents.iStride = sizeof(SPipTangents);
-
-	uint32 numExtVertices = pIRenderMesh->GetVerticesCount();
-	if (parrDstPositions && parrDstTangents)
-	{
-		static DynArray<Vec3>		arrDstPositions;
-		static DynArray<ColorB>	arrDstColors;
-		uint32 numDstPositions=arrDstPositions.size();
-		if (numDstPositions<numExtVertices)
-		{
-			arrDstPositions.resize(numExtVertices);
-			arrDstColors.resize(numExtVertices);
-		}
-
-		//transform vertices by world-matrix
-		for (uint32 i=0; i<numExtVertices; ++i)
-			arrDstPositions[i]	= location*parrDstPositions[i];
-
-		//render faces as wireframe
-		if (Console::GetInst().ca_DebugSWSkinning == 1)
-		{
-			for (uint i=0; i<CRY_ARRAY_COUNT(SKINNING_COLORS); ++i)
-				g_pAuxGeom->Draw2dLabel(32.0f+float(i*16), 32.0f, 2.0f, ColorF(SKINNING_COLORS[i].r/255.0f, SKINNING_COLORS[i].g/255.0f, SKINNING_COLORS[i].b/255.0f, 1.0f), false, "%d", i+1);
-
-			for (uint32 e=0; e<numExtVertices; e++)
-			{
-				uint32 w=0;
-				const SoftwareVertexBlendWeight* pBlendWeights = &vertexSkinData.pVertexTransformWeights[e];
-				for (uint c=0; c<vertexSkinData.vertexTransformCount; ++c)
-				{
-					if (pBlendWeights[c] > 0.0f)
-						w++;
-				}
-
-				if (w) --w;
-				arrDstColors[e] = w < 8 ? SKINNING_COLORS[w] : ColorB(0x00, 0x00, 0x00, 0xff);
-			}
-
-			pIRenderMesh->LockForThreadAccess();
-			uint32	numIndices = pIRenderMesh->GetIndicesCount();
-			vtx_idx* pIndices = pIRenderMesh->GetIndexPtr(FSL_READ);
-
-			IRenderAuxGeom*	pAuxGeom =	gEnv->pRenderer->GetIRenderAuxGeom();
-			SAuxGeomRenderFlags renderFlags( e_Def3DPublicRenderflags );
-			renderFlags.SetFillMode( e_FillModeWireframe );
-			//		renderFlags.SetAlphaBlendMode(e_AlphaAdditive);
-			renderFlags.SetDrawInFrontMode( e_DrawInFrontOn );
-			pAuxGeom->SetRenderFlags( renderFlags );
-			//	pAuxGeom->DrawTriangles(&arrDstPositions[0],numExtVertices, pIndices,numIndices,RGBA8(0x00,0x17,0x00,0x00));		
-			pAuxGeom->DrawTriangles(&arrDstPositions[0],numExtVertices, pIndices,numIndices,&arrDstColors[0]);		
-
-			pIRenderMesh->UnLockForThreadAccess();
-		}	
-
-		//render the Normals
-		if (Console::GetInst().ca_DebugSWSkinning == 2)
-		{
-			IRenderAuxGeom*	pAuxGeom =	gEnv->pRenderer->GetIRenderAuxGeom();
-			static std::vector<ColorB> arrExtVColors;
-			uint32 csize = arrExtVColors.size();
-			if (csize<(numExtVertices*2)) arrExtVColors.resize( numExtVertices*2 );	
-			for(uint32 i=0; i<numExtVertices*2; i=i+2)	
-			{
-				arrExtVColors[i+0] = RGBA8(0x00,0x00,0x3f,0x1f);
-				arrExtVColors[i+1] = RGBA8(0x7f,0x7f,0xff,0xff);
-			}
-
-			Matrix33 WMat33 = Matrix33(location.q);
-			static std::vector<Vec3> arrExtSkinnedStream;
-			uint32 numExtSkinnedStream = arrExtSkinnedStream.size();
-			if (numExtSkinnedStream<(numExtVertices*2)) arrExtSkinnedStream.resize( numExtVertices*2 );	
-			for(uint32 i=0,t=0; i<numExtVertices; i++)	
-			{
-				Vec3 vNormal = parrDstTangents[i].GetN().GetNormalized() * 0.03f;
-
-				arrExtSkinnedStream[t+0] = arrDstPositions[i]; 
-				arrExtSkinnedStream[t+1] = WMat33*vNormal + arrExtSkinnedStream[t];
-				t=t+2;
-			}
-			SAuxGeomRenderFlags renderFlags( e_Def3DPublicRenderflags );
-			pAuxGeom->SetRenderFlags( renderFlags );
-			pAuxGeom->DrawLines( &arrExtSkinnedStream[0],numExtVertices*2, &arrExtVColors[0]);		
-		}
-	}
-
-	if (Console::GetInst().ca_DebugSWSkinning == 3)
-	{
-		if (!vertexSkinData.tangetUpdateVertIdsCount)
-			return;
-
-		uint numVertices = pRenderMesh->GetVerticesCount();
-		uint numIndices = vertexSkinData.tangetUpdateTriCount*3;
-
-		static DynArray<vtx_idx> indices;
-		static DynArray<Vec3> positions;
-		static DynArray<ColorB>	colors;
-
-		indices.resize(numIndices);
-		for (uint i=0; i<vertexSkinData.tangetUpdateTriCount; ++i)
-		{
-			const uint base = i * 3;
-			indices[base+0] = vertexSkinData.pTangentUpdateTriangles[i].idx1;
-			indices[base+1] = vertexSkinData.pTangentUpdateTriangles[i].idx2;
-			indices[base+2] = vertexSkinData.pTangentUpdateTriangles[i].idx3;
-		}
-
-		positions.resize(numVertices);
-		colors.resize(numVertices);
-		for (uint i=0; i<numVertices; ++i)
-		{
-			positions[i] = location * pVertexAnimation->vertexData.pPositions[i];
-			colors[i] = ColorB(0x00, 0x00, 0xff, 0xff);
-		}
-
-		IRenderAuxGeom*	pAuxGeom = gEnv->pRenderer->GetIRenderAuxGeom();
-		SAuxGeomRenderFlags renderFlags( e_Def3DPublicRenderflags );
-		renderFlags.SetFillMode( e_FillModeWireframe );
-		renderFlags.SetDrawInFrontMode( e_DrawInFrontOn );
-		pAuxGeom->SetRenderFlags( renderFlags );
-		pAuxGeom->DrawTriangles(&positions[0], numVertices, &indices[0], numIndices, &colors[0]);
-	}
-}
-
 void CAttachmentSKIN::DrawWireframeStatic( const Matrix34& m34, int nLOD, uint32 color) 
 {
 	CModelMesh* pModelMesh = m_pModelSkin->GetModelMesh(nLOD);
@@ -1172,6 +1025,9 @@ void CAttachmentSKIN::DrawWireframeStatic( const Matrix34& m34, int nLOD, uint32
 //////////////////////////////////////////////////////////////////////////
 void CAttachmentSKIN::SoftwareSkinningDQ_VS_Emulator( CModelMesh* pModelMesh, Matrix34 rRenderMat34, uint8 tang,uint8 binorm,uint8 norm,uint8 wire, const DualQuat* const pSkinningTransformations)
 {
+	// TODO: This method produces inaccurate results and should be replaced by a functionally equivalent
+	// debug visualization performed with geometry that has been deformed by the actual shader implementation.
+
 #ifdef DEFINE_PROFILER_FUNCTION
 	DEFINE_PROFILER_FUNCTION();
 #endif
@@ -1265,7 +1121,15 @@ void CAttachmentSKIN::SoftwareSkinningDQ_VS_Emulator( CModelMesh* pModelMesh, Ma
 			f32 w1 = hwWeights[1]/255.0f;
 			f32 w2 = hwWeights[2]/255.0f;
 			f32 w3 = hwWeights[3]/255.0f;
-			assert(fabsf((w0+w1+w2+w3)-1.0f)<0.0001f);
+
+			// Current skinning shader implementations support more than 4 weights per vertex.
+			// This function produces inaccurate results already due to implementations having drifted
+			// apart, so for the time being we ignore any extra weights and simply normalize the first 4.
+			const f32 weightSum = w0 + w1 + w2 + w3;
+			w0 = w0 / weightSum;
+			w1 = w1 / weightSum;
+			w2 = w2 / weightSum;
+			w3 = w3 / weightSum;
 
 			const DualQuat& q0=arrRemapSkinQuat[id0];
 			const DualQuat& q1=arrRemapSkinQuat[id1];

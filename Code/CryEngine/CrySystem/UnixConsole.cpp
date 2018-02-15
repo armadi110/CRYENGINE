@@ -772,12 +772,7 @@ void CUNIXConsole::KeyEnter()
 
 	if (pushCommand)
 	{
-		CSystem* pSystem = static_cast<CSystem*>(gEnv->pSystem);
-		#if defined(CVARS_WHITELIST)
-		ICVarsWhitelist* pCVarsWhitelist = pSystem->GetCVarsWhiteList();
-		bool execute = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(m_InputLine, false) : true;
-		if (execute)
-		#endif // defined(CVARS_WHITELIST)
+		if (gEnv->pSystem->IsCVarWhitelisted(m_InputLine.c_str(), false))
 		{
 			m_CommandQueue.push_back(m_InputLine);
 		}
@@ -1982,6 +1977,12 @@ void CUNIXConsoleInputThread::ThreadEntry()
 {
 		#if !CRY_PLATFORM_WINDOWS
 	fd_set rdfds;
+
+	// If stdout is not a tty, we won't be accepting input, so just end the thread
+	if (!isatty(fileno(stdout)))
+	{
+		return;
+	}
 		#endif
 	bool interrupted = false;
 

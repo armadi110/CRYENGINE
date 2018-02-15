@@ -180,7 +180,6 @@ public:
 	~CRenderView();
 
 	EViewType    GetType() const                         { return m_viewType;  }
-	void         SetManaged()                            { m_bManaged = true; }
 
 	void         SetParentView(CRenderView* pParentView) { m_pParentView = pParentView; };
 	CRenderView* GetParentView() const                   { return m_pParentView;  };
@@ -244,8 +243,8 @@ public:
 	// Can start executing post write jobs on shadow views
 	void                      PostWriteShadowViews();
 	void                      PrepareShadowViews(); // Sync all outstanding shadow preparation jobs
-	void                      SetShadowFrustumOwner(ShadowMapFrustum* pOwner) { m_shadows.m_pShadowFrustumOwner = pOwner; }
-	virtual ShadowMapFrustum* GetShadowFrustumOwner() const final             { return m_shadows.m_pShadowFrustumOwner; }
+	virtual void              SetShadowFrustumOwner(ShadowMapFrustum* pOwner) final { m_shadows.m_pShadowFrustumOwner = pOwner; }
+	virtual ShadowMapFrustum* GetShadowFrustumOwner() const final                   { return m_shadows.m_pShadowFrustumOwner; }
 
 	//////////////////////////////////////////////////////////////////////////
 	const SRenderGlobalFogDescription& GetGlobalFog() const        { return m_globalFogDescription; };
@@ -353,38 +352,33 @@ private:
 	void                   CalculateViewInfo();
 
 private:
-	EUsageMode m_usageMode;
-	EViewType  m_viewType;
-	string     m_name;
+	EUsageMode       m_usageMode;
+	const EViewType  m_viewType;
+	string           m_name;
 	/// @See SRenderingPassInfo::ESkipRenderingFlags
-	uint32     m_skipRenderingFlags;
+	uint32           m_skipRenderingFlags;
 	/// @see EShaderRenderingFlags
-	uint32     m_shaderRenderingFlags;
-	bool       m_bManaged = false;
+	uint32           m_shaderRenderingFlags;
 
-	int        m_frameId;
-	CTimeValue m_frameTime;
+	int              m_frameId;
+	CTimeValue       m_frameTime;
 
 	// For shadows or recursive view parent will be main rendering view
-	CRenderView*    m_pParentView;
+	CRenderView*     m_pParentView;
 
-	RenderItems     m_renderItems[EFSLIST_NUM];
+	RenderItems      m_renderItems[EFSLIST_NUM];
 
-	volatile uint32 m_BatchFlags[EFSLIST_NUM];
+	volatile uint32  m_BatchFlags[EFSLIST_NUM];
 	// For general passes initialized as a pointers to the m_BatchFlags
 	// But for shadow pass it will be a pointer to the shadow frustum side mask
 	//volatile uint32* m_pFlagsPointer[EFSLIST_NUM];
-
-	// A storage pool for the temporary rendering objects.
-	CThreadSafeWorkerContainer<CRenderObject*> m_temporaryRenderObjects;
-	CRenderObject*                             m_temporaryRenderObjectsPool = nullptr;
 
 	// Temporary render objects storage
 	struct STempObjects
 	{
 		CThreadSafeWorkerContainer<CRenderObject*> tempObjects;
 		CRenderObject*                             pRenderObjectsPool = nullptr;
-		uint32 numObjectsInPool = 0;
+		uint32                                     numObjectsInPool = 0;
 		CryCriticalSection                         accessLock;
 	};
 	STempObjects m_tempRenderObjects;
@@ -495,7 +489,7 @@ private:
 	CryCriticalSectionNonRecursive m_lock_UsageMode;
 	CryCriticalSectionNonRecursive m_lock_PostWrite;
 
-	volatile int                   m_bPostWriteExecuted;
+	std::atomic<bool>              m_bPostWriteExecuted;
 
 	// Constants to pass to shaders.
 	SRenderViewShaderConstants m_shaderConstants;

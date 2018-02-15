@@ -194,9 +194,7 @@ struct SCVarsWhitelistConfigSink : public ILoadConfigurationEntrySink
 {
 	virtual void OnLoadConfigurationEntry(const char* szKey, const char* szValue, const char* szGroup)
 	{
-		ICVarsWhitelist* pCVarsWhitelist = gEnv->pSystem->GetCVarsWhiteList();
-		bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(szKey, false) : true;
-		if (whitelisted)
+		if (gEnv->pSystem->IsCVarWhitelisted(szKey, false))
 		{
 			gEnv->pConsole->LoadConfigVar(szKey, szValue);
 		}
@@ -214,6 +212,9 @@ CSystem::CSystem(const SSystemInitParams& startupParams)
 	: m_gameLibrary(nullptr)
 #endif
 {
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "Main");
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "CSystem::Construct");
+
 	m_pSystemEventDispatcher = new CSystemEventDispatcher(); // Must be first.
 	m_pSystemEventDispatcher->RegisterListener(this, "CSystem");
 
@@ -302,7 +303,6 @@ CSystem::CSystem(const SSystemInitParams& startupParams)
 
 	m_pUserCallback = nullptr;
 #if defined(CVARS_WHITELIST)
-	m_pCVarsWhitelist = nullptr;
 	m_pCVarsWhitelistConfigSink = &g_CVarsWhitelistConfigSink;
 #endif // defined(CVARS_WHITELIST)
 	m_sys_memory_debug = nullptr;
@@ -551,8 +551,6 @@ void CSystem::ShutDown()
 	CLoadingProfilerSystem::ShutDown();
 #endif
 
-	m_pPlatformOS.reset();
-
 	if (m_pSystemEventDispatcher)
 	{
 		m_pSystemEventDispatcher->RemoveListener(this);
@@ -621,7 +619,7 @@ void CSystem::ShutDown()
 			// Log must be last thing released.
 			SAFE_RELEASE(m_env.pProfileLogSystem);
 			m_env.pLog->FlushAndClose();
-			SAFE_RELEASE(m_env.pLog);   // creates log backup
+			SAFE_RELEASE(m_env.pLog); // creates log backup
 
 	#if CRY_PLATFORM_WINDOWS
 			((DebugCallStack*)IDebugCallStack::instance())->uninstallErrorHandler();
@@ -665,6 +663,8 @@ void CSystem::ShutDown()
 	UnloadEngineModule("CryAction");
 	UnloadEngineModule("CryFlowGraph");
 	SAFE_DELETE(m_pPluginManager);
+
+	m_pPlatformOS.reset();
 
 	if (gEnv->pMonoRuntime != nullptr)
 	{
@@ -823,7 +823,7 @@ void CSystem::ShutDown()
 	// Log must be last thing released.
 	SAFE_RELEASE(m_env.pProfileLogSystem);
 	m_env.pLog->FlushAndClose();
-	SAFE_RELEASE(m_env.pLog); // creates log backup
+	SAFE_RELEASE(m_env.pLog);   // creates log backup
 
 	// DefaultValidator is used by the logging system, make sure to delete this member after logging system!
 	SAFE_DELETE(m_pDefaultValidator);
@@ -1488,10 +1488,13 @@ void CSystem::RunMainLoop()
 #if CRY_PLATFORM_WINDOWS
 	if (!(gEnv && m_env.pSystem) || (!m_env.IsEditor() && !m_env.IsDedicated()))
 	{
-		::ShowCursor(FALSE);
 		if (m_env.pHardwareMouse != nullptr)
 		{
 			m_env.pHardwareMouse->DecrementCounter();
+		}
+		else
+		{
+			::ShowCursor(FALSE);
 		}
 	}
 #else
@@ -1518,6 +1521,8 @@ bool CSystem::DoFrame(HWND hWnd, CEnumFlags<ESystemUpdateFlags> updateFlags)
 	// The frame profile system already creates an "overhead" profile label
 	// in StartFrame(). Hence we have to set the FRAMESTART before.
 	CRY_PROFILE_FRAMESTART("Main");
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "Main");
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "CSystem: DoFrame");
 
 	if (m_pManualFrameStepController != nullptr && m_pManualFrameStepController->Update() == EManualFrameStepResult::Block)
 	{
@@ -1787,7 +1792,7 @@ bool CSystem::Update(CEnumFlags<ESystemUpdateFlags> updateFlags, int nPauseMode)
 
 	if (!gEnv->IsEditor() && gEnv->pRenderer)
 	{
-		CCamera& rCamera = GetViewCamera();
+		CCamera rCamera = GetViewCamera();
 
 		// if aspect ratio changes or is different from default we need to update camera
 		const float fNewAspectRatio = gEnv->pRenderer->GetPixelAspectRatio();
@@ -1807,9 +1812,9 @@ bool CSystem::Update(CEnumFlags<ESystemUpdateFlags> updateFlags, int nPauseMode)
 				fNewAspectRatio);
 
 			if (auto pRenderer = gEnv->pRenderer)
-			{
 				pRenderer->UpdateAuxDefaultCamera(rCamera);
-			}
+
+			SetViewCamera(rCamera);
 		}
 	}
 
@@ -2394,7 +2399,10 @@ void CSystem::DoWorkDuringOcclusionChecks()
 
 void CSystem::UpdateAudioSystems()
 {
-	if (m_env.pAudioSystem != nullptr && !IsLoading()) //do not update pAudioSystem during async level load
+	const bool isLoadInProgress = m_systemGlobalState > ESYSTEM_GLOBAL_STATE_INIT &&
+	                              m_systemGlobalState <= ESYSTEM_GLOBAL_STATE_LEVEL_LOAD_END;
+
+	if (m_env.pAudioSystem != nullptr && !isLoadInProgress)   //do not update pAudioSystem during async level load
 	{
 		CRY_PROFILE_SECTION(PROFILE_SYSTEM, "UpdateAudioSystems");
 		CRYPROFILE_SCOPE_PROFILE_MARKER("UpdateAudioSystems");
@@ -2423,6 +2431,18 @@ void CSystem::GetUpdateStats(SSystemUpdateStats& stats)
 			stats.minUpdateTime = min(stats.minUpdateTime, t);
 		}
 		stats.avgUpdateTime /= m_updateTimes.size();
+
+		size_t sz = m_updateTimes.size();
+		if (sz > 1)
+		{
+			const std::pair<CTimeValue, float> head = m_updateTimes.front();
+			const std::pair<CTimeValue, float> tail = m_updateTimes.back();
+			stats.avgUpdateRate = (sz - 1) / (tail.first - head.first).GetSeconds();
+		}
+		else
+		{
+			stats.avgUpdateRate = 0.0f;
+		}
 	}
 }
 
@@ -2702,7 +2722,8 @@ void CSystem::Deltree(const char* szFolder, bool bRecurse)
 //////////////////////////////////////////////////////////////////////////
 void CSystem::GetLocalizedPath(char const* const szLanguage, string& szLocalizedPath)
 {
-	szLocalizedPath = PathUtil::GetLocalizationFolder() + CRY_NATIVE_PATH_SEPSTR + szLanguage + "_xml.pak";
+	string pakSuffix = (g_cvars.sys_localization_pak_suffix) ? g_cvars.sys_localization_pak_suffix->GetString() : "";
+	szLocalizedPath = PathUtil::GetLocalizationFolder() + CRY_NATIVE_PATH_SEPSTR + szLanguage + pakSuffix + ".pak";
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -2927,9 +2948,7 @@ void CSystem::ExecuteCommandLine()
 		{
 			string sLine = pCmd->GetName();
 
-#if defined(CVARS_WHITELIST)
-			if (!GetCVarsWhiteList() || GetCVarsWhiteList()->IsWhiteListed(sLine, false))
-#endif
+			if (gEnv->pSystem->IsCVarWhitelisted(sLine.c_str(), false))
 			{
 				if (pCmd->GetValue())
 					sLine += string(" ") + pCmd->GetValue();
@@ -2938,12 +2957,10 @@ void CSystem::ExecuteCommandLine()
 				GetIConsole()->ExecuteString(sLine.c_str(), false, true);
 			}
 #if defined(DEDICATED_SERVER)
-	#if defined(CVARS_WHITELIST)
 			else
 			{
 				GetILog()->LogError("Failed to execute command: '%s' as it is not whitelisted\n", sLine.c_str());
 			}
-	#endif
 #endif
 		}
 	}
@@ -3413,6 +3430,33 @@ bool CSystem::IsImeSupported() const
 {
 	assert(m_pImeManager != NULL);
 	return m_pImeManager->IsImeSupported();
+}
+
+//////////////////////////////////////////////////////////////////////////
+bool CSystem::IsCVarWhitelisted(const char* szName, bool silent) const
+{
+	CRY_ASSERT(szName != nullptr);
+
+	if (szName[0] == '?')
+	{
+		return true;
+	}
+
+	if (szName[0] == '+')
+	{
+		++szName;
+	}
+
+	const char* pNameEnd = std::max(strchr(szName, ' '), strchr(szName, '='));
+	if (pNameEnd == nullptr)
+	{
+		return ::IsCVarWhitelisted(szName);
+	}
+	else
+	{
+		const string name(szName, pNameEnd);
+		return ::IsCVarWhitelisted(name.c_str());
+	}
 }
 
 //////////////////////////////////////////////////////////////////////////

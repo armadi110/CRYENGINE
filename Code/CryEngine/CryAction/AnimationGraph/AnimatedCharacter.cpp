@@ -322,6 +322,7 @@ void CAnimatedCharacter::InitVars()
 	m_bPendingRagdoll = false;
 	m_pMannequinAGState = NULL;
 	m_proxiesInitialized = false;
+	m_lastACFirstPerson = false;
 
 	for (int layer = 0; layer < eAnimationGraphLayer_COUNT; ++layer)
 	{
@@ -459,9 +460,18 @@ bool CAnimatedCharacter::InitializeMannequin()
 	if (m_pActionController)
 	{
 		IMannequin& mannequinSys = gEnv->pGameFramework->GetMannequinInterface();
-		m_pAnimDatabase3P = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.animDatabase3P);
-		m_pAnimDatabase1P = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.animDatabase1P);
-		m_pSoundDatabase = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.soundDatabase);
+		if (!mannequinSetup.animDatabase3P.empty())
+		{
+			m_pAnimDatabase3P = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.animDatabase3P);
+		}
+		if (!mannequinSetup.animDatabase1P.empty())
+		{
+			m_pAnimDatabase1P = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.animDatabase1P);
+		}
+		if (!mannequinSetup.soundDatabase.empty())
+		{
+			m_pSoundDatabase = mannequinSys.GetAnimationDatabaseManager().Load(mannequinSetup.soundDatabase);
+		}
 	}
 
 	m_useMannequinAGState = mannequinSetup.useMannequinAGState;
@@ -1661,9 +1671,9 @@ bool CAnimatedCharacter::StartAnimationProcessing(const QuatT& entityLocation) c
 	if ((m_pCharacter != NULL) && (m_lastAnimationUpdateFrameId != currentFrameId))
 	{
 		// calculate the approximate distance from camera
-		CCamera* pCamera = &GetISystem()->GetViewCamera();
-		const float fDistance = ((pCamera ? pCamera->GetPosition() : entityLocation.t) - entityLocation.t).GetLength();
-		const float fZoomFactor = 0.001f + 0.999f * (RAD2DEG((pCamera ? pCamera->GetFov() : 60.0f)) / 60.f);
+		const CCamera& camera = GetISystem()->GetViewCamera();
+		const float fDistance = (camera.GetPosition() - entityLocation.t).GetLength();
+		const float fZoomFactor = 0.001f + 0.999f * (RAD2DEG(camera.GetFov()) / 60.f);
 
 		SAnimationProcessParams params;
 		params.locationAnimation = entityLocation;
@@ -1781,7 +1791,7 @@ void CAnimatedCharacter::UpdateGroundAlignment()
 		else
 		{
 			//check if player is close enough
-			CCamera& camera = gEnv->pSystem->GetViewCamera();
+			const CCamera& camera = gEnv->pSystem->GetViewCamera();
 			const float fDistanceSq = (camera.GetPosition() - m_entLocation.t).GetLengthSquared();
 
 			// check if the character is using an animAction

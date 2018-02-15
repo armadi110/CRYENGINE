@@ -354,6 +354,7 @@ void CRenderer::PostInit()
 void CRenderer::StartRenderIntroMovies()
 {
 	LOADING_TIME_PROFILE_SECTION;
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "Staer Render Intro Movie");
 	assert(m_pIntroMovieRenderer == 0);
 
 #if USE_INTRO_MOVIES
@@ -661,16 +662,9 @@ static const char *cc_RenderViewName[IRenderView::eViewType_Count] = { "Normal V
 
 void CRenderView::DeleteThis() const
 {
-	if (m_bManaged)
-	{
-		// const_cast required here because ReturnRenderView needs to perform some cleanup on this.
-		// Ideally we should separate cleanup and actual deletion via some interface on CMultiThreadRefCount
-		gEnv->pRenderer->ReturnRenderView(const_cast<CRenderView*>(this)); 
-	}
-	else
-	{
-		delete this;
-	}
+	// const_cast required here because ReturnRenderView needs to perform some cleanup on this.
+	// Ideally we should separate cleanup and actual deletion via some interface on CMultiThreadRefCount
+	gEnv->pRenderer->ReturnRenderView(const_cast<CRenderView*>(this)); 
 }
 
 CRenderView* CRenderer::GetOrCreateRenderView(IRenderView::EViewType Type)
@@ -695,6 +689,8 @@ void CRenderer::DeleteRenderViews()
 void CRenderer::InitSystemResources(int nFlags)
 {
 	LOADING_TIME_PROFILE_SECTION;
+	MEMSTAT_CONTEXT(EMemStatContextTypes::MSC_Other, 0, "Init System Resources");
+
 	if (!m_bSystemResourcesInit || m_bDeviceLost == 2)
 	{
 		iLog->Log("*** Init system render resources ***");
@@ -2536,8 +2532,8 @@ static float LinearToGamma(float x)
 #pragma GCC diagnostic ignored "-Werror"
 #endif   // __GNUC__
 
-#include "../../../SDKs/squish-ccr/squish.h"
-#include "../../../SDKs/squish-ccr/squish.inl"
+#include <squish-ccr/squish.h>
+#include <squish-ccr/squish.inl>
 
 #ifdef __GNUC__
 #pragma GCC diagnostic pop
@@ -4464,9 +4460,7 @@ void CRenderer::InitRenderViewPool()
 	{
 		m_pRenderViewPool[type].allocElementFunction = [type]() -> CRenderView*
 		{
-			CRenderView* pRenderView = new CRenderView(cc_RenderViewName[type], IRenderView::EViewType(type));
-			pRenderView->SetManaged();
-			return pRenderView;
+			return new CRenderView(cc_RenderViewName[type], IRenderView::EViewType(type));
 		};
 		m_pRenderViewPool[type].freeElementFunction = [](CRenderView*) {};
 	}

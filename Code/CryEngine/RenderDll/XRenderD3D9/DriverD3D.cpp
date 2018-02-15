@@ -146,6 +146,7 @@ void CD3D9Renderer::InitRenderer()
 #if CRY_PLATFORM_WINDOWS
 	m_hIconBig = NULL;
 	m_hIconSmall = NULL;
+	m_hCursor = NULL; 
 #endif
 	m_dwCreateFlags = 0L;
 
@@ -677,6 +678,11 @@ void CD3D9Renderer::HandleDisplayPropertyChanges()
 
 EWindowState CD3D9Renderer::CalculateWindowState() const
 {
+	if (gEnv->IsEditor())
+	{
+		return EWindowState::Windowed;
+	}
+
 	return static_cast<EWindowState>(m_CVWindowType->GetIVal());
 }
 
@@ -4972,6 +4978,13 @@ void CD3D9Renderer::SetMouseCursorIconCVar(ICVar* pVar)
 {
 	gEnv->pHardwareMouse->SetCursor(pVar->GetString());
 }
+
+#if CRY_PLATFORM_WINDOWS
+void CD3D9Renderer::SetMouseUseSystemCursorCVar(ICVar* pVar)
+{
+	gEnv->pHardwareMouse->UseSystemCursor(pVar->GetIVal() != 0);
+}
+#endif //CRY_PLATFORM_WINDOWS
 
 IRenderAuxGeom* CD3D9Renderer::GetIRenderAuxGeom()
 {

@@ -8,6 +8,7 @@
 #include "ModelSkin.h"
 #include "SkeletonPose.h"
 #include "AttachmentVClothPreProcess.h"
+#include "CryThreading/IJobManager.h"
 
 class CCharInstance;
 class CClothProxies;
@@ -554,6 +555,7 @@ public:
 
 	// initializes the object given a skin and a stat obj
 	bool                 Initialize(const CAttachmentVCLOTH* pVClothAttachment);
+	bool                 IsInitialized() const { return m_initialized; }
 
 	void                 Dettach();
 
@@ -653,6 +655,7 @@ class CAttachmentVCLOTH : public IAttachmentSkin, public SAttachmentBase
 public:
 
 	CAttachmentVCLOTH()
+		: m_jobVClothInitializeLockFree(JOB_VCLOTH_INITIALIZATION_IS_NOT_RUNNING)
 	{
 		m_clothCacheKey = -1;
 		for (uint32 j = 0; j < 2; ++j) m_pRenderMeshsSW[j] = NULL;
@@ -731,7 +734,8 @@ public:
 	void                 ComputeClothCacheKey();
 	uint64               GetClothCacheKey() const { return m_clothCacheKey; };
 	void                 AddClothParams(const SVClothParams& clothParams);
-	bool                 InitializeCloth();
+	void                 Initialize();
+	bool                 IsInitialized() const;
 	const SVClothParams& GetClothParams();
 
 	// Vertex Transformation
@@ -741,7 +745,6 @@ public:
 
 #ifdef EDITOR_PCDEBUGCODE
 	void DrawWireframeStatic(const Matrix34& m34, int nLOD, uint32 color);
-	void SoftwareSkinningDQ_VS_Emulator(CModelMesh* pModelMesh, Matrix34 rRenderMat34, uint8 tang, uint8 binorm, uint8 norm, uint8 wire, const DualQuat* const pSkinningTransformations);
 #endif
 
 	virtual IVertexAnimation* GetIVertexAnimation() override { return &m_vertexAnimation; }
@@ -770,4 +773,17 @@ private:
 	// functions to keep in sync ref counts on skins and cleanup of remap tables
 	void ReleaseRenderSkin();
 	void ReleaseSimSkin();
+
+	bool MapLogicalLODtoRenderLOD(int& nRenderLOD, const SRendParams& RendParams, const SRenderingPassInfo& passInfo);
+
+	// multi-threaded initialization, lock-free
+	void Job_VClothInitialize();
+	JobManager::SJobState m_jobVClothInitialization;
+	std::atomic<int> m_jobVClothInitializeLockFree;
+	enum
+	{
+		JOB_VCLOTH_INITIALIZATION_IS_NOT_RUNNING = 0,
+		JOB_VCLOTH_INITIALIZATION_IS_RUNNING = 1
+	};
+	
 };

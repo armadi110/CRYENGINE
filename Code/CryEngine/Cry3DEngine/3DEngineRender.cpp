@@ -775,7 +775,7 @@ void C3DEngine::DebugDraw_UpdateDebugNode()
 	ray_hit rayHit;
 
 	// use cam, no need for firing pos/dir
-	CCamera& cam = GetISystem()->GetViewCamera();
+	const CCamera& cam = GetISystem()->GetViewCamera();
 	const unsigned int flags = rwi_stop_at_pierceable | rwi_colltype_any;
 	const float hitRange = 2000.f;
 
@@ -1935,7 +1935,7 @@ void C3DEngine::RenderScene(const int nRenderFlags, const SRenderingPassInfo& pa
 		{
 			auto &shadowFrustum = pair.first;
 			CRY_ASSERT(shadowFrustum->pOnePassShadowView);
-			shadowFrustum->pOnePassShadowView = nullptr;
+			shadowFrustum->pOnePassShadowView.reset();
 		}
 		const_cast<SRenderingPassInfo&>(passInfo).SetShadowPasses(nullptr);
 	}
@@ -2087,6 +2087,7 @@ void C3DEngine::RenderSkyBox(IMaterial* pMat, const SRenderingPassInfo& passInfo
 
 			m_pRESky->m_fTerrainWaterLevel = max(0.0f, m_pTerrain->GetWaterLevel());
 			m_pRESky->m_fSkyBoxStretching = m_fSkyBoxStretching;
+			m_pRESky->m_fSkyBoxAngle = DEG2RAD(m_fSkyBoxAngle);
 
 			passInfo.GetIRenderView()->AddRenderObject(m_pRESky, pMat->GetShaderItem(), pObj, passInfo, EFSLIST_GENERAL, 1);
 		}
@@ -3895,8 +3896,8 @@ void C3DEngine::PrepareShadowPasses(const SRenderingPassInfo& passInfo, uint32& 
 			light->GetLightProperties(),
 			&nTimeSlicedShadowsUpdatedThisFrame);
 
-		const auto &pShadowsView = GetRenderer()->GetNextAvailableShadowsView((IRenderView*)pMainRenderView, pFr);
-		for (int cubeSide = 0; cubeSide < pFr->GetNumSides(); ++cubeSide)
+		IRenderViewPtr pShadowsView = GetRenderer()->GetNextAvailableShadowsView((IRenderView*)pMainRenderView, pFr);
+		for (int cubeSide = 0; cubeSide < pFr->GetNumSides() && shadowPassInfo.size() < kMaxShadowPassesNum; ++cubeSide)
 		{
 			if (pFr->ShouldCacheSideHint(cubeSide))
 			{
@@ -3917,7 +3918,8 @@ void C3DEngine::PrepareShadowPasses(const SRenderingPassInfo& passInfo, uint32& 
 			shadowPassInfo.push_back(std::move(pass));
 		}
 
+		pShadowsView->SetShadowFrustumOwner(pFr);
 		pShadowsView->SwitchUsageMode(IRenderView::eUsageModeWriting);
-		pFr->pOnePassShadowView = pShadowsView;
+		pFr->pOnePassShadowView = std::move(pShadowsView);
 	}
 }

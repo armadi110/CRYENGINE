@@ -9,7 +9,7 @@
 #include "ModelUtils.h"
 
 #include <IEditorImpl.h>
-#include <ImplItem.h>
+#include <IImplItem.h>
 #include <CrySystem/File/CryFile.h>
 #include <QtUtil.h>
 #include <CryIcon.h>
@@ -23,7 +23,6 @@ namespace ACE
 CConnectionModel::CConnectionModel(QObject* const pParent)
 	: QAbstractItemModel(pParent)
 	, m_pControl(nullptr)
-	, m_pEditorImpl(CAudioControlsEditorPlugin::GetImplEditor())
 	, m_pAssetsManager(CAudioControlsEditorPlugin::GetAssetsManager())
 {
 	ConnectSignals();
@@ -66,7 +65,6 @@ void CConnectionModel::ConnectSignals()
 	CAudioControlsEditorPlugin::GetImplementationManger()->SignalImplementationAboutToChange.Connect([&]()
 		{
 			beginResetModel();
-			m_pEditorImpl = nullptr;
 			m_pControl = nullptr;
 			m_connectionsCache.clear();
 			endResetModel();
@@ -74,7 +72,6 @@ void CConnectionModel::ConnectSignals()
 
 	CAudioControlsEditorPlugin::GetImplementationManger()->SignalImplementationChanged.Connect([&]()
 		{
-			m_pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
 			beginResetModel();
 			ResetCache();
 			endResetModel();
@@ -179,7 +176,7 @@ int CConnectionModel::rowCount(QModelIndex const& parent) const
 {
 	int rowCount = 0;
 
-	if ((m_pControl != nullptr) && (m_pEditorImpl != nullptr))
+	if ((m_pControl != nullptr) && (g_pEditorImpl != nullptr))
 	{
 		if ((parent.row() < 0) || (parent.column() < 0))
 		{
@@ -201,7 +198,7 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 {
 	QVariant variant;
 
-	if ((m_pEditorImpl != nullptr) && (m_pControl != nullptr) && index.isValid())
+	if ((g_pEditorImpl != nullptr) && (m_pControl != nullptr) && index.isValid())
 	{
 		if (index.row() < m_connectionsCache.size())
 		{
@@ -209,11 +206,15 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 
 			if (pConnection != nullptr)
 			{
-				CImplItem const* const pImplItem = m_pEditorImpl->GetControl(pConnection->GetID());
+				IImplItem const* const pImplItem = g_pEditorImpl->GetImplItem(pConnection->GetID());
 
 				if (pImplItem != nullptr)
 				{
-					if (index.column() < static_cast<int>(EColumns::Count))
+					if (role == static_cast<int>(ERoles::Name))
+					{
+						variant = static_cast<char const*>(pImplItem->GetName());
+					}
+					else if (index.column() < static_cast<int>(EColumns::Count))
 					{
 						switch (index.column())
 						{
@@ -226,7 +227,7 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 									{
 										variant = CryIcon(ModelUtils::GetItemNotificationIcon(ModelUtils::EItemStatus::Placeholder));
 									}
-									else if (pImplItem->IsLocalised())
+									else if (pImplItem->IsLocalized())
 									{
 										variant = CryIcon(ModelUtils::GetItemNotificationIcon(ModelUtils::EItemStatus::Localized));
 									}
@@ -236,7 +237,7 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 									{
 										variant = tr("Item not found in middleware project");
 									}
-									else if (pImplItem->IsLocalised())
+									else if (pImplItem->IsLocalized())
 									{
 										variant = tr("Item is localized");
 									}
@@ -252,11 +253,10 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 								switch (role)
 								{
 								case Qt::DecorationRole:
-									variant = CryIcon(m_pEditorImpl->GetTypeIcon(pImplItem));
+									variant = CryIcon(g_pEditorImpl->GetTypeIcon(pImplItem));
 									break;
 								case Qt::DisplayRole:
 								case Qt::ToolTipRole:
-								case static_cast<int>(ERoles::Name):
 									variant = static_cast<char const*>(pImplItem->GetName());
 									break;
 								case static_cast<int>(ERoles::Id):
@@ -273,7 +273,7 @@ QVariant CConnectionModel::data(QModelIndex const& index, int role) const
 								case Qt::ToolTipRole:
 									{
 										QString path;
-										CImplItem const* pImplItemParent = pImplItem->GetParent();
+										IImplItem const* pImplItemParent = pImplItem->GetParent();
 
 										while (pImplItemParent != nullptr)
 										{
@@ -354,7 +354,7 @@ QModelIndex CConnectionModel::index(int row, int column, QModelIndex const& pare
 {
 	QModelIndex modelIndex = QModelIndex();
 
-	if ((m_pEditorImpl != nullptr) && (m_pControl != nullptr))
+	if ((g_pEditorImpl != nullptr) && (m_pControl != nullptr))
 	{
 		if ((row >= 0) && (column >= 0))
 		{
@@ -364,7 +364,7 @@ QModelIndex CConnectionModel::index(int row, int column, QModelIndex const& pare
 
 				if (pConnection != nullptr)
 				{
-					CImplItem const* const pImplItem = m_pEditorImpl->GetControl(pConnection->GetID());
+					IImplItem const* const pImplItem = g_pEditorImpl->GetImplItem(pConnection->GetID());
 
 					if (pImplItem != nullptr)
 					{
@@ -389,7 +389,7 @@ bool CConnectionModel::canDropMimeData(QMimeData const* pData, Qt::DropAction ac
 {
 	bool canDrop = true;
 
-	if ((m_pEditorImpl != nullptr) && (m_pControl != nullptr))
+	if ((g_pEditorImpl != nullptr) && (m_pControl != nullptr))
 	{
 		std::vector<CID> ids;
 		DecodeMimeData(pData, ids);
@@ -397,12 +397,12 @@ bool CConnectionModel::canDropMimeData(QMimeData const* pData, Qt::DropAction ac
 
 		for (auto const id : ids)
 		{
-			CImplItem const* const pImplItem = m_pEditorImpl->GetControl(id);
+			IImplItem const* const pImplItem = g_pEditorImpl->GetImplItem(id);
 
 			if (pImplItem != nullptr)
 			{
 				// is the type being dragged compatible?
-				if (!(m_pEditorImpl->IsTypeCompatible(m_pControl->GetType(), pImplItem)))
+				if (!(g_pEditorImpl->IsTypeCompatible(m_pControl->GetType(), pImplItem)))
 				{
 					dragText = tr("Control types are not compatible.");
 					canDrop = false;
@@ -430,7 +430,7 @@ bool CConnectionModel::dropMimeData(QMimeData const* pData, Qt::DropAction actio
 {
 	bool wasDropped = false;
 
-	if ((m_pEditorImpl != nullptr) && (m_pControl != nullptr))
+	if ((g_pEditorImpl != nullptr) && (m_pControl != nullptr))
 	{
 		std::vector<CID> ids;
 		CID lastConnectedId = ACE_INVALID_ID;
@@ -438,7 +438,7 @@ bool CConnectionModel::dropMimeData(QMimeData const* pData, Qt::DropAction actio
 
 		for (auto const id : ids)
 		{
-			CImplItem* const pImplItem = m_pEditorImpl->GetControl(id);
+			IImplItem* const pImplItem = g_pEditorImpl->GetImplItem(id);
 
 			if (pImplItem != nullptr)
 			{
@@ -446,7 +446,7 @@ bool CConnectionModel::dropMimeData(QMimeData const* pData, Qt::DropAction actio
 
 				if (pConnection == nullptr)
 				{
-					pConnection = m_pEditorImpl->CreateConnectionToControl(m_pControl->GetType(), pImplItem);
+					pConnection = g_pEditorImpl->CreateConnectionToControl(m_pControl->GetType(), pImplItem);
 
 					if (pConnection != nullptr)
 					{
@@ -488,7 +488,7 @@ void CConnectionModel::ResetCache()
 
 			if (pConnection != nullptr)
 			{
-				m_connectionsCache.emplace_back(pConnection);
+				m_connectionsCache.push_back(pConnection);
 			}
 		}
 	}

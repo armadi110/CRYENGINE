@@ -18,8 +18,7 @@ namespace Impl
 {
 namespace SDL_mixer
 {
-#define SDL_MIXER_PROJECT_PATH AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR + s_szImplFolderName + CRY_NATIVE_PATH_SEPSTR + s_szAssetsFolderName + CRY_NATIVE_PATH_SEPSTR
-
+static string const s_projectPath = string(AUDIO_SYSTEM_DATA_ROOT) + "/" + s_szImplFolderName + "/" + s_szAssetsFolderName + "/";
 static constexpr int s_supportedFormats = MIX_INIT_OGG | MIX_INIT_MP3;
 static constexpr int s_numMixChannels = 512;
 static constexpr SampleId s_invalidSampleId = 0;
@@ -209,7 +208,7 @@ void LoadMetadata(const string& path)
 			{
 				if (fd.attrib & _A_SUBDIR)
 				{
-					LoadMetadata(path + name + CRY_NATIVE_PATH_SEPSTR);
+					LoadMetadata(path + name + "/");
 				}
 				else
 				{
@@ -267,7 +266,7 @@ bool SoundEngine::Init()
 
 	Mix_ChannelFinished(ChannelFinishedPlaying);
 
-	g_sampleDataRootDir = PathUtil::GetPathWithoutFilename(PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR SDL_MIXER_PROJECT_PATH);
+	g_sampleDataRootDir = PathUtil::GetPathWithoutFilename(s_projectPath);
 	LoadMetadata("");
 	g_bListenerPosChanged = false;
 
@@ -304,7 +303,7 @@ void SoundEngine::Release()
 void SoundEngine::Refresh()
 {
 	FreeAllSampleData();
-	LoadMetadata(PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR SDL_MIXER_PROJECT_PATH);
+	LoadMetadata(s_projectPath);
 }
 
 const SampleId SoundEngine::LoadSampleFromMemory(void* pMemory, const size_t size, const string& samplePath, const SampleId overrideId)
@@ -497,10 +496,18 @@ bool SoundEngine::StopEvent(CEvent const* const pEvent)
 		// need to make a copy because the callback
 		// registered with Mix_ChannelFinished can edit the list
 		ChannelList const channels = pEvent->m_channels;
+		int const fadeOutTime = pEvent->m_pTrigger->GetFadeOutTime();
 
 		for (int const channel : channels)
 		{
-			Mix_HaltChannel(channel);
+			if (fadeOutTime == 0)
+			{
+				Mix_HaltChannel(channel);
+			}
+			else
+			{
+				Mix_FadeOutChannel(channel, fadeOutTime);
+			}
 		}
 
 		return true;
@@ -576,22 +583,26 @@ ERequestStatus SoundEngine::ExecuteEvent(CObject* const pObject, CTrigger const*
 				}
 			}
 
-			int loopCount = pTrigger->GetNumLoops();
-
-			if (loopCount > 0)
-			{
-				// For SDL Mixer 0 loops means play only once, 1 loop play twice, etc ...
-				--loopCount;
-			}
-
 			if (!g_freeChannels.empty())
 			{
-				int const channelID = Mix_PlayChannel(g_freeChannels.front(), pSample, loopCount);
+				int const channelID = g_freeChannels.front();
 
 				if (channelID >= 0)
 				{
 					g_freeChannels.pop();
 					Mix_Volume(channelID, g_bMuted ? 0 : pTrigger->GetVolume());
+
+					int const fadeInTime = pTrigger->GetFadeInTime();
+					int const loopCount = pTrigger->GetNumLoops();
+
+					if (fadeInTime > 0)
+					{
+						Mix_FadeInChannel(channelID, pSample, loopCount, fadeInTime);
+					}
+					else
+					{
+						Mix_PlayChannel(channelID, pSample, loopCount);
+					}
 
 					// Get distance and angle from the listener to the audio object
 					float distance = 0.0f;
@@ -813,12 +824,12 @@ CTrigger* SoundEngine::CreateTrigger()
 
 void SoundEngine::Update()
 {
-	ProcessChannelFinishedRequests(g_channelFinishedRequests[IntegralValue(EChannelFinishedRequestQueueId::Two)]);
-
 	{
 		CryAutoLock<CryCriticalSection> lock(g_channelFinishedCriticalSection);
 		g_channelFinishedRequests[IntegralValue(EChannelFinishedRequestQueueId::One)].swap(g_channelFinishedRequests[IntegralValue(EChannelFinishedRequestQueueId::Two)]);
 	}
+
+	ProcessChannelFinishedRequests(g_channelFinishedRequests[IntegralValue(EChannelFinishedRequestQueueId::Two)]);
 
 	for (auto const pObject : g_objects)
 	{

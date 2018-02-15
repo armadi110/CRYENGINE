@@ -7,7 +7,7 @@
 #include "ImplementationManager.h"
 
 #include <IEditorImpl.h>
-#include <ImplItem.h>
+#include <IImplItem.h>
 
 #include <CryAudio/IAudioSystem.h>
 #include <CryString/StringUtils.h>
@@ -84,7 +84,7 @@ CSystemControl* CSystemAssetsManager::CreateControl(string const& name, ESystemI
 
 				CSystemControl* const pNewControl = new CSystemControl(name, GenerateUniqueId(), type);
 
-				m_controls.emplace_back(pNewControl);
+				m_controls.push_back(pNewControl);
 
 				pNewControl->SetParent(pParent);
 				pParent->AddChild(pNewControl);
@@ -109,7 +109,7 @@ CSystemControl* CSystemAssetsManager::CreateControl(string const& name, ESystemI
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CSystemAssetsManager::CreateDefaultControl(string const& name, ESystemItemType const type, CSystemAsset* const pParent, bool& wasModified)
+void CSystemAssetsManager::CreateDefaultControl(string const& name, ESystemItemType const type, CSystemAsset* const pParent, bool& wasModified, string const& description)
 {
 	CSystemControl* pControl = FindControl(name, type);
 
@@ -128,6 +128,7 @@ void CSystemAssetsManager::CreateDefaultControl(string const& name, ESystemItemT
 
 	if (pControl != nullptr)
 	{
+		pControl->SetDescription(description);
 		pControl->SetDefaultControl(true);
 	}
 }
@@ -290,7 +291,7 @@ CSystemLibrary* CSystemAssetsManager::CreateLibrary(string const& name)
 		{
 			SignalLibraryAboutToBeAdded();
 			CSystemLibrary* const pLibrary = new CSystemLibrary(name);
-			m_systemLibraries.emplace_back(pLibrary);
+			m_systemLibraries.push_back(pLibrary);
 			SignalLibraryAdded(pLibrary);
 			pLibrary->SetModified(true);
 			pSystemLibrary = pLibrary;
@@ -359,13 +360,13 @@ void CSystemAssetsManager::OnControlAboutToBeModified(CSystemControl* const pCon
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CSystemAssetsManager::OnConnectionAdded(CSystemControl* const pControl, CImplItem* const pImplControl)
+void CSystemAssetsManager::OnConnectionAdded(CSystemControl* const pControl, IImplItem* const pImplItem)
 {
 	SignalConnectionAdded(pControl);
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CSystemAssetsManager::OnConnectionRemoved(CSystemControl* const pControl, CImplItem* const pImplControl)
+void CSystemAssetsManager::OnConnectionRemoved(CSystemControl* const pControl, IImplItem* const pImplItem)
 {
 	SignalConnectionRemoved(pControl);
 }
@@ -379,20 +380,13 @@ void CSystemAssetsManager::OnAssetRenamed()
 //////////////////////////////////////////////////////////////////////////
 void CSystemAssetsManager::UpdateFolderPaths()
 {
-	string const& rootPath = AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR;
-	IEditorImpl const* const pEditorImpl = CAudioControlsEditorPlugin::GetImplementationManger()->GetImplementation();
+	string const rootPath = AUDIO_SYSTEM_DATA_ROOT "/";
 
-	if (pEditorImpl != nullptr)
+	if (g_pEditorImpl != nullptr)
 	{
-		string const& implFolderPath = rootPath + pEditorImpl->GetFolderName() + CRY_NATIVE_PATH_SEPSTR;
-
-		m_configFolderPath = implFolderPath;
-		m_configFolderPath += CryAudio::s_szConfigFolderName;
-		m_configFolderPath += CRY_NATIVE_PATH_SEPSTR;
-
-		m_assetFolderPath = implFolderPath;
-		m_assetFolderPath += CryAudio::s_szAssetsFolderName;
-		m_assetFolderPath += CRY_NATIVE_PATH_SEPSTR;
+		string const& implFolderPath = rootPath + g_pEditorImpl->GetFolderName() + "/";
+		m_configFolderPath = implFolderPath + CryAudio::s_szConfigFolderName + "/";
+		m_assetFolderPath = implFolderPath + CryAudio::s_szAssetsFolderName + "/";
 	}
 	else
 	{
@@ -607,11 +601,10 @@ void CSystemAssetsManager::UpdateAssetConnectionStates(CSystemAsset* const pAsse
 				for (size_t i = 0; i < connectionCount; ++i)
 				{
 					hasConnection = true;
-					IEditorImpl const* const pEditorImpl = CAudioControlsEditorPlugin::GetImplementationManger()->GetImplementation();
 
-					if (pEditorImpl != nullptr)
+					if (g_pEditorImpl != nullptr)
 					{
-						CImplItem const* const pImpleControl = pEditorImpl->GetControl(pControl->GetConnectionAt(i)->GetID());
+						IImplItem const* const pImpleControl = g_pEditorImpl->GetImplItem(pControl->GetConnectionAt(i)->GetID());
 
 						if (pImpleControl != nullptr)
 						{
@@ -671,7 +664,7 @@ void CSystemAssetsManager::MoveItems(CSystemAsset* const pParent, std::vector<CS
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CSystemAssetsManager::CreateAndConnectImplItems(CImplItem* const pImplItem, CSystemAsset* const pParent)
+void CSystemAssetsManager::CreateAndConnectImplItems(IImplItem* const pImplItem, CSystemAsset* const pParent)
 {
 	SignalItemAboutToBeAdded(pParent);
 	CSystemAsset* pItem = CreateAndConnectImplItemsRecursively(pImplItem, pParent);
@@ -679,15 +672,13 @@ void CSystemAssetsManager::CreateAndConnectImplItems(CImplItem* const pImplItem,
 }
 
 //////////////////////////////////////////////////////////////////////////
-CSystemAsset* CSystemAssetsManager::CreateAndConnectImplItemsRecursively(CImplItem* const pImplItem, CSystemAsset* const pParent)
+CSystemAsset* CSystemAssetsManager::CreateAndConnectImplItemsRecursively(IImplItem* const pImplItem, CSystemAsset* const pParent)
 {
 	CSystemAsset* pItem = nullptr;
 
 	// Create the new control and connect it to the one dragged in externally
-	IEditorImpl* const pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
-
 	string name = pImplItem->GetName();
-	ESystemItemType type = pEditorImpl->ImplTypeToSystemType(pImplItem);
+	ESystemItemType type = g_pEditorImpl->ImplTypeToSystemType(pImplItem);
 
 	if (type != ESystemItemType::Invalid)
 	{
@@ -711,9 +702,9 @@ CSystemAsset* CSystemAssetsManager::CreateAndConnectImplItemsRecursively(CImplIt
 		CSystemControl* const pControl = new CSystemControl(name, GenerateUniqueId(), type);
 		pControl->SetParent(pParent);
 		pParent->AddChild(pControl);
-		m_controls.emplace_back(pControl);
+		m_controls.push_back(pControl);
 
-		ConnectionPtr const pAudioConnection = pEditorImpl->CreateConnectionToControl(pControl->GetType(), pImplItem);
+		ConnectionPtr const pAudioConnection = g_pEditorImpl->CreateConnectionToControl(pControl->GetType(), pImplItem);
 
 		if (pAudioConnection != nullptr)
 		{
@@ -733,7 +724,7 @@ CSystemAsset* CSystemAssetsManager::CreateAndConnectImplItemsRecursively(CImplIt
 		pItem = pFolder;
 	}
 
-	size_t const size = pImplItem->ChildCount();
+	size_t const size = pImplItem->GetNumChildren();
 
 	for (size_t i = 0; i < size; ++i)
 	{
@@ -864,7 +855,7 @@ void SelectTopLevelAncestors(std::vector<CSystemAsset*> const& source, std::vect
 
 		if (!isAncestorAlsoSelected)
 		{
-			dest.emplace_back(pItem);
+			dest.push_back(pItem);
 		}
 	}
 }

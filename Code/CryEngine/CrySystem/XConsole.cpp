@@ -24,6 +24,9 @@
 #include <CryString/StringUtils.h>
 #include "ConsoleHelpGen.h"     // CConsoleHelpGen
 
+#define BACKGROUND_SERVER_CHAR '/'
+
+
 //#define DEFENCE_CVAR_HASH_LOGGING
 
 static inline void AssertName(const char* szName)
@@ -249,6 +252,7 @@ void Bind(IConsoleCmdArgs* cmdArgs)
 //////////////////////////////////////////////////////////////////////////
 int CXConsole::con_display_last_messages = 0;
 int CXConsole::con_line_buffer_size = 500;
+float CXConsole::con_font_size = 14;
 int CXConsole::con_showonload = 0;
 int CXConsole::con_debug = 0;
 int CXConsole::con_restricted = 0;
@@ -433,6 +437,7 @@ void CXConsole::Init(CSystem* pSystem)
 
 	REGISTER_CVAR(con_display_last_messages, 0, VF_NULL, "");  // keep default at 1, needed for gameplay
 	REGISTER_CVAR(con_line_buffer_size, 1000, VF_NULL, "");
+	REGISTER_CVAR(con_font_size, 14, VF_NULL, "");
 	REGISTER_CVAR(con_showonload, 0, VF_NULL, "Show console on level loading");
 	REGISTER_CVAR(con_debug, 0, VF_CHEAT, "Log call stack on every GetCVar call");
 	REGISTER_CVAR(con_restricted, con_restricted, VF_RESTRICTEDMODE, "0=normal mode / 1=restricted access to the console");        // later on VF_RESTRICTEDMODE should be removed (to 0)
@@ -547,8 +552,7 @@ void CXConsole::LogChangeMessage(const char* name, const bool isConst, const boo
 
 	if (allowChange)
 	{
-		gEnv->pLog->LogWarning("%s", logMessage.c_str());
-		gEnv->pLog->LogWarning("Modifying marked variables will not be allowed in Release mode!");
+		gEnv->pLog->Log("%s", logMessage.c_str());
 	}
 	else
 	{
@@ -920,9 +924,9 @@ ICVar* CXConsole::RegisterCVarGroup(const char* szName, const char* szFileName)
 	/*
 	   #ifndef _RELEASE
 	   {
-	   string sInfo = pCVarGroup->GetDetailedInfo();
-	   gEnv->pLog->LogToFile("CVarGroup %s",sInfo.c_str());
-	   gEnv->pLog->LogToFile(" ");
+	    string sInfo = pCVarGroup->GetDetailedInfo();
+	    gEnv->pLog->LogToFile("CVarGroup %s",sInfo.c_str());
+	    gEnv->pLog->LogToFile(" ");
 	   }
 	   #endif
 	 */
@@ -1731,7 +1735,7 @@ void CXConsole::DrawBuffer(int nScrollPos, const char* szEffect)
 	if (m_pFont && m_pRenderer)
 	{
 		const int flags = eDrawText_Monospace | eDrawText_CenterV | eDrawText_2D;
-		const int fontSize = 14;
+		float fontSize = con_font_size;
 		float csize = 0.8f * fontSize;
 		float fCharWidth = 0.5f * fontSize;
 
@@ -1746,15 +1750,15 @@ void CXConsole::DrawBuffer(int nScrollPos, const char* szEffect)
 			   if(m_bDrawCursor)
 			   m_pRenderer->DrawString(xPos+nCharWidth*m_nCursorPos, yPos, false, "_");*/
 
-			IRenderAuxText::DrawText(Vec3(xPos - fCharWidth, yPos, 1), 1.16, nullptr, flags, ">");
-			IRenderAuxText::DrawText(Vec3(xPos, yPos, 1), 1.16, nullptr, flags, m_sInputBuffer.c_str());
+			IRenderAuxText::DrawText(Vec3(xPos - fCharWidth, yPos, 1), fontSize * 1.16f / 14, nullptr, flags, ">");
+			IRenderAuxText::DrawText(Vec3(xPos, yPos, 1), fontSize * 1.16f / 14, nullptr, flags, m_sInputBuffer.c_str());
 
 			if (m_bDrawCursor)
 			{
 				string szCursorLeft(m_sInputBuffer.c_str(), m_sInputBuffer.c_str() + m_nCursorPos);
 				int n = m_pFont->GetTextLength(szCursorLeft.c_str(), false);
 
-				IRenderAuxText::DrawText(Vec3(xPos + (fCharWidth * n), yPos, 1), 1.16, nullptr, flags, "_");
+				IRenderAuxText::DrawText(Vec3(xPos + (fCharWidth * n), yPos, 1), fontSize * 1.16f / 14, nullptr, flags, "_");
 			}
 		}
 
@@ -1772,7 +1776,7 @@ void CXConsole::DrawBuffer(int nScrollPos, const char* szEffect)
 				if (*buf > 0 && *buf < 32) buf++;    // to jump over verbosity level character
 
 				if (yPos + csize > 0)
-					IRenderAuxText::DrawText(Vec3(xPos, yPos, 1), 1.16, nullptr, flags, buf);
+					IRenderAuxText::DrawText(Vec3(xPos, yPos, 1), fontSize * 1.16f / 14, nullptr, flags, buf);
 				yPos -= csize;
 			}
 			nScroll++;
@@ -1969,11 +1973,7 @@ void CXConsole::AuditCVars(IConsoleCmdArgs* pArg)
 	int devOnlyMask = VF_DEV_ONLY;
 	int dediOnlyMask = VF_DEDI_ONLY;
 	int excludeMask = cheatMask | constMask | readOnlyMask | devOnlyMask | dediOnlyMask;
-	#if defined(CVARS_WHITELIST)
-	CSystem* pSystem = static_cast<CSystem*>(gEnv->pSystem);
-	ICVarsWhitelist* pCVarsWhitelist = pSystem->GetCVarsWhiteList();
 	bool excludeWhitelist = true;
-	#endif // defined(CVARS_WHITELIST)
 
 	if (numArgs > 1)
 	{
@@ -2030,10 +2030,8 @@ void CXConsole::AuditCVars(IConsoleCmdArgs* pArg)
 		int devOnlyFlags = (command.m_nFlags & devOnlyMask);
 		int dediOnlyFlags = (command.m_nFlags & dediOnlyMask);
 		bool shouldLog = ((cheatFlags | devOnlyFlags | dediOnlyFlags) == 0) || (((cheatFlags | devOnlyFlags | dediOnlyFlags) & ~excludeMask) != 0);
-	#if defined(CVARS_WHITELIST)
-		bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(command.m_sName, true) : true;
+		bool whitelisted = gEnv->pSystem->IsCVarWhitelisted(command.m_sName.c_str(), true);
 		shouldLog &= (!whitelisted || (whitelisted & !excludeWhitelist));
-	#endif // defined(CVARS_WHITELIST)
 
 		if (shouldLog)
 		{
@@ -2042,11 +2040,7 @@ void CXConsole::AuditCVars(IConsoleCmdArgs* pArg)
 			             (cheatFlags != 0) ? " [VF_CHEAT]" : "",
 			             (devOnlyFlags != 0) ? " [VF_DEV_ONLY]" : "",
 			             (dediOnlyFlags != 0) ? " [VF_DEDI_ONLY]" : "",
-	#if defined(CVARS_WHITELIST)
 			             (whitelisted == true) ? " [WHITELIST]" : ""
-	#else
-			             ""
-	#endif // defined(CVARS_WHITELIST)
 			             );
 			++commandCount;
 		}
@@ -2064,7 +2058,7 @@ void CXConsole::AuditCVars(IConsoleCmdArgs* pArg)
 		int dediOnlyFlags = (flags & dediOnlyMask);
 		bool shouldLog = ((cheatFlags | constFlags | readOnlyFlags | devOnlyFlags | dediOnlyFlags) == 0) || (((cheatFlags | constFlags | readOnlyFlags | devOnlyFlags | dediOnlyFlags) & ~excludeMask) != 0);
 	#if defined(CVARS_WHITELIST)
-		bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(pVariable->GetName(), true) : true;
+		bool whitelisted = gEnv->pSystem->IsCVarWhitelisted(pVariable->GetName());
 		shouldLog &= (!whitelisted || (whitelisted & !excludeWhitelist));
 	#endif // defined(CVARS_WHITELIST)
 
@@ -2277,6 +2271,17 @@ void CXConsole::ExecuteStringInternal(const char* command, const bool bFromConso
 	assert(command[0] != '\\');     // caller should remove leading "\\"
 
 #if !defined(RELEASE) || defined(ENABLE_DEVELOPER_CONSOLE_IN_RELEASE)
+	///////////////////////////
+	if (command[0] == BACKGROUND_SERVER_CHAR)
+	{
+		// Send to background server
+		if (!con_restricted || !bFromConsole)
+		{
+			ExecuteStringInternal(string("cmd_server_command ") + string(command + 1), bFromConsole, bSilentMode);
+			return;
+		}
+	}
+
 	///////////////////////////
 	//Execute as string
 	if (command[0] == '#' || command[0] == '@')
@@ -2697,6 +2702,12 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 {
 	m_sInputBuffer = szInputBuffer;
 
+	bool isBackgroundServer = szInputBuffer[0] == BACKGROUND_SERVER_CHAR;
+	if (isBackgroundServer)
+	{
+		m_sInputBuffer = szInputBuffer + 1;
+	}
+
 	int offset = (szInputBuffer[0] == '\\' ? 1 : 0);    // legacy support
 
 	if ((m_sPrevTab.size() > strlen(szInputBuffer + offset)) || strnicmp(m_sPrevTab.c_str(), (szInputBuffer + offset), m_sPrevTab.size()))
@@ -2728,10 +2739,6 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 	}
 	//try to search in command list
 
-#if defined(CVARS_WHITELIST)
-	CSystem* pSystem = static_cast<CSystem*>(gEnv->pSystem);
-	ICVarsWhitelist* pCVarsWhitelist = pSystem->GetCVarsWhiteList();
-#endif // defined(CVARS_WHITELIST)
 	bool bArgumentAutoComplete = false;
 	std::vector<string> matches;
 
@@ -2768,10 +2775,7 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 					string cmd = string(sVar) + " " + pArgumentAutoComplete->GetValue(i);
 					if (strnicmp(m_sPrevTab.c_str(), cmd.c_str(), m_sPrevTab.length()) == 0)
 					{
-#if defined(CVARS_WHITELIST)
-						bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(cmd, true) : true;
-						if (whitelisted)
-#endif      // defined(CVARS_WHITELIST)
+						if (gEnv->pSystem->IsCVarWhitelisted(cmd.c_str(), true))
 						{
 							bArgumentAutoComplete = true;
 							matches.push_back(cmd);
@@ -2792,10 +2796,7 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 			if ((cmd.m_nFlags & VF_RESTRICTEDMODE) || !con_restricted)     // in restricted mode we allow only VF_RESTRICTEDMODE CVars&CCmd
 				if (strnicmp(m_sPrevTab.c_str(), itrCmds->first.c_str(), m_sPrevTab.length()) == 0)
 				{
-#if defined(CVARS_WHITELIST)
-					bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(itrCmds->first, true) : true;
-					if (whitelisted)
-#endif    // defined(CVARS_WHITELIST)
+					if (gEnv->pSystem->IsCVarWhitelisted(itrCmds->first.c_str(), true))
 					{
 						matches.push_back((char* const)itrCmds->first.c_str());
 					}
@@ -2827,10 +2828,7 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 				//if(itrVars->first.compare(0,m_sPrevTab.length(),m_sPrevTab)==0)
 				if (strnicmp(m_sPrevTab.c_str(), itrVars->first, m_sPrevTab.length()) == 0)
 				{
-#if defined(CVARS_WHITELIST)
-					bool whitelisted = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(itrVars->first, true) : true;
-					if (whitelisted)
-#endif    // defined(CVARS_WHITELIST)
+					if (gEnv->pSystem->IsCVarWhitelisted(itrVars->first, true))
 					{
 						matches.push_back((char* const)itrVars->first);
 					}
@@ -2867,6 +2865,10 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 			m_sInputBuffer = *i;
 			m_sInputBuffer += " ";
 			m_nTabCount = nMatch + 1;
+			if (isBackgroundServer)
+			{
+				m_sInputBuffer.insert(0, BACKGROUND_SERVER_CHAR);
+			}
 			return (char*)m_sInputBuffer.c_str();
 		}
 		nMatch++;
@@ -2877,6 +2879,11 @@ const char* CXConsole::ProcessCompletion(const char* szInputBuffer)
 		m_nTabCount = 0;
 		m_sInputBuffer = m_sPrevTab;
 		m_sInputBuffer = ProcessCompletion(m_sInputBuffer.c_str());
+	}
+
+	if (isBackgroundServer)
+	{
+		m_sInputBuffer.insert(0, BACKGROUND_SERVER_CHAR);
 	}
 
 	return (char*)m_sInputBuffer.c_str();
@@ -3106,7 +3113,7 @@ void CXConsole::AddLinePlus(const char* inputStr)
 	while ((nPos = str.find('\r')) != string::npos)
 		str.replace(nPos, 1, 1, ' ');
 
-	tmpStr = m_dqConsoleBuffer.back();// += str;
+	tmpStr = m_dqConsoleBuffer.back();  // += str;
 
 	m_dqConsoleBuffer.pop_back();
 
@@ -3148,12 +3155,7 @@ void CXConsole::ExecuteInputBuffer()
 
 	AddCommandToHistory(sTemp.c_str());
 
-#if defined(CVARS_WHITELIST)
-	CSystem* pSystem = static_cast<CSystem*>(gEnv->pSystem);
-	ICVarsWhitelist* pCVarsWhitelist = pSystem->GetCVarsWhiteList();
-	bool execute = (pCVarsWhitelist) ? pCVarsWhitelist->IsWhiteListed(sTemp, false) : true;
-	if (execute)
-#endif // defined(CVARS_WHITELIST)
+	if (gEnv->pSystem->IsCVarWhitelisted(sTemp.c_str(), false))
 	{
 		ExecuteStringInternal(sTemp.c_str(), true);   // from console
 	}
@@ -3586,23 +3588,26 @@ void CXConsole::FindVar(const char* substr)
 	{
 		if (CryStringUtils::stristr(cmds[i], substr))
 		{
-			ICVar* pCvar = gEnv->pConsole->GetCVar(cmds[i]);
-			if (pCvar)
+			if (gEnv->pSystem->IsCVarWhitelisted(cmds[i], true))
 			{
-#ifdef _RELEASE
-				if (!gEnv->IsEditor())
+				ICVar* pCvar = gEnv->pConsole->GetCVar(cmds[i]);
+				if (pCvar)
 				{
-					const bool isCheat = (pCvar->GetFlags() & (VF_CHEAT | VF_CHEAT_NOCHECK | VF_CHEAT_ALWAYS_CHECK)) != 0;
-					if (isCheat)
-						continue;
-				}
+#ifdef _RELEASE
+					if (!gEnv->IsEditor())
+					{
+						const bool isCheat = (pCvar->GetFlags() & (VF_CHEAT | VF_CHEAT_NOCHECK | VF_CHEAT_ALWAYS_CHECK)) != 0;
+						if (isCheat)
+							continue;
+					}
 #endif  // _RELEASE
 
-				DisplayVarValue(pCvar);
-			}
-			else
-			{
-				ConsoleLogInputResponse("    $3%s $6(Command)", cmds[i]);
+					DisplayVarValue(pCvar);
+				}
+				else
+				{
+					ConsoleLogInputResponse("    $3%s $6(Command)", cmds[i]);
+				}
 			}
 		}
 	}

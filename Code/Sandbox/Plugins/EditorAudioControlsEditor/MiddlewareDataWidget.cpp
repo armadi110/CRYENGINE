@@ -11,7 +11,7 @@
 #include "TreeView.h"
 
 #include <IEditorImpl.h>
-#include <ImplItem.h>
+#include <IImplItem.h>
 #include <QFilteringPanel.h>
 #include <QSearchBox.h>
 #include <QtUtil.h>
@@ -53,7 +53,7 @@ CMiddlewareDataWidget::CMiddlewareDataWidget(CSystemAssetsManager* const pAssets
 	m_pTreeView->SetNameRole(static_cast<int>(CMiddlewareDataModel::ERoles::Name));
 	m_pTreeView->TriggerRefreshHeaderColumns();
 
-	m_pFilteringPanel = new QFilteringPanel("ACEMiddlewareData", m_pMiddlewareFilterProxyModel);
+	m_pFilteringPanel = new QFilteringPanel("ACEMiddlewareData", m_pMiddlewareFilterProxyModel, this);
 	m_pFilteringPanel->SetContent(m_pTreeView);
 	m_pFilteringPanel->GetSearchBox()->SetAutoExpandOnSearch(m_pTreeView);
 
@@ -61,9 +61,7 @@ CMiddlewareDataWidget::CMiddlewareDataWidget(CSystemAssetsManager* const pAssets
 	pMainLayout->setContentsMargins(0, 0, 0, 0);
 	pMainLayout->addWidget(m_pFilteringPanel);
 
-	IEditorImpl const* const pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
-
-	if (pEditorImpl == nullptr)
+	if (g_pEditorImpl == nullptr)
 	{
 		setEnabled(false);
 	}
@@ -88,8 +86,7 @@ CMiddlewareDataWidget::CMiddlewareDataWidget(CSystemAssetsManager* const pAssets
 
 	CAudioControlsEditorPlugin::GetImplementationManger()->SignalImplementationChanged.Connect([&]()
 		{
-			IEditorImpl const* const pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
-			setEnabled(pEditorImpl != nullptr);
+			setEnabled(g_pEditorImpl != nullptr);
 	  }, reinterpret_cast<uintptr_t>(this));
 }
 
@@ -107,21 +104,19 @@ CMiddlewareDataWidget::~CMiddlewareDataWidget()
 //////////////////////////////////////////////////////////////////////////
 void CMiddlewareDataWidget::OnContextMenu(QPoint const& pos)
 {
-	QMenu* const pContextMenu = new QMenu(this);
+	auto const pContextMenu = new QMenu(this);
 	auto const& selection = m_pTreeView->selectionModel()->selectedRows(m_nameColumn);
 
 	if (!selection.isEmpty())
 	{
 		if ((selection.count() == 1) && (m_pAssetsManager != nullptr))
 		{
-			IEditorImpl const* const pEditorImpl = CAudioControlsEditorPlugin::GetImplEditor();
-
-			if (pEditorImpl != nullptr)
+			if (g_pEditorImpl != nullptr)
 			{
 				CID const itemId = selection[0].data(static_cast<int>(CMiddlewareDataModel::ERoles::Id)).toInt();
-				CImplItem const* const pImplControl = pEditorImpl->GetControl(itemId);
+				IImplItem const* const pImplItem = g_pEditorImpl->GetImplItem(itemId);
 
-				if ((pImplControl != nullptr) && pImplControl->IsConnected())
+				if ((pImplItem != nullptr) && pImplItem->IsConnected())
 				{
 					QMenu* const pConnectionsMenu = new QMenu(pContextMenu);
 					auto const controls = m_pAssetsManager->GetControls();
@@ -129,11 +124,11 @@ void CMiddlewareDataWidget::OnContextMenu(QPoint const& pos)
 
 					for (auto const pControl : controls)
 					{
-						if (pControl->GetConnection(pImplControl) != nullptr)
+						if (pControl->GetConnection(pImplItem) != nullptr)
 						{
 							pConnectionsMenu->addAction(GetItemTypeIcon(pControl->GetType()), tr(pControl->GetName()), [=]()
 								{
-									SignalSelectConnectedSystemControl(*pControl, pImplControl->GetId());
+									SignalSelectConnectedSystemControl(*pControl, pImplItem->GetId());
 							  });
 
 							++count;
@@ -148,11 +143,11 @@ void CMiddlewareDataWidget::OnContextMenu(QPoint const& pos)
 					}
 				}
 
-				if ((pImplControl != nullptr) && !pImplControl->GetFilePath().IsEmpty())
+				if ((pImplItem != nullptr) && !pImplItem->GetFilePath().IsEmpty())
 				{
 					pContextMenu->addAction(tr("Open Containing Folder"), [&]()
 						{
-							QtUtil::OpenInExplorer(PathUtil::Make(GetISystem()->GetIProjectManager()->GetCurrentProjectDirectoryAbsolute(), pImplControl->GetFilePath()).c_str());
+							QtUtil::OpenInExplorer((PathUtil::GetGameFolder() + "/" + pImplItem->GetFilePath()).c_str());
 					  });
 
 					pContextMenu->addSeparator();

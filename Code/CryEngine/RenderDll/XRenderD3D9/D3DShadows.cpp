@@ -106,26 +106,22 @@ void CD3D9Renderer::EF_PrepareShadowGenRenderList(const SRenderingPassInfo& pass
 		for (uint32 i = 0; i < nFrustumCount; ++i)
 		{
 			ShadowMapFrustum* pCurFrustum = arrCustomFrustums[i];
+			IRenderViewPtr pShadowView = pCurFrustum->pOnePassShadowView;
+
 			CRY_ASSERT(pCurFrustum && pCurFrustum->m_eFrustumType == ShadowMapFrustum::e_PerObject);
 
 			if (PrepareShadowGenForFrustum(pRenderView, pCurFrustum, pSun, nSunID, 0))
 			{
 				ShadowMapFrustumPtr pFrustumForRenderer = pCurFrustum->Clone();
-				CRenderView* pShadowView = (CRenderView*)pCurFrustum->pOnePassShadowView;
 
 				if (!pShadowView)
 				{
 					// allocate view if was not prepared by 3dengine
-					pShadowView = pCurFrustum->GetNextAvailableShadowsView(pRenderView, pFrustumForRenderer.get());
+					pShadowView = pCurFrustum->GetNextAvailableShadowsView(pRenderView);
+					pShadowView->SwitchUsageMode(IRenderView::eUsageModeWriting);
 				}
 
-				pRenderView->AddShadowFrustumToRender(SShadowFrustumToRender(pFrustumForRenderer, pSun, nSunID, pShadowView));
-			}
-			else if (pCurFrustum->pOnePassShadowView)
-			{
-				// make sure unused render view will be released in valid state
-				pCurFrustum->pOnePassShadowView->SwitchUsageMode(IRenderView::eUsageModeReading);
-				pCurFrustum->pOnePassShadowView->SwitchUsageMode(IRenderView::eUsageModeReadingDone);
+				pRenderView->AddShadowFrustumToRender(SShadowFrustumToRender(pFrustumForRenderer, pSun, nSunID, std::move(pShadowView)));
 			}
 		}
 	}
@@ -176,28 +172,24 @@ bool CD3D9Renderer::EF_PrepareShadowGenForLight(CRenderView* pRenderView, SRende
 	for (int nCaster = 0; *ppSMFrustumList && nCaster != MAX_GSM_LODS_NUM; ++ppSMFrustumList, ++nCaster)
 	{
 		ShadowMapFrustum* pCurFrustum = (*ppSMFrustumList);
+		IRenderViewPtr pShadowView = pCurFrustum->pOnePassShadowView;
+
 		//use pools
 		pCurFrustum->bUseShadowsPool = CV_r_UseShadowsPool && pLight->m_Flags & DLF_DEFERRED_LIGHT;
 
 		if (PrepareShadowGenForFrustum(pRenderView, pCurFrustum, pLight, nLightID, nCurLOD))
 		{
 			ShadowMapFrustumPtr pFrustumForRenderer = pCurFrustum->Clone();
-			IRenderView* pShadowView = pCurFrustum->pOnePassShadowView;
 
 			if (!pShadowView)
 			{
 				// allocate view if was not prepared by 3dengine
-				pShadowView = pCurFrustum->GetNextAvailableShadowsView(pRenderView, pFrustumForRenderer.get());
+				pShadowView = pCurFrustum->GetNextAvailableShadowsView(pRenderView);
+				pShadowView->SwitchUsageMode(IRenderView::eUsageModeWriting);
 			}
 
-			pRenderView->AddShadowFrustumToRender(SShadowFrustumToRender(pFrustumForRenderer, pLight, nLightID, pShadowView));
+			pRenderView->AddShadowFrustumToRender(SShadowFrustumToRender(pFrustumForRenderer, pLight, nLightID, std::move(pShadowView)));
 			nCurLOD++;
-		}
-		else if (pCurFrustum->pOnePassShadowView)
-		{
-			// make sure unused render view will be released in valid state
-			pCurFrustum->pOnePassShadowView->SwitchUsageMode(IRenderView::eUsageModeReading);
-			pCurFrustum->pOnePassShadowView->SwitchUsageMode(IRenderView::eUsageModeReadingDone);
 		}
 	}
 
@@ -270,6 +262,7 @@ bool CD3D9Renderer::PrepareShadowGenForFrustum(CRenderView* pRenderView, ShadowM
 	const auto nThreadID = gRenDev->GetMainThreadID();
 	const auto frameID = pRenderView->GetFrameId();
 	const auto nSides = pCurFrustum->GetNumSides();
+	const auto allSidesMask = std::bitset<OMNI_SIDES_NUM>((1 << nSides) - 1);
 
 	PROFILE_FRAME(PrepareShadowGenForFrustum);
 
@@ -285,7 +278,9 @@ bool CD3D9Renderer::PrepareShadowGenForFrustum(CRenderView* pRenderView, ShadowM
 		return false;
 	if (pCurFrustum->IsCached() && pCurFrustum->nTexSize == 0)
 		return false;
-	if (pCurFrustum->bOmniDirectionalShadow && pCurFrustum->nOmniFrustumMask.none())
+	if (pCurFrustum->m_eFrustumType == ShadowMapFrustum::e_GsmDynamic && pCurFrustum->nOmniFrustumMask.none())
+		return false;
+	if (pRenderView->GetFrustumsToRender().size() > kMaxShadowPassesNum)
 		return false;
 	//////////////////////////////////////////////////////////////////////////
 
@@ -344,9 +339,9 @@ bool CD3D9Renderer::PrepareShadowGenForFrustum(CRenderView* pRenderView, ShadowM
 	// Enforce invalidation
 	pCurFrustum->nSideCacheMask &= ~pCurFrustum->nSideInvalidatedMask;
 	// Early bail
-	if (pCurFrustum->nSideCacheMask.all())
+	if ((pCurFrustum->nSideCacheMask | ~allSidesMask).all())
 		return true;
-	if (pCurFrustum->bOmniDirectionalShadow)
+	if (pCurFrustum->m_eFrustumType == ShadowMapFrustum::e_GsmDynamic)
 	{
 		const auto invalidatedOrOutdatedMask = pCurFrustum->nSideInvalidatedMask | pCurFrustum->nOutdatedSideMask;
 		if ((invalidatedOrOutdatedMask & pCurFrustum->nOmniFrustumMask).none())
@@ -367,7 +362,7 @@ bool CD3D9Renderer::PrepareShadowGenForFrustum(CRenderView* pRenderView, ShadowM
 	{
 		// Update check for shadow frustums:
 		// We update if the side is invalidated, or if it out-of-date and isn't cached (in case of time-sliced updates).
-		const bool shouldRenderSide = (!pCurFrustum->bOmniDirectionalShadow || pCurFrustum->nOmniFrustumMask[nS]) &&
+		const bool shouldRenderSide = (pCurFrustum->m_eFrustumType != ShadowMapFrustum::e_GsmDynamic || pCurFrustum->nOmniFrustumMask[nS]) &&
 			(pCurFrustum->isSideInvalidated(nS) ||
 			(pCurFrustum->isSideOutdated(nS) && !pCurFrustum->nSideCacheMask[nS]));
 		if (!shouldRenderSide)

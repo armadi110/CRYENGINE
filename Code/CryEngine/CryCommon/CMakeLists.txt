@@ -1157,6 +1157,8 @@ install_headers(CrySystem CryThreading)
 			"CryEntitySystem/Examples/ComponentEvents.cpp"
 			"CryEntitySystem/Examples/MinimalEntityComponent.cpp"
 			"CryEntitySystem/Examples/PreviewComponent.cpp"
+			"CryEntitySystem/Examples/TriggerComponent.cpp"
+			"CryEntitySystem/Examples/RopeComponent.cpp"
 		SOURCE_GROUP "CryEntitySystem\\\\Slots"
 			"CryEntitySystem/Examples/LoadCharacter.cpp"
 			"CryEntitySystem/Examples/LoadFogVolume.cpp"
@@ -1196,6 +1198,13 @@ install_headers(CrySystem CryThreading)
 			"CryAnimation/Examples/LookIK.cpp"
 			"CryAnimation/Examples/OperatorQueue.cpp"
 			"CryAnimation/Examples/SetDesiredMotionParam.cpp"
+		SOURCE_GROUP "CryAction"
+			"CryAction/Examples/ActionListener.cpp"
+			"CryAction/Examples/ReBindActionInput.cpp"
+		SOURCE_GROUP "CryNetwork"
+			"CryNetwork/Examples/NetworkedClientListener.cpp"
+		SOURCE_GROUP "CrySystem\\\\VirtualReality"
+			"CrySystem/Examples/AsyncHMDCameraCallback.cpp"
 	)
 	
 if(OPTION_DOXYGEN_EXAMPLES)

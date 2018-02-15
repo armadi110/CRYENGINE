@@ -22,6 +22,7 @@
 #include <AK/SoundEngine/Common/AkCallback.h>
 
 #include <AK/Plugin/AllPluginsRegistrationHelpers.h>
+#include <AK/Plugin/AkConvolutionReverbFXFactory.h>
 
 #if defined(WWISE_USE_OCULUS)
 	#include <OculusSpatializer.h>
@@ -217,28 +218,16 @@ CImpl::CImpl()
 	, m_pOculusSpatializerLibrary(nullptr)
 #endif // WWISE_USE_OCULUS
 {
-	char const* szAssetDirectory = gEnv->pSystem->GetIProjectManager()->GetCurrentAssetDirectoryRelative();
-
-	if (strlen(szAssetDirectory) == 0)
-	{
-		Cry::Audio::Log(ELogType::Error, "<Wwise>: No asset folder set!");
-		szAssetDirectory = "no-asset-folder-set";
-	}
-
-	m_regularSoundBankFolder = szAssetDirectory;
-	m_regularSoundBankFolder += CRY_NATIVE_PATH_SEPSTR AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR;
+	m_regularSoundBankFolder = AUDIO_SYSTEM_DATA_ROOT "/";
 	m_regularSoundBankFolder += s_szImplFolderName;
-	m_regularSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
+	m_regularSoundBankFolder += "/";
 	m_regularSoundBankFolder += s_szAssetsFolderName;
 
 #if defined(INCLUDE_WWISE_IMPL_PRODUCTION_CODE)
 	m_name.Format(
-	  "%s (Build: %d) (%s%s%s)",
+	  "%s (Build: %d)",
 	  WWISE_IMPL_INFO_STRING,
-	  AK_WWISESDK_VERSION_BUILD,
-	  szAssetDirectory,
-	  CRY_NATIVE_PATH_SEPSTR AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR,
-	  s_szImplFolderName);
+	  AK_WWISESDK_VERSION_BUILD);
 #endif  // INCLUDE_WWISE_IMPL_PRODUCTION_CODE
 }
 
@@ -360,12 +349,11 @@ ERequestStatus CImpl::Init(uint32 const objectPoolSize, uint32 const eventPoolSi
 		return ERequestStatus::Failure;
 	}
 
-	CryFixedStringT<AK_MAX_PATH> temp(PathUtil::GetGameFolder().c_str());
-	temp.append(CRY_NATIVE_PATH_SEPSTR AUDIO_SYSTEM_DATA_ROOT CRY_NATIVE_PATH_SEPSTR);
+	CryFixedStringT<AK_MAX_PATH> temp = AUDIO_SYSTEM_DATA_ROOT "/";
 	temp.append(s_szImplFolderName);
-	temp.append(CRY_NATIVE_PATH_SEPSTR);
+	temp.append("/");
 	temp.append(s_szAssetsFolderName);
-	temp.append(CRY_NATIVE_PATH_SEPSTR);
+	temp.append("/");
 	AkOSChar const* szTemp = nullptr;
 	CONVERT_CHAR_TO_OSCHAR(temp.c_str(), szTemp);
 	m_fileIOHandler.SetBankPath(szTemp);
@@ -889,7 +877,7 @@ IObject* CImpl::ConstructGlobalObject()
 	AK::SoundEngine::RegisterGameObj(g_globalObjectId);
 #endif  // INCLUDE_WWISE_IMPL_PRODUCTION_CODE
 
-	return static_cast<IObject*>(new CObject(g_globalObjectId));
+	return static_cast<IObject*>(new CObject(AK_INVALID_GAME_OBJECT));
 }
 
 ///////////////////////////////////////////////////////////////////////////
@@ -913,7 +901,8 @@ IObject* CImpl::ConstructObject(char const* const szName /*= nullptr*/)
 void CImpl::DestructObject(IObject const* const pIObject)
 {
 	CObject const* pObject = static_cast<CObject const*>(pIObject);
-	AKRESULT const wwiseResult = AK::SoundEngine::UnregisterGameObj(pObject->m_id);
+	AkGameObjectID const objectID = pObject->m_id == AK_INVALID_GAME_OBJECT ? g_globalObjectId : pObject->m_id;
+	AKRESULT const wwiseResult = AK::SoundEngine::UnregisterGameObj(objectID);
 
 	if (!IS_WWISE_OK(wwiseResult))
 	{
@@ -1383,20 +1372,18 @@ void CImpl::SetLanguage(char const* const szLanguage)
 {
 	if (szLanguage != nullptr)
 	{
-		m_localizedSoundBankFolder = PathUtil::GetGameFolder().c_str();
-		m_localizedSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
-		m_localizedSoundBankFolder += PathUtil::GetLocalizationFolder();
-		m_localizedSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
+		m_localizedSoundBankFolder = PathUtil::GetLocalizationFolder().c_str();
+		m_localizedSoundBankFolder += "/";
 		m_localizedSoundBankFolder += szLanguage;
-		m_localizedSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
+		m_localizedSoundBankFolder += "/";
 		m_localizedSoundBankFolder += AUDIO_SYSTEM_DATA_ROOT;
-		m_localizedSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
+		m_localizedSoundBankFolder += "/";
 		m_localizedSoundBankFolder += s_szImplFolderName;
-		m_localizedSoundBankFolder += CRY_NATIVE_PATH_SEPSTR;
+		m_localizedSoundBankFolder += "/";
 		m_localizedSoundBankFolder += s_szAssetsFolderName;
 
 		CryFixedStringT<MaxFilePathLength> temp(m_localizedSoundBankFolder);
-		temp += CRY_NATIVE_PATH_SEPSTR;
+		temp += "/";
 		AkOSChar const* pTemp = nullptr;
 		CONVERT_CHAR_TO_OSCHAR(temp.c_str(), pTemp);
 		m_fileIOHandler.SetLanguageFolder(pTemp);

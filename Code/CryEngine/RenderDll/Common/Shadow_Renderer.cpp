@@ -49,12 +49,11 @@ void ShadowMapFrustum::SortRenderItemsForFrustumAsync(int side, SRendItem* pFirs
 }
 
 //////////////////////////////////////////////////////////////////////////
-CRenderView* ShadowMapFrustum::GetNextAvailableShadowsView(CRenderView* pMainRenderView, ShadowMapFrustum* pOwnerFrustum)
+CRenderView* ShadowMapFrustum::GetNextAvailableShadowsView(CRenderView* pMainRenderView)
 {
 	CRenderView* pShadowsView = gcpRendD3D->GetOrCreateRenderView(CRenderView::eViewType_Shadow);
 	CRY_ASSERT(pShadowsView->GetUsageMode() == IRenderView::eUsageModeUndefined || pShadowsView->GetUsageMode() == IRenderView::eUsageModeReadingDone);
 
-	pShadowsView->SetShadowFrustumOwner(pOwnerFrustum);
 	pShadowsView->SetParentView(pMainRenderView);
 	pShadowsView->SetFrameId(pMainRenderView->GetFrameId());
 	pShadowsView->SetSkinningDataPools(pMainRenderView->GetSkinningDataPools());
@@ -66,7 +65,7 @@ CRenderView* ShadowMapFrustum::GetNextAvailableShadowsView(CRenderView* pMainRen
 
 IRenderView* CRenderer::GetNextAvailableShadowsView(IRenderView* pMainRenderView, ShadowMapFrustum* pOwnerFrustum)
 {
-	return pOwnerFrustum->GetNextAvailableShadowsView((CRenderView*)pMainRenderView, pOwnerFrustum);
+	return pOwnerFrustum->GetNextAvailableShadowsView((CRenderView*)pMainRenderView);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -261,12 +260,6 @@ void ShadowMapFrustum::RenderShadowFrustum(IRenderViewPtr pShadowsView, int side
 	  side,
 	  nRenderingFlags);
 
-	//if (!bJobCasters)
-	{
-		// Make sure no jobs used during rendering
-		passInfo.SetWriteMutex(nullptr);
-	}
-
 	auto lambda = [=]() { Job_RenderShadowCastersToView(passInfo, bJobCasters); };
 	if (!bJobCasters)
 	{
@@ -290,14 +283,6 @@ void SShadowRenderer::RenderFrustumsToView(CRenderView* pRenderView)
 	CCamera tmpCamera;
 
 	auto& frustumsToRender = pRenderView->GetFrustumsToRender();
-
-	for (SShadowFrustumToRender& rFrustumToRender : frustumsToRender)
-	{
-		if (rFrustumToRender.pFrustum->pOnePassShadowView)
-			continue; // already processed in 3dengine
-
-		rFrustumToRender.pShadowsView->SwitchUsageMode(IRenderView::eUsageModeWriting);
-	}
 
 	// First do a pass and submit to rendering with job enabled casters
 	// This will create multithreaded job for each rendering pass

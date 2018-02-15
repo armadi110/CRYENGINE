@@ -4,9 +4,10 @@
 #include "FileWriter.h"
 
 #include "SystemAssetsManager.h"
+#include "ImplementationManager.h"
 
 #include <IEditorImpl.h>
-#include <ImplItem.h>
+#include <IImplItem.h>
 #include <CryString/StringUtils.h>
 #include <CrySystem/File/CryFile.h>
 #include <CrySystem/ISystem.h>
@@ -52,9 +53,8 @@ string TypeToTag(ESystemItemType const eType)
 }
 
 //////////////////////////////////////////////////////////////////////////
-CFileWriter::CFileWriter(CSystemAssetsManager const& pAssetsManager, IEditorImpl* pEditorImpl, std::set<string>& previousLibraryPaths)
+CFileWriter::CFileWriter(CSystemAssetsManager const& pAssetsManager, std::set<string>& previousLibraryPaths)
 	: m_assetsManager(pAssetsManager)
-	, m_pEditorImpl(pEditorImpl)
 	, m_previousLibraryPaths(previousLibraryPaths)
 {
 }
@@ -78,7 +78,7 @@ void CFileWriter::WriteAll()
 
 	for (auto const& name : librariesToDelete)
 	{
-		string const fullFilePath = PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR + name;
+		string const fullFilePath = PathUtil::GetGameFolder() + "/" + name;
 		DeleteLibraryFile(fullFilePath);
 	}
 
@@ -133,7 +133,7 @@ void CFileWriter::WriteLibrary(CSystemLibrary const& library)
 			{
 				// with scope, inside level folder
 				libraryPath += CryAudio::s_szLevelsFolderName;
-				libraryPath += CRY_NATIVE_PATH_SEPSTR + m_assetsManager.GetScopeInfo(scope).name + CRY_NATIVE_PATH_SEPSTR + library.GetName();
+				libraryPath += "/" + m_assetsManager.GetScopeInfo(scope).name + "/" + library.GetName();
 			}
 
 			m_foundLibraryPaths.insert(libraryPath.MakeLower() + ".xml");
@@ -193,7 +193,7 @@ void CFileWriter::WriteLibrary(CSystemLibrary const& library)
 					pFileNode->addChild(pEditorData);
 				}
 
-				string const fullFilePath = PathUtil::GetGameFolder() + CRY_NATIVE_PATH_SEPSTR + libraryPath + ".xml";
+				string const fullFilePath = PathUtil::GetGameFolder() + "/" + libraryPath + ".xml";
 				DWORD const fileAttributes = GetFileAttributesA(fullFilePath.c_str());
 
 				if ((fileAttributes & FILE_ATTRIBUTE_READONLY) != 0)
@@ -202,7 +202,7 @@ void CFileWriter::WriteLibrary(CSystemLibrary const& library)
 					SetFileAttributesA(fullFilePath.c_str(), FILE_ATTRIBUTE_NORMAL);
 				}
 
-				// TODO: Check out firlin source control.
+				// TODO: Check out in source control.
 				pFileNode->saveToFile(fullFilePath);
 			}
 		}
@@ -231,7 +231,7 @@ void CFileWriter::WriteLibrary(CSystemLibrary const& library)
 			{
 				// with scope, inside level folder
 				libraryPath += CryAudio::s_szLevelsFolderName;
-				libraryPath += CRY_NATIVE_PATH_SEPSTR + m_assetsManager.GetScopeInfo(scope).name + CRY_NATIVE_PATH_SEPSTR + library.GetName();
+				libraryPath += "/" + m_assetsManager.GetScopeInfo(scope).name + "/" + library.GetName();
 			}
 
 			m_foundLibraryPaths.insert(libraryPath.MakeLower() + ".xml");
@@ -363,52 +363,11 @@ void CFileWriter::WriteControlToXML(XmlNodeRef const pNode, CSystemControl* cons
 }
 
 //////////////////////////////////////////////////////////////////////////
-void CFileWriter::WriteConnectionsToXML(XmlNodeRef const pNode, CSystemControl* const pControl, const int platformIndex)
+void CFileWriter::WriteConnectionsToXML(XmlNodeRef const pNode, CSystemControl* const pControl, int const platformIndex)
 {
-	XMLNodeList& otherNodes = pControl->GetRawXMLConnections(platformIndex);
+	size_t const numConnections = pControl->GetConnectionCount();
 
-	XMLNodeList::const_iterator end = std::remove_if(otherNodes.begin(), otherNodes.end(), [](SRawConnectionData const& node) { return node.isValid; });
-	otherNodes.erase(end, otherNodes.end());
-
-	for (auto const& node : otherNodes)
-	{
-		// Don't add identical nodes!
-		bool shouldAddNode = true;
-		XmlNodeRef const tempNode = pNode->findChild(node.xmlNode->getTag());
-
-		if (tempNode != nullptr)
-		{
-			int const numAttributes1 = tempNode->getNumAttributes();
-			int const numAttributes2 = node.xmlNode->getNumAttributes();
-
-			if (numAttributes1 == numAttributes2)
-			{
-				char const* key1 = nullptr, * val1 = nullptr, * key2 = nullptr, * val2 = nullptr;
-				shouldAddNode = false;
-
-				for (int i = 0; i < numAttributes1; ++i)
-				{
-					tempNode->getAttributeByIndex(i, &key1, &val1);
-					node.xmlNode->getAttributeByIndex(i, &key2, &val2);
-
-					if ((_stricmp(key1, key2) != 0) || (_stricmp(val1, val2) != 0))
-					{
-						shouldAddNode = true;
-						break;
-					}
-				}
-			}
-		}
-
-		if (shouldAddNode)
-		{
-			pNode->addChild(node.xmlNode);
-		}
-	}
-
-	size_t const size = pControl->GetConnectionCount();
-
-	for (size_t i = 0; i < size; ++i)
+	for (size_t i = 0; i < numConnections; ++i)
 	{
 		ConnectionPtr const pConnection = pControl->GetConnectionAt(i);
 
@@ -416,12 +375,56 @@ void CFileWriter::WriteConnectionsToXML(XmlNodeRef const pNode, CSystemControl* 
 		{
 			if ((pControl->GetType() != ESystemItemType::Preload) || (pConnection->IsPlatformEnabled(platformIndex)))
 			{
-				XmlNodeRef const pChild = m_pEditorImpl->CreateXMLNodeFromConnection(pConnection, pControl->GetType());
+				XmlNodeRef const pChild = g_pEditorImpl->CreateXMLNodeFromConnection(pConnection, pControl->GetType());
 
 				if (pChild != nullptr)
 				{
-					pNode->addChild(pChild);
-					pControl->AddRawXMLConnection(pChild, true, platformIndex);
+					// Don't add identical nodes!
+					bool shouldAddNode = true;
+					int const numNodeChilds = pNode->getChildCount();
+
+					for (int j = 0; j < numNodeChilds; ++j)
+					{
+						XmlNodeRef const pTempNode = pNode->getChild(j);
+
+						if ((pTempNode != nullptr) && (string(pTempNode->getTag()) == string(pChild->getTag())))
+						{
+							int const numAttributes1 = pTempNode->getNumAttributes();
+							int const numAttributes2 = pChild->getNumAttributes();
+
+							if (numAttributes1 == numAttributes2)
+							{
+								shouldAddNode = false;
+								char const* key1 = nullptr;
+								char const* val1 = nullptr;
+								char const* key2 = nullptr;
+								char const* val2 = nullptr;
+
+								for (int k = 0; k < numAttributes1; ++k)
+								{
+									pTempNode->getAttributeByIndex(k, &key1, &val1);
+									pChild->getAttributeByIndex(k, &key2, &val2);
+
+									if ((_stricmp(key1, key2) != 0) || (_stricmp(val1, val2) != 0))
+									{
+										shouldAddNode = true;
+										break;
+									}
+								}
+
+								if (!shouldAddNode)
+								{
+									break;
+								}
+							}
+						}
+					}
+
+					if (shouldAddNode)
+					{
+						pNode->addChild(pChild);
+						pControl->AddRawXMLConnection(pChild, true, platformIndex);
+					}
 				}
 			}
 		}
@@ -451,7 +454,7 @@ void CFileWriter::WriteLibraryEditorData(CSystemAsset const& library, XmlNodeRef
 {
 	string const description = library.GetDescription();
 
-	if (!description.IsEmpty())
+	if (!description.IsEmpty() && !library.IsDefaultControl())
 	{
 		pParentNode->setAttr(s_szDescriptionAttribute, description);
 	}
@@ -475,7 +478,7 @@ void CFileWriter::WriteFolderEditorData(CSystemAsset const& library, XmlNodeRef 
 				pFolderNode->setAttr(CryAudio::s_szNameAttribute, pAsset->GetName());
 				string const description = pAsset->GetDescription();
 
-				if (!description.IsEmpty())
+				if (!description.IsEmpty() && !pAsset->IsDefaultControl())
 				{
 					pFolderNode->setAttr(s_szDescriptionAttribute, description);
 				}
@@ -506,7 +509,7 @@ void CFileWriter::WriteControlsEditorData(CSystemAsset const& parentAsset, XmlNo
 			{
 				string const description = asset.GetDescription();
 
-				if (!description.IsEmpty())
+				if (!description.IsEmpty() && !asset.IsDefaultControl())
 				{
 					pControlNode->setAttr(CryAudio::s_szNameAttribute, asset.GetName());
 					pControlNode->setAttr(s_szDescriptionAttribute, description);
